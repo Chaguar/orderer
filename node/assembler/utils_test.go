@@ -7,6 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package assembler_test
 
 import (
+	"testing"
+	"time"
+
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 )
 
@@ -35,4 +38,17 @@ func createTestBatchWithSize(shard types.ShardID, primary types.PartyID, seq typ
 
 func createTestBatchId(shard types.ShardID, primary types.PartyID, seq types.BatchSequence, req []byte) types.BatchID {
 	return types.NewSimpleBatch(shard, primary, seq, types.BatchedRequests{req}, 0, nil)
+}
+
+// receiveWithin returns the next value from ch, or a zero value if ch is closed, and fails the test
+// if neither happens within eventuallyTimeout, so that a test of a hang fails instead of hanging.
+func receiveWithin[T any](t *testing.T, ch <-chan T, msg string) T {
+	t.Helper()
+	select {
+	case v := <-ch:
+		return v
+	case <-time.After(eventuallyTimeout):
+		t.Fatal(msg)
+		return *new(T)
+	}
 }
