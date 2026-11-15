@@ -139,7 +139,6 @@ func (sf *SigFilter) Update(config FilterConfig) error {
 
 var (
 	errMissingNonce     = errors.New("missing nonce in signature header")
-	errInvalidTxID      = errors.New("invalid tx id")
 	errMissingChannelID = errors.New("missing channel id in channel header")
 	errWrongChannelID   = errors.New("wrong channel id in channel header")
 )
@@ -151,8 +150,5 @@ func verifyTxID(chdr *common.ChannelHeader, shdr *common.SignatureHeader) error 
 	if len(shdr.GetNonce()) == 0 {
 		return errMissingNonce
 	}
-	if protoutil.CheckTxID(chdr.GetTxId(), shdr.GetNonce(), shdr.GetCreator()) != nil {
-		return errInvalidTxID
-	}
-	return nil
+	return protoutil.CheckTxID(chdr.GetTxId(), shdr.GetNonce(), shdr.GetCreator())
 }

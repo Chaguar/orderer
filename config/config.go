@@ -692,7 +692,7 @@ func (config *Configuration) ExtractRouterInParty() nodeconfig.RouterInfo {
 
 	routerInfo := nodeconfig.RouterInfo{
 		PartyID:    partyID,
-		Endpoint:   net.JoinHostPort(routerConfig.Host, strconv.Itoa(int(routerConfig.Port))),
+		Endpoint:   net.JoinHostPort(routerConfig.GetHost(), strconv.Itoa(int(routerConfig.GetPort()))),
 		TLSCACerts: tlsCACertsCollection,
 		TLSCert:    routerConfig.ServerTlsCert,
 	}

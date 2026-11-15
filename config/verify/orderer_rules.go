@@ -484,7 +484,7 @@ func validateConsenterConsistency(consenters []*common.Consenter, parties []*ord
 			return errors.Errorf("server TLS certificate mismatch for party %d", consenter.Id)
 		}
 
-		if len(consenter.ClientTlsCert) > 0 && !slices.Equal(consenter.ClientTlsCert, nodeCfg.GetServerTlsCert()) {
+		if len(consenter.ClientTlsCert) > 0 && !slices.Equal(consenter.ClientTlsCert, nodeCfg.GetClientTlsCert()) {
 			return errors.Errorf("client TLS certificate mismatch for party %d", consenter.Id)
 		}
 	}
