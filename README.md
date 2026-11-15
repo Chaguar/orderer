@@ -1,12 +1,12 @@
-[![Verify Build](https://github.com/hyperledger/fabric-x-orderer/actions/workflows/verify-build.yml/badge.svg)](https://github.com/hyperledger/fabric-x-orderer/actions/workflows/verify-build.yml)
-[![Deterministic Failure Test](https://github.com/hyperledger/fabric-x-orderer/actions/workflows/deterministic-failure-test.yml/badge.svg)](https://github.com/hyperledger/fabric-x-orderer/actions/workflows/deterministic-failure-test.yml)
-[![Fully Randomized Failure Test](https://github.com/hyperledger/fabric-x-orderer/actions/workflows/fully-randomized-failure-test.yml/badge.svg)](https://github.com/hyperledger/fabric-x-orderer/actions/workflows/fully-randomized-failure-test.yml)
-[![Custom Order Failure Test](https://github.com/hyperledger/fabric-x-orderer/actions/workflows/custom-order-failure-test.yml/badge.svg)](https://github.com/hyperledger/fabric-x-orderer/actions/workflows/custom-order-failure-test.yml)
-[![Coverage Status](https://coveralls.io/repos/github/hyperledger/fabric-x-orderer/badge.svg?branch=main)](https://coveralls.io/github/hyperledger/fabric-x-orderer?branch=main)
+[![Verify Build](https://github.com/Chaguar/orderer/actions/workflows/verify-build.yml/badge.svg)](https://github.com/Chaguar/orderer/actions/workflows/verify-build.yml)
+[![Deterministic Failure Test](https://github.com/Chaguar/orderer/actions/workflows/deterministic-failure-test.yml/badge.svg)](https://github.com/Chaguar/orderer/actions/workflows/deterministic-failure-test.yml)
+[![Fully Randomized Failure Test](https://github.com/Chaguar/orderer/actions/workflows/fully-randomized-failure-test.yml/badge.svg)](https://github.com/Chaguar/orderer/actions/workflows/fully-randomized-failure-test.yml)
+[![Custom Order Failure Test](https://github.com/Chaguar/orderer/actions/workflows/custom-order-failure-test.yml/badge.svg)](https://github.com/Chaguar/orderer/actions/workflows/custom-order-failure-test.yml)
+[![Coverage Status](https://coveralls.io/repos/github/Chaguar/orderer/badge.svg?branch=main)](https://coveralls.io/github/Chaguar/orderer?branch=main)
 
-# Hyperledger Fabric-X Orderer
+# Chaguar Orderer
 
-This repository contains the ordering service of fabric-x.
+This repository contains the ordering service of Chaguar.
 The ordering service is based on the Arma protocol:
 
 "Arma: a scalable Byzantine Fault Tolerant ordering service".
@@ -92,7 +92,7 @@ Arma checks the structure of every transaction it receives: the envelope must ca
 and a signature header, the signature header must carry a creator identity and a non-empty nonce, and the channel
 header's TxID must be the one derived from them, `TxID = hex(SHA256(nonce || creator))` (see
 `protoutil.ComputeTxID`). The channel header's channel ID must also be the network's channel ID: a config update must
-always carry it, while a data transaction (`MESSAGE`) may leave it empty. Fabric-X data transactions are always of type
+always carry it, while a data transaction (`MESSAGE`) may leave it empty. Chaguar data transactions are always of type
 `MESSAGE`, and the committer rejects data transactions of any other type. A transaction that fails these checks is
 rejected.
 
@@ -131,7 +131,7 @@ endorsement crypto. To prevent replay, never share namespace endorsement crypto 
 - For an MSP-rule policy, such as `Org1.member`, give each network its own application organizations, with their own
   MSPs and CA trust roots. Issuing new certificates from the same CA is not enough, because `Org1.member` accepts any
   certificate from that CA.
-- A network cloned from another network's state, for example from a snapshot or with fabric-x-migrate, starts with the
+- A network cloned from another network's state, starts with the
   same namespaces and policies as the source. Before the clone accepts transactions, replace the policy of every
   namespace. This also bumps the version of each namespace, so no transaction from the source network is valid on the
   clone.
@@ -219,14 +219,14 @@ Armageddon is a command-line tool that provides a simple way to config an ARMA n
 
 ## Performance
 
-We evaluated the Fabric-X Orderer performance by deploying it on 4 data centers across the US and loading it with transactions, measuring the transaction rate and latency.
+We evaluated the Chaguar Orderer performance by deploying it on 4 data centers across the US and loading it with transactions, measuring the transaction rate and latency.
 
 The figure below shows the service’s throughput with varying numbers of parties and shards, maintaining a latency of approximately 0.8 seconds, using 300 Byte transactions.
 
 The 300 Byte transaction size represents a typical token transaction carrying two inputs and two outputs.
 
 <figure>
-  <img src=./docs/figures/throughput_shards_parties_plot.png alt="Fabric-X Orderer Throughput, by number of parties and shards" width="1000" height="auto">
+  <img src=./docs/figures/throughput_shards_parties_plot.png alt="Chaguar Orderer Throughput, by number of parties and shards" width="1000" height="auto">
 </figure>
 
 This experiment ran on 4 AWS sites: us-east-2 (Ohio), us-east-1 (N. Virginia), us-west-1 (N. California), and us-west-2 (Oregon).
