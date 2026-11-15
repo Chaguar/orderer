@@ -77,7 +77,7 @@ jobs:
           retention-days: 1
 
       - name: Send Coverage To Coveralls
-        if: github.repository == 'hyperledger/fabric-x-orderer'
+        if: github.repository == 'Chaguar/orderer'
         uses: shogo82148/actions-goveralls@v1
         with:
           path-to-profile: coverage.profile

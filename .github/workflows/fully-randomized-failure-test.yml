@@ -80,10 +80,10 @@ jobs:
     name: Fully Randomized Failure Test
     runs-on: ubuntu-latest
     timeout-minutes: 350
-    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.repository == 'hyperledger/fabric-x-orderer'
+    if: (github.event_name == 'workflow_dispatch' || github.event_name == 'schedule') && github.repository == 'Chaguar/orderer'
 
     steps:
-      - name: Checkout Fabric-X Code
+      - name: Checkout Chaguar Orderer Code
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
