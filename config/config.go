@@ -593,15 +593,16 @@ func (config *Configuration) ExtractShards() []nodeconfig.ShardInfo {
 
 		for _, batcher := range party.BatchersConfig {
 			shardId := types.ShardID(batcher.GetShardId())
+			nodeCfg := batcher.GetNodeConfig()
 
-			pemPublicKey := utils.GetPublicKeyFromCertificate(batcher.GetNodeConfig().GetSignCert())
+			pemPublicKey := utils.GetPublicKeyFromCertificate(nodeCfg.GetSignCert())
 
 			batcher := nodeconfig.BatcherInfo{
 				PartyID:    types.PartyID(party.PartyID),
-				Endpoint:   net.JoinHostPort(batcher.GetNodeConfig().GetHost(), strconv.Itoa(int(batcher.GetNodeConfig().GetPort()))),
+				Endpoint:   net.JoinHostPort(nodeCfg.GetHost(), strconv.Itoa(int(nodeCfg.GetPort()))),
 				TLSCACerts: tlsCACertsCollection,
 				PublicKey:  pemPublicKey,
-				TLSCert:    batcher.GetNodeConfig().GetServerTlsCert(),
+				TLSCert:    nodeCfg.GetServerTlsCert(),
 			}
 			shardToBatchers[shardId] = append(shardToBatchers[shardId], batcher)
 		}
