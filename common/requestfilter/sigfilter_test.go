@@ -77,7 +77,7 @@ func TestSigVerifyFilter(t *testing.T) {
 	require.NoError(t, err)
 	req.Payload = p
 	_, err = v.VerifyStructureAndClassify(req)
-	require.EqualError(t, err, "failed to convert request to signedData : invalid tx id")
+	require.EqualError(t, err, "failed to convert request to signedData : invalid txid")
 
 	chdr.TxId = protoutil.ComputeTxID([]byte("nonce"), id)
 	chdrBytes, err = proto.Marshal(chdr)
@@ -143,12 +143,12 @@ func TestSigVerifyTxID(t *testing.T) {
 		errMsg string
 	}{
 		{name: "correct tx id", nonce: nonce, txID: protoutil.ComputeTxID(nonce, id)},
-		{name: "empty tx id", nonce: nonce, txID: "", errMsg: "invalid tx id"},
-		{name: "wrong tx id", nonce: nonce, txID: "junk", errMsg: "invalid tx id"},
-		{name: "tx id of another nonce", nonce: nonce, txID: protoutil.ComputeTxID([]byte("other"), id), errMsg: "invalid tx id"},
-		{name: "tx id of wrong length", nonce: nonce, txID: protoutil.ComputeTxID(nonce, id) + "0", errMsg: "invalid tx id"},
-		{name: "upper-case tx id", nonce: nonce, txID: strings.ToUpper(protoutil.ComputeTxID(nonce, id)), errMsg: "invalid tx id"},
-		{name: "tx id of another creator", nonce: nonce, txID: protoutil.ComputeTxID(nonce, otherID), errMsg: "invalid tx id"},
+		{name: "empty tx id", nonce: nonce, txID: "", errMsg: protoutil.ErrInvalidTxID.Error()},
+		{name: "wrong tx id", nonce: nonce, txID: "junk", errMsg: protoutil.ErrInvalidTxID.Error()},
+		{name: "tx id of another nonce", nonce: nonce, txID: protoutil.ComputeTxID([]byte("other"), id), errMsg: protoutil.ErrInvalidTxID.Error()},
+		{name: "tx id of wrong length", nonce: nonce, txID: protoutil.ComputeTxID(nonce, id) + "0", errMsg: protoutil.ErrInvalidTxID.Error()},
+		{name: "upper-case tx id", nonce: nonce, txID: strings.ToUpper(protoutil.ComputeTxID(nonce, id)), errMsg: protoutil.ErrInvalidTxID.Error()},
+		{name: "tx id of another creator", nonce: nonce, txID: protoutil.ComputeTxID(nonce, otherID), errMsg: protoutil.ErrInvalidTxID.Error()},
 		{name: "empty nonce", nonce: nil, txID: protoutil.ComputeTxID(nil, id), errMsg: "missing nonce in signature header"},
 	} {
 		for _, reqType := range []common.HeaderType{common.HeaderType_MESSAGE, common.HeaderType_CONFIG_UPDATE} {

@@ -48,14 +48,14 @@ func TestValidateConfigRequestTxID(t *testing.T) {
 			configTxID:      func(_, _ []byte) string { return "junk" },
 			lastUpdateTxID:  protoutil.ComputeTxID,
 			lastUpdateNonce: []byte("nonce"),
-			errMsg:          "config envelope: failed to convert request to signedData : invalid tx id",
+			errMsg:          "config envelope: failed to convert request to signedData : invalid txid",
 		},
 		{
 			name:            "bad last update tx id",
 			configTxID:      protoutil.ComputeTxID,
 			lastUpdateTxID:  func(_, _ []byte) string { return "junk" },
 			lastUpdateNonce: []byte("nonce"),
-			errMsg:          "last update: failed to convert request to signedData : invalid tx id",
+			errMsg:          "last update: failed to convert request to signedData : invalid txid",
 		},
 		{
 			name:           "empty last update nonce",
