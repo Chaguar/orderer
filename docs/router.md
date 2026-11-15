@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 *Audience: submitting clients and their operators, ordering-service operators, and contributors to
 the router implementation.*
 
-This document describes the **router**, the Fabric-X Orderer node that accepts transactions from
+This document describes the **router**, the Chaguar Orderer node that accepts transactions from
 clients. It covers the interface a client uses to submit transactions, the internal design and
 algorithms a contributor needs to work on the component, and the configuration, recovery, and
 failure behavior an operator needs to run it. It focuses on the router; for the end-to-end system

@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-Fabric-X Orderer is the ordering service of Fabric-X, implementing the **Arma** BFT protocol
+Chaguar Orderer is the ordering service of Chaguar, implementing the **Arma** BFT protocol
 ("Fabric-X: Scaling Hyperledger Fabric for Asset Exchange", https://dl.acm.org/doi/10.1145/3788853.3803092).
 Arma scales BFT ordering horizontally by separating transaction dissemination and persistence from
 consensus: consensus orders only compact batch *metadata*, while full payloads flow through a
@@ -133,7 +133,7 @@ Reconfiguration (membership, identity, endpoints, params) flows through new conf
 
 ## Conventions
 
-- Go 1.27. Depends heavily on `hyperledger/fabric-x-common`, `hyperledger/fabric-lib-go` (MSP,
+- Go 1.27. Depends heavily on `Chaguar/common`, `hyperledger/fabric-lib-go` (MSP,
   BCCSP, flogging), `fabric-protos-go-apiv2`, and `hyperledger/SmartBFT` (consensus engine).
 - Logging is `flogging` (`FabricLogger`), typically named per role/party
   (e.g. `Batcher%dShard%d`).
@@ -168,7 +168,7 @@ Reconfiguration (membership, identity, endpoints, params) flows through new conf
   this), reserve generics for `utils/`-style plumbing, favor explicit over clever.
 - **Code organization** — collate a struct's methods together, and place a method above the
   functions it calls (caller before callee).
-- **Reuse** existing helpers in `common/`, `node/utils`, and `fabric-x-common` before adding new
+- **Reuse** existing helpers in `common/`, `node/utils`, and `Chaguar/common` before adding new
   ones.
 
 ## Performance

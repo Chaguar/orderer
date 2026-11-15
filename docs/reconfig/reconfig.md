@@ -357,10 +357,10 @@ policy for [Value]  /Channel/Orderer/org1/Endpoints not satisfied: signature set
 
 ## 4. Preparing a config TX with `fxadmin`
 
-Use **`fxadmin`**, the Fabric-X reconfiguration admin CLI, to fetch the latest config block, decode
+Use **`fxadmin`**, the reconfiguration admin CLI, to fetch the latest config block, decode
 it, compute the update, collect endorsements, submit the config TX, and wait for the commit.
 The build, the admin configuration file and every command are described in the
-[fxadmin documentation](https://github.com/hyperledger/fabric-x/blob/main/tools/fxadmin/docs/README.md).
+[fxadmin documentation](https://github.com/Chaguar/chaguar/blob/main/tools/fxadmin/docs/README.md).
 
 In short:
 
@@ -790,7 +790,7 @@ The router returns these errors to the submitter. The network is unchanged; fix 
 - [Batcher](../batcher.md#7-reconfiguration), [Consenter](../consensus.md#7-reconfiguration) and
   [Assembler](../assembler.md#7-reconfiguration) — what each role does internally on a
   reconfiguration.
-- [fxadmin documentation](https://github.com/hyperledger/fabric-x/blob/main/tools/fxadmin/docs/README.md)
+- [fxadmin documentation](https://github.com/Chaguar/chaguar/blob/main/tools/fxadmin/docs/README.md)
   — the commands that fetch, edit, endorse and submit a config TX.
 - [`local_config.yaml`](../../config/sample/local_config.yaml) — every local config field, with
   comments.

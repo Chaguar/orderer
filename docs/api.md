@@ -108,4 +108,4 @@ In order to pull blocks it is enough for a scalable committer (peer) to connect 
 For the seek request, the access control applied to it, and the rest of the assembler's client interface, see [Assembler](assembler.md#2-consuming-blocks-the-client-interface).
 
 
-For more details on Arma see [Hyperledger Fabric-X orderer](../README.md).
+For more details on Arma see [Chaguar Orderer](../README.md).

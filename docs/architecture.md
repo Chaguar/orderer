@@ -3,7 +3,7 @@ Copyright IBM Corp. All Rights Reserved.
 
 SPDX-License-Identifier: Apache-2.0
 -->
-# Fabric-X Orderer Architecture
+# Chaguar Orderer Architecture
 
 1. [Overview](#1-overview)
 2. [Design Principles](#2-design-principles)
@@ -19,7 +19,7 @@ SPDX-License-Identifier: Apache-2.0
 
 ## 1. Overview
 
-Fabric-X Orderer is a Byzantine Fault Tolerant ordering service based on the Arma protocol. 
+Chaguar Orderer is a Byzantine Fault Tolerant ordering service based on the Arma protocol. 
 The main objective of the Arma protocol is performance: its goal is to order a large volume of transactions per second while maintaining a reasonable transaction latency.
 This is achieved by employing three design principles:
 
@@ -71,7 +71,7 @@ Finally, the multi-party flow includes a control path for primary batcher proble
 
 The architecture focuses on keeping transaction payload work outside the consensus bottleneck path while preserving total order and BFT safety. Arma treats consensus as a scarce resource: consenters should spend their time ordering compact batch metadata and control events, while routers, batchers, and assemblers handle high-volume data movement and storage.
 
-The goals below follow from that separation. Each goal preserves Fabric compatibility at the system boundary while allowing Fabric-X Orderer to scale the internal data plane independently from the BFT ordering plane.
+The goals below follow from that separation. Each goal preserves Fabric compatibility at the system boundary while allowing Chaguar Orderer to scale the internal data plane independently from the BFT ordering plane.
 
 Key principles:
 
@@ -86,7 +86,7 @@ Together these goals define the responsibility boundary of the orderer. The orde
 
 ## 3. System Components
 
-Fabric-X Orderer is split into role-specific services so each part can be scaled, secured, and operated according to its workload. Routers and assemblers face clients and block consumers, respectively, while batchers and consenters are internal services that move payloads and ordering metadata between parties.
+Chaguar Orderer is split into role-specific services so each part can be scaled, secured, and operated according to its workload. Routers and assemblers face clients and block consumers, respectively, while batchers and consenters are internal services that move payloads and ordering metadata between parties.
 
 | Component | Purpose | Main package |
 |-----------|---------|--------------|

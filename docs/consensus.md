@@ -9,7 +9,7 @@ SPDX-License-Identifier: Apache-2.0
 of the other Arma roles, which submit events to the consenter and consume the ordered stream it
 produces.*
 
-This document describes the **consenter**, the Fabric-X Orderer node that runs Byzantine fault
+This document describes the **consenter**, the Chaguar Orderer node that runs Byzantine fault
 tolerant consensus. It covers the events the consenter ingests and the ordered stream it serves, the
 internal design and algorithms, and the configuration, recovery, and failure behavior. It focuses on
 the consenter; for the end-to-end system flow and how the consenter relates to the other three

@@ -9,7 +9,7 @@ SPDX-License-Identifier: Apache-2.0
 the other Arma roles, which send transactions to the batcher, order its attestations, and pull its
 batches.*
 
-This document describes the **batcher**, the Fabric-X Orderer node that turns transactions into
+This document describes the **batcher**, the Chaguar Orderer node that turns transactions into
 durable, replicated batches. It covers the interfaces the batcher serves and uses, its internal design,
 and its configuration, recovery, and failure behavior. It focuses on the batcher; for the end-to-end
 system flow and how the batcher relates to the other three roles, start with the

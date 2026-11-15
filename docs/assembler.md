@@ -8,7 +8,7 @@ SPDX-License-Identifier: Apache-2.0
 *Audience: block consumers and committer operators, ordering-service operators, and contributors
 to the assembler implementation.*
 
-This document describes the **assembler**, the Fabric-X Orderer node that produces the
+This document describes the **assembler**, the Chaguar Orderer node that produces the
 Fabric-compatible block ledger and serves it to block consumers. It covers the interface a
 consumer uses to read blocks, the internal design and algorithms a contributor needs to work on
 the component, and the configuration, recovery, and failure behavior an operator needs to run it.
