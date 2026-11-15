@@ -11,7 +11,7 @@ import (
 	"encoding/pem"
 	"time"
 
-	"github.com/hyperledger/fabric-x-common/api/ordererpb"
+	"github.com/Chaguar/common/api/ordererpb"
 	arma_types "github.com/hyperledger/fabric-x-orderer/common/types"
 	"github.com/pkg/errors"
 )

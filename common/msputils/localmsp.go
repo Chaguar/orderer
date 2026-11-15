@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/Chaguar/common/msp"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
-	"github.com/hyperledger/fabric-x-common/msp"
 )
 
 func BuildLocalMSP(localMSPDir string, localMSPID string, factoryOpts *factory.FactoryOpts) msp.MSP {

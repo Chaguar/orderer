@@ -7,11 +7,11 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity"
 	commonsync "github.com/hyperledger/fabric-x-orderer/common/synchronizer"
 	"github.com/hyperledger/fabric-x-orderer/common/utils"
 	"github.com/hyperledger/fabric-x-orderer/config"

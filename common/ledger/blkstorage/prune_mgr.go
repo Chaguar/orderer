@@ -11,7 +11,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/hyperledger/fabric-x-common/tools/fileutil"
+	"github.com/Chaguar/common/tools/fileutil"
 	"github.com/pkg/errors"
 )
 

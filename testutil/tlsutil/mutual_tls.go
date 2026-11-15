@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-common/protoutil"
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/node/comm"
 	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
 	"github.com/stretchr/testify/require"

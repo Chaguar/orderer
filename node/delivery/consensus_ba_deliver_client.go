@@ -16,9 +16,9 @@ import (
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/hyperledger/fabric-x-orderer/node/ledger"
 
+	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity"
 )
 
 const (

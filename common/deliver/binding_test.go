@@ -16,10 +16,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/common/tools/pkg/comm"
+	"github.com/Chaguar/common/tools/pkg/comm/testpb"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
-	"github.com/hyperledger/fabric-x-common/tools/pkg/comm"
-	"github.com/hyperledger/fabric-x-common/tools/pkg/comm/testpb"
 	"github.com/hyperledger/fabric-x-orderer/testutil"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

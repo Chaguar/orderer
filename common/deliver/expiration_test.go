@@ -10,8 +10,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-common/api/msppb"
-	"github.com/hyperledger/fabric-x-common/common/crypto/tlsgen"
+	"github.com/Chaguar/common/api/msppb"
+	"github.com/Chaguar/common/common/crypto/tlsgen"
 	"github.com/hyperledger/fabric-x-orderer/common/deliver"
 	"github.com/hyperledger/fabric-x-orderer/common/ledger/testutil/fakes"
 	"github.com/hyperledger/fabric-x-orderer/common/msputils/mock"

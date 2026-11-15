@@ -7,9 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package router
 
 import (
+	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity"
 	node_config "github.com/hyperledger/fabric-x-orderer/node/config"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/hyperledger/fabric-x-orderer/node/delivery"

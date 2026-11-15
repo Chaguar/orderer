@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/common/common/policies"
+	"github.com/Chaguar/common/protoutil"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-common/common/policies"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 	"github.com/hyperledger/fabric-x-orderer/node/comm"

@@ -4,10 +4,10 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-common/common/configtx"
-	"github.com/hyperledger/fabric-x-common/common/policies"
-	"github.com/hyperledger/fabric-x-common/msp"
+	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/common/common/configtx"
+	"github.com/Chaguar/common/common/policies"
+	"github.com/Chaguar/common/msp"
 )
 
 type FakeConfigResources struct {

@@ -18,9 +18,9 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/Chaguar/common/tools/configtxgen"
+	"github.com/Chaguar/common/tools/cryptogen"
 	"github.com/cockroachdb/errors"
-	"github.com/hyperledger/fabric-x-common/tools/configtxgen"
-	"github.com/hyperledger/fabric-x-common/tools/cryptogen"
 	"github.com/hyperledger/fabric-x-orderer/common/utils"
 	"github.com/hyperledger/fabric-x-orderer/config/generate"
 	"github.com/hyperledger/fabric-x-orderer/internal/cryptogen/ca"

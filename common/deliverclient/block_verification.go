@@ -15,8 +15,8 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/pkg/errors"
 
-	"github.com/hyperledger/fabric-x-common/common/configtx"
-	"github.com/hyperledger/fabric-x-common/protoutil"
+	"github.com/Chaguar/common/common/configtx"
+	"github.com/Chaguar/common/protoutil"
 )
 
 type CloneableUpdatableBlockVerifier interface {

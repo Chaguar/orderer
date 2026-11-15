@@ -13,7 +13,7 @@ import (
 	"sync"
 	"unicode"
 
-	"github.com/hyperledger/fabric-x-common/tools/fileutil"
+	"github.com/Chaguar/common/tools/fileutil"
 	"github.com/pkg/errors"
 )
 

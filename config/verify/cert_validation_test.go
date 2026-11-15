@@ -17,7 +17,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-common/api/ordererpb"
+	"github.com/Chaguar/common/api/ordererpb"
 	"github.com/stretchr/testify/require"
 )
 

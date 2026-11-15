@@ -9,8 +9,8 @@ package config_test
 import (
 	"testing"
 
+	"github.com/Chaguar/common/api/ordererpb"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-common/api/ordererpb"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 	"github.com/hyperledger/fabric-x-orderer/config"
 	"github.com/stretchr/testify/require"

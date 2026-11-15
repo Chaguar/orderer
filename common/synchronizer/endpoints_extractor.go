@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
+	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
 )
 

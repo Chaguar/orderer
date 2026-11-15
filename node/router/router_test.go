@@ -18,10 +18,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/common/protoutil/identity/mocks"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-common/protoutil"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity/mocks"
 	"github.com/hyperledger/fabric-x-orderer/common/configstore"
 	"github.com/hyperledger/fabric-x-orderer/common/operations"
 	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"

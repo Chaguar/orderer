@@ -5,9 +5,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
 	"github.com/hyperledger/fabric-x-orderer/common/synchronizer"
 )

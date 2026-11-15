@@ -30,7 +30,7 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 	"google.golang.org/protobuf/proto"
 
-	"github.com/hyperledger/fabric-x-common/protoutil"
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider/fake"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"

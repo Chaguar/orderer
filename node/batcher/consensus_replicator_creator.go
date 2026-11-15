@@ -7,8 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package batcher
 
 import (
+	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 	node_config "github.com/hyperledger/fabric-x-orderer/node/config"
 	"github.com/hyperledger/fabric-x-orderer/node/delivery"

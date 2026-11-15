@@ -16,8 +16,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/common/tools/configtxgen"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/tools/configtxgen"
 	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 	consensus_node "github.com/hyperledger/fabric-x-orderer/node/consensus"

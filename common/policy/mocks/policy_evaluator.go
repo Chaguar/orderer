@@ -4,8 +4,8 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-common/msp"
-	"github.com/hyperledger/fabric-x-common/protoutil"
+	"github.com/Chaguar/common/msp"
+	"github.com/Chaguar/common/protoutil"
 )
 
 type FakePolicyEvaluator struct {

@@ -4,7 +4,7 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-common/common/policies"
+	"github.com/Chaguar/common/common/policies"
 )
 
 type FakePolicyManager struct {

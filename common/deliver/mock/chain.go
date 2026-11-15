@@ -4,7 +4,7 @@ package mock
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-common/common/policies"
+	"github.com/Chaguar/common/common/policies"
 	"github.com/hyperledger/fabric-x-orderer/common/deliver"
 	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger"
 )

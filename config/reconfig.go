@@ -13,8 +13,8 @@ import (
 	"reflect"
 	"strconv"
 
+	"github.com/Chaguar/common/api/ordererpb"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-common/api/ordererpb"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 )
 

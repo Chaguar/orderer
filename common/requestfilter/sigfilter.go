@@ -10,9 +10,9 @@ import (
 	"errors"
 	"fmt"
 
+	"github.com/Chaguar/common/common/policies"
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/policies"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 	"google.golang.org/protobuf/proto"
 )

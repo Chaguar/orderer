@@ -9,9 +9,9 @@ package state
 import (
 	"testing"
 
+	"github.com/Chaguar/common/protoutil"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 )

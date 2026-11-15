@@ -16,8 +16,8 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hyperledger/fabric-x-common/common/crypto/tlsgen"
-	"github.com/hyperledger/fabric-x-common/tools/configtxgen"
+	"github.com/Chaguar/common/common/crypto/tlsgen"
+	"github.com/Chaguar/common/tools/configtxgen"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient"
 	arma_testutil "github.com/hyperledger/fabric-x-orderer/testutil/fabric"
 )

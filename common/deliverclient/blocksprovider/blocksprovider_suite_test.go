@@ -14,7 +14,7 @@ import (
 
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 
-	"github.com/hyperledger/fabric-x-common/protoutil/identity"
+	"github.com/Chaguar/common/protoutil/identity"
 )
 
 //go:generate counterfeiter -o fake/signer.go --fake-name Signer . signer

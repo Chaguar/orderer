@@ -15,7 +15,7 @@ import (
 
 	"google.golang.org/grpc/grpclog"
 
-	"github.com/hyperledger/fabric-x-common/common/policies"
+	"github.com/Chaguar/common/common/policies"
 	"github.com/hyperledger/fabric-x-orderer/common/operations"
 	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
 	"github.com/hyperledger/fabric-x-orderer/common/requestfilter"

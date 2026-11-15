@@ -14,15 +14,15 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/hyperledger/fabric-x-orderer/node/config"
 
+	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/common/common/policies"
+	"github.com/Chaguar/common/common/util"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-common/common/policies"
-	"github.com/hyperledger/fabric-x-common/common/util"
 	"github.com/hyperledger/fabric-x-orderer/common/deliver"
 	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger"
 	"github.com/hyperledger/fabric-x-orderer/common/utils"
 
-	"github.com/hyperledger/fabric-x-common/protoutil"
+	"github.com/Chaguar/common/protoutil"
 )
 
 type AssemblerDeliverService struct {
