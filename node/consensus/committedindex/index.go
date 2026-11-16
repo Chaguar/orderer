@@ -38,10 +38,9 @@ type Index struct {
 	// is never committed (an orphan), whose prune point never advances, and needs compaction once orphans
 	// are pruned too.
 	queue []decisionCount
-	// next is the decision Add expects next, once started is set by the first Add.
-	next    types.DecisionNum
-	started bool
-	size    int
+	// next is the decision Add expects next. It is 0 only before the first Add, which may add any decision.
+	next types.DecisionNum
+	size int
 }
 
 // ledgerWindow holds the batches of one <shard, primary>. decisions[i] lists the decisions that committed
@@ -70,13 +69,12 @@ func (x *Index) Add(num types.DecisionNum, ids []types.BatchID) error {
 	x.lock.Lock()
 	defer x.lock.Unlock()
 
-	if x.started && num < x.next {
+	if x.next != 0 && num < x.next {
 		return nil
 	}
-	if x.started && num > x.next {
+	if x.next != 0 && num > x.next {
 		return fmt.Errorf("decision %d added before decision %d", num, x.next)
 	}
-	x.started = true
 	x.next = num + 1
 	if len(ids) == 0 {
 		return nil
