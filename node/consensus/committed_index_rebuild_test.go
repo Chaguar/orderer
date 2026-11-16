@@ -63,7 +63,7 @@ func TestRebuildCommittedIndex(t *testing.T) {
 	}
 	require.Positive(t, last.ReplayFrom)
 
-	rebuilt := committedindex.New()
+	rebuilt := &committedindex.Index{}
 	rebuildCommittedIndex(logger, rebuilt, l, last)
 
 	require.Equal(t, live.Committed.Size(), rebuilt.Size())
@@ -96,5 +96,5 @@ func TestRebuildCommittedIndexPanicsOnMismatchedDecision(t *testing.T) {
 		l.Append(block)
 	}
 
-	require.Panics(t, func() { rebuildCommittedIndex(logger, committedindex.New(), l, &state.State{}) })
+	require.Panics(t, func() { rebuildCommittedIndex(logger, &committedindex.Index{}, l, &state.State{}) })
 }
