@@ -8,7 +8,6 @@ package consensus
 
 import (
 	"fmt"
-	"sync/atomic"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
@@ -35,13 +34,7 @@ type Consenter struct {
 	// Committed indexes the committed batches that are not pruned yet, from which the prune points are
 	// computed. It is fed at commit, by IndexCommitted, and only read while simulating a decision.
 	Committed committedindex.Index
-	// nextSizeWarning is the index size at which IndexCommitted warns next.
-	nextSizeWarning atomic.Int64
 }
-
-// committedIndexWarnSize is the index size at which IndexCommitted first warns; it warns again each time
-// the size doubles. The index grows when the durable watermark stalls, while batchers cannot prune either.
-const committedIndexWarnSize = 1 << 20
 
 func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq types.ConfigSequence, requests [][]byte) (*state.State, [][]types.BatchAttestationFragment, []*state.ConfigRequest) {
 	controlEvents, err := requestsToControlEvents(requests)
@@ -126,12 +119,6 @@ func (c *Consenter) IndexCommitted(hdr *state.Header) {
 		for _, p := range hdr.State.PrunePoints {
 			c.Committed.DropBelow(p.Shard, p.Primary, p.Seq)
 		}
-	}
-
-	c.nextSizeWarning.CompareAndSwap(0, committedIndexWarnSize)
-	if size := int64(c.Committed.Size()); size >= c.nextSizeWarning.Load() {
-		c.nextSizeWarning.Store(2 * size)
-		c.Logger.Warnf("The index of committed batches holds %d batches; it shrinks only as the durable watermark advances", size)
 	}
 }
 
