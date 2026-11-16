@@ -9,9 +9,9 @@ package state
 import (
 	"fmt"
 
+	"github.com/Chaguar/common/common/configtx"
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/configtx"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 	stateprotos "github.com/hyperledger/fabric-x-orderer/node/protos/state"
 	"github.com/pkg/errors"

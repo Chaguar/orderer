@@ -14,11 +14,11 @@ import (
 	cl "github.com/hyperledger/fabric-x-orderer/common/ledger"
 	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger"
 
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
 	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 )

@@ -14,8 +14,8 @@ import (
 
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 
+	"github.com/Chaguar/common/common/configtx"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/configtx"
 	"github.com/pkg/errors"
 )
 

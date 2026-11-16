@@ -7,8 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package requestfilter
 
 import (
+	"github.com/Chaguar/common/common/policies"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/policies"
 	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 )
 

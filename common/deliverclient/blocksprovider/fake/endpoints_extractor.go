@@ -4,7 +4,7 @@ package fake
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
+	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
 )

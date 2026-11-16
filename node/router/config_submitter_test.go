@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/common/protoutil/identity/mocks"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity/mocks"
 	"github.com/hyperledger/fabric-x-orderer/common/operations"
 	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
 	"github.com/hyperledger/fabric-x-orderer/common/types"

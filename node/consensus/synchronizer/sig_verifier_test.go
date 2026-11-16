@@ -11,11 +11,11 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/Chaguar/common/protoutil"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/synchronizer"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/synchronizer/mocks"

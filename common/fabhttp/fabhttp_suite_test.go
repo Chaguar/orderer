@@ -14,7 +14,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-common/common/crypto/tlsgen"
+	"github.com/Chaguar/common/common/crypto/tlsgen"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

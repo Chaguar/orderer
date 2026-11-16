@@ -9,7 +9,7 @@ package config
 import (
 	"sort"
 
-	"github.com/hyperledger/fabric-x-common/common/policies"
+	"github.com/Chaguar/common/common/policies"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 )
 

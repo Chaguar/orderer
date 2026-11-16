@@ -3,6 +3,7 @@ module github.com/hyperledger/fabric-x-orderer
 go 1.27.3
 
 require (
+	github.com/Chaguar/common v0.2.13
 	github.com/alecthomas/kingpin v2.2.6+incompatible
 	github.com/cockroachdb/errors v1.14.0
 	github.com/cockroachdb/pebble/v2 v2.1.7
@@ -11,7 +12,6 @@ require (
 	github.com/hyperledger/fabric-config v0.3.0
 	github.com/hyperledger/fabric-lib-go v1.1.5
 	github.com/hyperledger/fabric-protos-go-apiv2 v0.3.7
-	github.com/hyperledger/fabric-x-common v0.2.13-0.20261110143051-a46b8ab12501
 	github.com/onsi/ginkgo/v2 v2.32.2
 	github.com/onsi/gomega v1.43.0
 	github.com/pkg/errors v0.9.1

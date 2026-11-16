@@ -10,8 +10,8 @@ import (
 	"errors"
 	"testing"
 
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	policymocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
 	"github.com/hyperledger/fabric-x-orderer/node/assembler"
 	testmocks "github.com/hyperledger/fabric-x-orderer/test/mocks"

@@ -597,6 +597,8 @@ gioui.org v0.0.0-20210308172011-57750fc8a0a6/go.mod h1:RSH6KIUZ0p2xy5zHDxgAM4zum
 git.sr.ht/~sbinet/gg v0.3.1/go.mod h1:KGYtlADtqsqANL9ueOFkWymvzUvLMQllU5Ixo+8v3pc=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
+github.com/Chaguar/common v0.2.13 h1:8dX4h/cR4op4XUaJwEwuP5tqQIZ6pqbE3sKkvJau0Os=
+github.com/Chaguar/common v0.2.13/go.mod h1:4Pavx9Pa/hDVT3CyKZrAIMTA9AiOl/ZQHa8wZygZK68=
 github.com/DataDog/zstd v1.5.7 h1:ybO8RBeh29qrxIhCA9E8gKY6xfONU9T6G6aP9DTKfLE=
 github.com/DataDog/zstd v1.5.7/go.mod h1:g4AWEaM3yOg3HYfnJ3YIawPnVdXJh9QME85blwSAmyw=
 github.com/IBM/idemix v0.3.1 h1:Hzlad1hsij+Nk8PoGB4E2MmexHUyE9KLyZTJVkK/I5A=
@@ -884,8 +886,6 @@ github.com/hyperledger/fabric-lib-go v1.1.5 h1:9GY8NEqyuRlJRDVgFRTcpSad/q7yiJD8+
 github.com/hyperledger/fabric-lib-go v1.1.5/go.mod h1:H30DO/EzSAtSIIzWZGXotV/M+RN0xIjFv22dPgtk4bc=
 github.com/hyperledger/fabric-protos-go-apiv2 v0.3.7 h1:sQ5qv8vQQfwewa1JlCiSCC8dLElmaU2/frLolpgibEY=
 github.com/hyperledger/fabric-protos-go-apiv2 v0.3.7/go.mod h1:bJnwzfv03oZQeCc863pdGTDgf5nmCy6Za3RAE7d2XsQ=
-github.com/hyperledger/fabric-x-common v0.2.13-0.20261110143051-a46b8ab12501 h1:0JeXL+AEwi7HYTbWLyCPFsW0fpbjWFHKISCu0WPIA6k=
-github.com/hyperledger/fabric-x-common v0.2.13-0.20261110143051-a46b8ab12501/go.mod h1:RBL32bDQaqWlerialpNYH6DIVq3yFDUTokIKwejFlaU=
 github.com/iancoleman/strcase v0.2.0/go.mod h1:iwCmte+B7n89clKwxIoIXy/HfoL7AsD47ZCWhYzw7ho=
 github.com/ianlancetaylor/demangle v0.0.0-20181102032728-5e5cf60278f6/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=
 github.com/ianlancetaylor/demangle v0.0.0-20200824232613-28f6c0f3b639/go.mod h1:aSSvb/t6k1mPoxDqO4vJh6VOCGPwU4O0C2/Eqndh1Sc=

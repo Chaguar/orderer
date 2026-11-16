@@ -13,10 +13,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	commonsyncmocks "github.com/hyperledger/fabric-x-orderer/common/synchronizer/mocks"
 	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
 	"github.com/hyperledger/fabric-x-orderer/common/types"

@@ -14,7 +14,7 @@ import (
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/pkg/errors"
 
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
+	"github.com/Chaguar/common/common/channelconfig"
 )
 
 type errRefreshEndpoint struct {

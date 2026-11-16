@@ -7,12 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package consensus
 
 import (
+	"github.com/Chaguar/common/api/ordererpb"
+	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/common/protoutil"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/api/ordererpb"
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	arma_types "github.com/hyperledger/fabric-x-orderer/common/types"
 	"github.com/hyperledger/fabric-x-orderer/common/utils"
 	"github.com/hyperledger/fabric-x-orderer/config"

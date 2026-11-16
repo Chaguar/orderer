@@ -9,9 +9,9 @@ package ledger
 import (
 	"time"
 
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/common/ledger/blkstorage"
 	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger"
 	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger/fileledger"

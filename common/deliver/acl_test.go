@@ -9,13 +9,13 @@ package deliver_test
 import (
 	"time"
 
+	"github.com/Chaguar/common/api/msppb"
+	"github.com/Chaguar/common/protoutil"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/api/msppb"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/common/deliver"
 	"github.com/hyperledger/fabric-x-orderer/common/deliver/mock"
 
-	. "github.com/hyperledger/fabric-x-common/tools/test"
+	. "github.com/Chaguar/common/tools/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	"github.com/pkg/errors"

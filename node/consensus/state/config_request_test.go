@@ -9,8 +9,8 @@ package state_test
 import (
 	"testing"
 
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 	consensus_state "github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/stretchr/testify/require"

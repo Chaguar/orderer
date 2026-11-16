@@ -12,8 +12,8 @@ import (
 	"encoding/asn1"
 	"math/big"
 
+	"github.com/Chaguar/common/common/util"
 	"github.com/hyperledger/fabric-lib-go/bccsp/utils"
-	"github.com/hyperledger/fabric-x-common/common/util"
 )
 
 type ECDSASigner ecdsa.PrivateKey

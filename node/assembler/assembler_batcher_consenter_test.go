@@ -11,8 +11,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity/mocks"
+	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/common/protoutil/identity/mocks"
 	"github.com/hyperledger/fabric-x-orderer/common/operations"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 	"github.com/hyperledger/fabric-x-orderer/common/utils"

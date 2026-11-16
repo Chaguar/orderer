@@ -7,9 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package utils
 
 import (
+	"github.com/Chaguar/common/common/configtx"
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/configtx"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/pkg/errors"
 )
 

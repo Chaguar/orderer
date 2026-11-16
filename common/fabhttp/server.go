@@ -16,7 +16,7 @@ import (
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 
-	"github.com/hyperledger/fabric-x-common/common/util"
+	"github.com/Chaguar/common/common/util"
 	"github.com/hyperledger/fabric-x-orderer/common/fabhttp/middleware"
 )
 

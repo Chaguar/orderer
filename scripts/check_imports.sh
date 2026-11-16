@@ -15,10 +15,10 @@ found=$(grep -rn --include='*.go' --exclude-dir=vendor "\"${FABRIC_IMPORT}" . ||
 
 echo "The following files import from $FABRIC_IMPORT:"
 echo "$found"
-echo "Use github.com/hyperledger/fabric-x-common (or fabric-lib-go / fabric-protos-go-apiv2) instead."
+echo "Use github.com/Chaguar/common (or fabric-lib-go / fabric-protos-go-apiv2) instead."
 
 if echo "$found" | grep -q "$FABRIC_PROTOUTIL"; then
-    echo "Use github.com/hyperledger/fabric-x-common/protoutil instead."
+    echo "Use github.com/Chaguar/common/protoutil instead."
 fi
 
 exit 1

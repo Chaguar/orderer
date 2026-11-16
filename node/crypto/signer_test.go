@@ -10,8 +10,8 @@ import (
 	"crypto/ecdsa"
 	"testing"
 
+	"github.com/Chaguar/common/common/util"
 	"github.com/hyperledger/fabric-lib-go/bccsp/utils"
-	"github.com/hyperledger/fabric-x-common/common/util"
 	"github.com/hyperledger/fabric-x-orderer/internal/cryptogen/csp"
 	"github.com/hyperledger/fabric-x-orderer/node/crypto"
 	"github.com/stretchr/testify/require"

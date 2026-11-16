@@ -9,8 +9,8 @@ package testutil
 import (
 	"path/filepath"
 
+	"github.com/Chaguar/common/msp"
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
-	"github.com/hyperledger/fabric-x-common/msp"
 )
 
 func BuildTestLocalMSP(localMSPDir string, orgName string) (msp.MSP, msp.SigningIdentity, error) {

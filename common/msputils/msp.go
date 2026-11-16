@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 package msputils
 
-import "github.com/hyperledger/fabric-x-common/msp"
+import "github.com/Chaguar/common/msp"
 
 //go:generate counterfeiter -o mock/msp_manager.go --fake-name MSPManager . MSPManager
 type MSPManager interface {

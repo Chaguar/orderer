@@ -15,11 +15,11 @@ import (
 	"sort"
 	"time"
 
+	"github.com/Chaguar/common/common/policies"
+	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/hyperledger/SmartBFT/pkg/wal"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/policies"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity"
 	"github.com/hyperledger/fabric-x-orderer/common/configack"
 	"github.com/hyperledger/fabric-x-orderer/common/configstore"
 	"github.com/hyperledger/fabric-x-orderer/common/deliver"

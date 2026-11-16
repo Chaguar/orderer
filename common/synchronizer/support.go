@@ -7,9 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/common/protoutil/identity"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-common/protoutil/identity"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
 	"github.com/pkg/errors"
 )

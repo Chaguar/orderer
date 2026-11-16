@@ -11,10 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 
-	"github.com/hyperledger/fabric-x-common/api/ordererpb"
+	"github.com/Chaguar/common/api/ordererpb"
 	"github.com/hyperledger/fabric-x-orderer/config"
 	"github.com/hyperledger/fabric-x-orderer/config/generate"
 	"github.com/hyperledger/fabric-x-orderer/testutil"

@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"context"
 
-	"github.com/hyperledger/fabric-x-common/common/util"
+	"github.com/Chaguar/common/common/util"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )

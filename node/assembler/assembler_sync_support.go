@@ -9,9 +9,9 @@ package assembler
 import (
 	"fmt"
 
+	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/node/comm"
 )
 

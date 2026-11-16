@@ -9,10 +9,10 @@ package policy_test
 import (
 	"testing"
 
+	"github.com/Chaguar/common/common/configtx"
+	"github.com/Chaguar/common/common/policies"
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
-	"github.com/hyperledger/fabric-x-common/common/configtx"
-	"github.com/hyperledger/fabric-x-common/common/policies"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/common/policy"
 	"github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
 	"github.com/hyperledger/fabric-x-orderer/config/generate"

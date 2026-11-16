@@ -1,3 +1,43 @@
+# github.com/Chaguar/common v0.2.13
+## explicit; go 1.27.3
+github.com/Chaguar/common/api/msppb
+github.com/Chaguar/common/api/ordererpb
+github.com/Chaguar/common/api/types
+github.com/Chaguar/common/common/capabilities
+github.com/Chaguar/common/common/cauthdsl
+github.com/Chaguar/common/common/channelconfig
+github.com/Chaguar/common/common/configtx
+github.com/Chaguar/common/common/crypto
+github.com/Chaguar/common/common/crypto/tlsgen
+github.com/Chaguar/common/common/genesis
+github.com/Chaguar/common/common/policies
+github.com/Chaguar/common/common/policydsl
+github.com/Chaguar/common/common/util
+github.com/Chaguar/common/common/viperutil
+github.com/Chaguar/common/core/config
+github.com/Chaguar/common/msp
+github.com/Chaguar/common/msp/cache
+github.com/Chaguar/common/msp/mgmt
+github.com/Chaguar/common/protolator
+github.com/Chaguar/common/protolator/protoext
+github.com/Chaguar/common/protolator/protoext/commonext
+github.com/Chaguar/common/protolator/protoext/ledger/rwsetext
+github.com/Chaguar/common/protolator/protoext/mspext
+github.com/Chaguar/common/protolator/protoext/ordererext
+github.com/Chaguar/common/protolator/protoext/peerext
+github.com/Chaguar/common/protoutil
+github.com/Chaguar/common/protoutil/identity
+github.com/Chaguar/common/protoutil/identity/mocks
+github.com/Chaguar/common/sampleconfig
+github.com/Chaguar/common/tools/configtxgen
+github.com/Chaguar/common/tools/configtxlator/update
+github.com/Chaguar/common/tools/cryptogen
+github.com/Chaguar/common/tools/fileutil
+github.com/Chaguar/common/tools/pkg/comm
+github.com/Chaguar/common/tools/pkg/comm/testpb
+github.com/Chaguar/common/tools/pkg/txflags
+github.com/Chaguar/common/tools/test
+github.com/Chaguar/common/utils/certificate
 # github.com/DataDog/zstd v1.5.7
 ## explicit; go 1.14
 github.com/DataDog/zstd
@@ -312,46 +352,6 @@ github.com/hyperledger/fabric-protos-go-apiv2/orderer
 github.com/hyperledger/fabric-protos-go-apiv2/orderer/etcdraft
 github.com/hyperledger/fabric-protos-go-apiv2/orderer/smartbft
 github.com/hyperledger/fabric-protos-go-apiv2/peer
-# github.com/hyperledger/fabric-x-common v0.2.13-0.20261110143051-a46b8ab12501
-## explicit; go 1.27.3
-github.com/hyperledger/fabric-x-common/api/msppb
-github.com/hyperledger/fabric-x-common/api/ordererpb
-github.com/hyperledger/fabric-x-common/api/types
-github.com/hyperledger/fabric-x-common/common/capabilities
-github.com/hyperledger/fabric-x-common/common/cauthdsl
-github.com/hyperledger/fabric-x-common/common/channelconfig
-github.com/hyperledger/fabric-x-common/common/configtx
-github.com/hyperledger/fabric-x-common/common/crypto
-github.com/hyperledger/fabric-x-common/common/crypto/tlsgen
-github.com/hyperledger/fabric-x-common/common/genesis
-github.com/hyperledger/fabric-x-common/common/policies
-github.com/hyperledger/fabric-x-common/common/policydsl
-github.com/hyperledger/fabric-x-common/common/util
-github.com/hyperledger/fabric-x-common/common/viperutil
-github.com/hyperledger/fabric-x-common/core/config
-github.com/hyperledger/fabric-x-common/msp
-github.com/hyperledger/fabric-x-common/msp/cache
-github.com/hyperledger/fabric-x-common/msp/mgmt
-github.com/hyperledger/fabric-x-common/protolator
-github.com/hyperledger/fabric-x-common/protolator/protoext
-github.com/hyperledger/fabric-x-common/protolator/protoext/commonext
-github.com/hyperledger/fabric-x-common/protolator/protoext/ledger/rwsetext
-github.com/hyperledger/fabric-x-common/protolator/protoext/mspext
-github.com/hyperledger/fabric-x-common/protolator/protoext/ordererext
-github.com/hyperledger/fabric-x-common/protolator/protoext/peerext
-github.com/hyperledger/fabric-x-common/protoutil
-github.com/hyperledger/fabric-x-common/protoutil/identity
-github.com/hyperledger/fabric-x-common/protoutil/identity/mocks
-github.com/hyperledger/fabric-x-common/sampleconfig
-github.com/hyperledger/fabric-x-common/tools/configtxgen
-github.com/hyperledger/fabric-x-common/tools/configtxlator/update
-github.com/hyperledger/fabric-x-common/tools/cryptogen
-github.com/hyperledger/fabric-x-common/tools/fileutil
-github.com/hyperledger/fabric-x-common/tools/pkg/comm
-github.com/hyperledger/fabric-x-common/tools/pkg/comm/testpb
-github.com/hyperledger/fabric-x-common/tools/pkg/txflags
-github.com/hyperledger/fabric-x-common/tools/test
-github.com/hyperledger/fabric-x-common/utils/certificate
 # github.com/klauspost/compress v1.19.1
 ## explicit; go 1.24
 github.com/klauspost/compress

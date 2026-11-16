@@ -16,9 +16,9 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/Chaguar/common/msp"
+	"github.com/Chaguar/common/msp/mgmt"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
-	"github.com/hyperledger/fabric-x-common/msp"
-	"github.com/hyperledger/fabric-x-common/msp/mgmt"
 )
 
 // GetDevMspDir gets the path to the fabric/sampleconfig/msp tree that is maintained with the source tree.

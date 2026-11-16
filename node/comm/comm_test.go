@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/hyperledger/fabric-x-common/common/crypto/tlsgen"
+	"github.com/Chaguar/common/common/crypto/tlsgen"
 )
 
 const (

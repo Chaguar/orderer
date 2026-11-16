@@ -20,7 +20,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hyperledger/fabric-x-common/protoutil"
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider/fake"
 	"github.com/hyperledger/fabric-x-orderer/common/utils"

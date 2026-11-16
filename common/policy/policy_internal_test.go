@@ -9,8 +9,8 @@ package policy
 import (
 	"testing"
 
+	mockSigner "github.com/Chaguar/common/protoutil/identity/mocks"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	mockSigner "github.com/hyperledger/fabric-x-common/protoutil/identity/mocks"
 	"github.com/stretchr/testify/require"
 )
 

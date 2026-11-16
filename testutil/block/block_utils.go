@@ -7,8 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package block
 
 import (
+	"github.com/Chaguar/common/protoutil"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 )
 
 // TODO: use CreateConfigBlock from Dor's PR

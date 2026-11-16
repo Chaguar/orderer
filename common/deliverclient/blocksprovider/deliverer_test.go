@@ -22,9 +22,9 @@ import (
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/grpc/credentials/insecure"
 
-	"github.com/hyperledger/fabric-x-common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-common/protoutil"
-	"github.com/hyperledger/fabric-x-common/tools/test"
+	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/common/tools/test"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider/fake"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"

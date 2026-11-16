@@ -10,8 +10,8 @@ import (
 	"encoding/pem"
 	"testing"
 
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	"github.com/hyperledger/fabric-x-orderer/node/crypto"
 	"github.com/hyperledger/fabric-x-orderer/testutil/tlsgen"
 	"github.com/stretchr/testify/require"
