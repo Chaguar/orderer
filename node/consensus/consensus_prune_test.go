@@ -12,9 +12,9 @@ import (
 	"crypto/rand"
 	"testing"
 
+	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/SmartBFT/smartbftprotos"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-common/protoutil"
 	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
 	arma_types "github.com/hyperledger/fabric-x-orderer/common/types"
 	nodeconfig "github.com/hyperledger/fabric-x-orderer/node/config"
