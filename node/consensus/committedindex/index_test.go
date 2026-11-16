@@ -26,7 +26,7 @@ type commit struct {
 // indexOf adds the commits to a new index, one decision at a time and in decision order, as the
 // consenter does.
 func indexOf(commits ...commit) *Index {
-	x := New()
+	x := &Index{}
 	byDecision := make(map[types.DecisionNum][]types.BatchID)
 	var last types.DecisionNum
 	for _, c := range commits {
@@ -136,7 +136,7 @@ func TestReplayFromP1P2(t *testing.T) {
 
 // TestReplayFromEmpty verifies that an index that holds nothing replays from the next decision to index.
 func TestReplayFromEmpty(t *testing.T) {
-	x := New()
+	x := &Index{}
 	require.Equal(t, types.DecisionNum(0), x.ReplayFrom())
 
 	require.NoError(t, x.Add(0, nil))
@@ -199,7 +199,7 @@ func TestFarBeyondTheWindow(t *testing.T) {
 // consenter replays from its last state, but that skipping a decision afterwards is reported and changes
 // nothing.
 func TestAddSkippedDecision(t *testing.T) {
-	x := New()
+	x := &Index{}
 	require.NoError(t, x.Add(7, nil))
 	require.NoError(t, x.Add(8, []types.BatchID{state.NewAvailableBatch(1, 1, 0, []byte{0})}))
 

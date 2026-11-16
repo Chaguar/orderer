@@ -56,11 +56,6 @@ type decisionCount struct {
 	count    int
 }
 
-// New returns an empty index.
-func New() *Index {
-	return &Index{}
-}
-
 // Add records the batches committed by decision num. Decisions must be added in order, each one once, but
 // the first decision added may be any decision. A decision below the next one expected was already added and
 // is ignored, so adding a decision again changes nothing. Add returns an error, and changes nothing, if num
