@@ -795,7 +795,7 @@ func LatestHeightAndEndpoint(puller ChainPuller) (string, uint64, error) {
 
 func EncodeTimestamp(t *timestamppb.Timestamp) []byte {
 	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(t.Seconds))
+	binary.LittleEndian.PutUint64(b, uint64(t.GetSeconds()))
 	return b
 }
 

@@ -11,6 +11,8 @@ import (
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
+	"github.com/stretchr/testify/require"
 )
 
 // TestConfigureNodeCerts_PruneOnIdentityChange asserts that when an existing
@@ -88,4 +90,26 @@ func TestConfigureNodeCerts_PruneOnRemovedID(t *testing.T) {
 	if _, authorized := cs.Membership.AuthorizedStreams.Load(streamID); authorized {
 		t.Fatalf("stream for removed node ID should be de-authorized")
 	}
+}
+
+// TestVerifyAuthRequestMissingTimestamp asserts that an auth request without a
+// timestamp is rejected with an error before the session binding is computed.
+func TestVerifyAuthRequestMissingTimestamp(t *testing.T) {
+	s := &ClusterService{Logger: flogging.MustGetLogger("test")}
+	request := &orderer.ClusterNodeServiceStepRequest{
+		Payload: &orderer.ClusterNodeServiceStepRequest_NodeAuthrequest{
+			NodeAuthrequest: &orderer.NodeAuthRequest{FromId: 1, ToId: 2, Channel: "arma"},
+		},
+	}
+
+	authReq, fromIdentity, err := s.VerifyAuthRequest(nil, request)
+	require.EqualError(t, err, "auth request is missing a timestamp")
+	require.Nil(t, authReq)
+	require.Nil(t, fromIdentity)
+}
+
+// TestEncodeTimestampNil asserts that encoding a nil timestamp yields zero
+// seconds.
+func TestEncodeTimestampNil(t *testing.T) {
+	require.Equal(t, make([]byte, 8), EncodeTimestamp(nil))
 }
