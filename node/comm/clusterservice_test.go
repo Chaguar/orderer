@@ -7,12 +7,17 @@ SPDX-License-Identifier: Apache-2.0
 package comm
 
 import (
+	"context"
 	"testing"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/status"
 )
 
 // TestConfigureNodeCerts_PruneOnIdentityChange asserts that when an existing
@@ -92,20 +97,53 @@ func TestConfigureNodeCerts_PruneOnRemovedID(t *testing.T) {
 	}
 }
 
+// fakeStepServer is a ClusterNodeService_StepServer whose Recv returns a fixed
+// request.
+type fakeStepServer struct {
+	grpc.ServerStream
+	request *orderer.ClusterNodeServiceStepRequest
+}
+
+func (f *fakeStepServer) Recv() (*orderer.ClusterNodeServiceStepRequest, error) {
+	return f.request, nil
+}
+
+func (f *fakeStepServer) Send(*orderer.ClusterNodeServiceStepResponse) error {
+	return nil
+}
+
+func (f *fakeStepServer) Context() context.Context {
+	return context.Background()
+}
+
 // TestVerifyAuthRequestMissingTimestamp asserts that an auth request without a
-// timestamp is rejected with an error before the session binding is computed.
+// timestamp is rejected by VerifyAuthRequest, and that Step turns the
+// rejection into Unauthenticated.
 func TestVerifyAuthRequestMissingTimestamp(t *testing.T) {
 	s := &ClusterService{Logger: flogging.MustGetLogger("test")}
-	request := &orderer.ClusterNodeServiceStepRequest{
-		Payload: &orderer.ClusterNodeServiceStepRequest_NodeAuthrequest{
-			NodeAuthrequest: &orderer.NodeAuthRequest{FromId: 1, ToId: 2, Channel: "arma"},
+	stream := &fakeStepServer{
+		request: &orderer.ClusterNodeServiceStepRequest{
+			Payload: &orderer.ClusterNodeServiceStepRequest_NodeAuthrequest{
+				NodeAuthrequest: &orderer.NodeAuthRequest{FromId: 1, ToId: 2, Channel: "arma"},
+			},
 		},
 	}
 
-	authReq, fromIdentity, err := s.VerifyAuthRequest(nil, request)
+	authReq, fromIdentity, err := s.VerifyAuthRequest(stream, stream.request)
 	require.EqualError(t, err, "auth request is missing a timestamp")
 	require.Nil(t, authReq)
 	require.Nil(t, fromIdentity)
+
+	err = s.Step(stream)
+	require.Equal(t, codes.Unauthenticated, status.Code(err))
+}
+
+// TestGetTLSSessionBindingWithoutTLS asserts that a stream context without TLS
+// auth info yields an error.
+func TestGetTLSSessionBindingWithoutTLS(t *testing.T) {
+	ctx := peer.NewContext(context.Background(), &peer.Peer{})
+	_, err := GetTLSSessionBinding(ctx, []byte("payload"))
+	require.EqualError(t, err, "expected TLS auth info, got <nil>")
 }
 
 // TestEncodeTimestampNil asserts that encoding a nil timestamp yields zero
