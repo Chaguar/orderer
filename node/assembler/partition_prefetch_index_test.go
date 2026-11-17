@@ -687,6 +687,91 @@ func TestPartitionPrefetchIndex_Stop(t *testing.T) {
 		}
 	})
 
+	// Scenario:
+	//  1. Fill the request channel, as when the prefetcher has stopped draining it.
+	//  2. Put batch 9, then PopOrWait batch 6, which requests it at once and waits on the full channel.
+	//  3. Put batch 9 again until a Put blocks, which shows PopOrWait holds the lock in the send.
+	//  4. Stop the index.
+	//  5. Expect Stop to return, and PopOrWait and the blocked Put to return ErrOperationCancelled.
+	t.Run("StopShouldReturnWhilePopOrWaitWaitsOnAFullRequestChannel", func(t *testing.T) {
+		// Arrange
+		test := setupPartitionPrefetchIndexTest(t, 3)
+		for len(test.batchRequestChan) < cap(test.batchRequestChan) {
+			test.batchRequestChan <- createTestBatchId(test.partition.Shard, test.partition.Primary, 0, nil)
+		}
+		batch := createTestBatch(test.partition.Shard, test.partition.Primary, 9, nil)
+		require.NoError(t, test.partitionPrefetchIndex.Put(batch))
+		popErr := make(chan error, 1)
+		go func() {
+			_, err := test.partitionPrefetchIndex.PopOrWait(createTestBatchId(test.partition.Shard, test.partition.Primary, 6, nil))
+			popErr <- err
+		}()
+		// A Put of a batch the index holds returns at once while the lock is free, and changes nothing
+		var blockedPutErr chan error
+		for deadline := time.Now().Add(eventuallyTimeout); blockedPutErr == nil; {
+			require.True(t, time.Now().Before(deadline), "PopOrWait never held the lock in the send")
+			putErr := make(chan error, 1)
+			go func() { putErr <- test.partitionPrefetchIndex.Put(batch) }()
+			select {
+			case <-putErr:
+			case <-time.After(eventuallyTick):
+				blockedPutErr = putErr
+			}
+		}
+
+		// Act
+		stopped := make(chan struct{})
+		go func() {
+			test.partitionPrefetchIndex.Stop()
+			close(stopped)
+		}()
+
+		// Assert
+		receiveWithin(t, stopped, "Stop did not return")
+		require.ErrorIs(t, receiveWithin(t, popErr, "PopOrWait did not return"), utils.ErrOperationCancelled)
+		require.ErrorIs(t, receiveWithin(t, blockedPutErr, "the blocked Put did not return"), utils.ErrOperationCancelled)
+	})
+
+	// Scenario:
+	//  1. Stop the index.
+	//  2. Put one batch and PutForce another.
+	//  3. Expect both to fail with ErrOperationCancelled, and both caches to stay empty.
+	t.Run("PutAndPutForceShouldBeRejectedAfterStop", func(t *testing.T) {
+		// Arrange
+		test := setupPartitionPrefetchIndexTest(t, 3)
+		defer test.finish()
+		test.partitionPrefetchIndex.Stop()
+
+		// Act
+		putErr := test.partitionPrefetchIndex.Put(createTestBatchWithSize(test.partition.Shard, test.partition.Primary, 1, []int{1}))
+		putForceErr := test.partitionPrefetchIndex.PutForce(createTestBatchWithSize(test.partition.Shard, test.partition.Primary, 2, []int{1}))
+
+		// Assert
+		require.ErrorIs(t, putErr, utils.ErrOperationCancelled)
+		require.ErrorIs(t, putForceErr, utils.ErrOperationCancelled)
+		require.Zero(t, test.batchCache.SizeBytes())
+		require.Zero(t, test.forcePutCache.SizeBytes())
+	})
+
+	// Scenario:
+	//  1. Put a batch, then stop the index.
+	//  2. Fire the batch's TTL timer, as if it was already waiting for the lock when Stop stopped it.
+	//  3. Expect the handler to leave the index as Stop left it.
+	t.Run("TtlHandlerShouldDoNothingAfterStop", func(t *testing.T) {
+		// Arrange
+		test := setupPartitionPrefetchIndexTest(t, 3)
+		defer test.finish()
+		batch := createTestBatchWithSize(test.partition.Shard, test.partition.Primary, 1, []int{1})
+		require.NoError(t, test.partitionPrefetchIndex.Put(batch))
+		test.partitionPrefetchIndex.Stop()
+
+		// Act
+		test.timers[0].action()
+
+		// Assert
+		require.True(t, test.batchCache.Has(batch))
+	})
+
 	t.Run("WaitingPutShouldReturnProperErrorWhenPrefetchIndexStops", func(t *testing.T) {
 		// Arrange
 		test := setupPartitionPrefetchIndexTest(t, 2)
