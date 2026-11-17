@@ -644,7 +644,7 @@ type State struct {
 	AssemblerHeights []*AssemblerHeight          `protobuf:"bytes,7,rep,name=assembler_heights,json=assemblerHeights,proto3" json:"assembler_heights,omitempty"`  // Highest committed decision reported by each assembler party, sorted by party
 	PrunePoints      []*PrunePoint               `protobuf:"bytes,8,rep,name=prune_points,json=prunePoints,proto3" json:"prune_points,omitempty"`                 // Agreed prune point per <shard, primary>, sorted by (shard, primary); an absent pair means 0
 	DurableWatermark uint64                      `protobuf:"varint,9,opt,name=durable_watermark,json=durableWatermark,proto3" json:"durable_watermark,omitempty"` // Highest decision committed by at least 2f+1 assemblers, as they reported; never decreases
-	ReplayFrom       uint64                      `protobuf:"varint,10,opt,name=replay_from,json=replayFrom,proto3" json:"replay_from,omitempty"`                  // Lowest decision that committed a batch at or above its primary's prune point; a restarting consenter rebuilds its committed index from it
+	ReplayFrom       uint64                      `protobuf:"varint,10,opt,name=replay_from,json=replayFrom,proto3" json:"replay_from,omitempty"`                  // Lowest decision that committed a batch at or above its primary's prune point; a restarting consenter rebuilds its batch decisions index from it
 }
 
 func (x *State) Reset() {

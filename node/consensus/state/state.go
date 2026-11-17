@@ -97,7 +97,7 @@ type State struct {
 	// least f+1 honest assemblers hold every decision up to it. It never decreases.
 	DurableWatermark types.DecisionNum
 	// ReplayFrom is the lowest decision that committed a batch at or above the prune point of its
-	// <shard, primary>. A restarting consenter rebuilds its index of committed batches by replaying the
+	// <shard, primary>. A restarting consenter rebuilds its batch decisions index by replaying the
 	// decisions from it.
 	ReplayFrom types.DecisionNum
 }
