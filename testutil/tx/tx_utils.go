@@ -244,10 +244,40 @@ func PrepareSignedEnvelopeWithCertificate(txNumber int, envSize int, sessionNumb
 }
 
 // PrepareSignedEnvelopeWithCertificateID is used for creating signed envelopes for the "short" (known-identity) signing mode.
-// The envelope's size is as with PrepareSignedEnvelopeWithCertificate.
+// It is ShortModeEnvelopeBuilder.Envelope for a one-off builder.
+// A caller that prepares many envelopes for one signing identity should use ShortModeEnvelopeBuilder instead.
 func PrepareSignedEnvelopeWithCertificateID(txNumber int, envSize int, sessionNumber []byte, signer *crypto.ECDSASigner, certBytes []byte, org string) *common.Envelope {
-	payload := createSignedStructuredPayloadWithCertID(nil, certBytes, org)
-	return prepareSignedEnvelope(payload, txNumber, envSize, sessionNumber, signer)
+	builder, err := NewShortModeEnvelopeBuilder(signer, certBytes, org)
+	if err != nil {
+		panic(err)
+	}
+	return builder.Envelope(txNumber, envSize, sessionNumber)
+}
+
+// ShortModeEnvelopeBuilder prepares "short" mode envelopes for one signing identity. It derives the creator identity,
+// which names the signer's certificate by its hash, once rather than per envelope, as hashing the certificate means
+// decoding and parsing it.
+type ShortModeEnvelopeBuilder struct {
+	signer  *crypto.ECDSASigner
+	creator []byte
+}
+
+// NewShortModeEnvelopeBuilder derives the creator identity naming the signer's certificate.
+func NewShortModeEnvelopeBuilder(
+	signer *crypto.ECDSASigner, certBytes []byte, org string,
+) (*ShortModeEnvelopeBuilder, error) {
+	creator, err := certIDCreator(certBytes, org)
+	if err != nil {
+		return nil, err
+	}
+	return &ShortModeEnvelopeBuilder{signer: signer, creator: creator}, nil
+}
+
+// Envelope prepares a signed envelope for the "short" (known-identity) signing mode, returning nil if signing fails.
+// The envelope's size is as with PrepareSignedEnvelopeWithCertificate.
+func (b *ShortModeEnvelopeBuilder) Envelope(txNumber int, envSize int, sessionNumber []byte) *common.Envelope {
+	payload := createSignedStructuredPayloadWithCreator(nil, b.creator)
+	return prepareSignedEnvelope(payload, txNumber, envSize, sessionNumber, b.signer)
 }
 
 // prepareSignedEnvelope fills the payload with data, so that once signed the envelope is at most envSize bytes,
@@ -304,35 +334,31 @@ func CreateSignedStructuredEnvelopeWithCertID(data []byte, signer *crypto.ECDSAS
 	return signPayload(createSignedStructuredPayloadWithCertID(data, certBytes, org), signer)
 }
 
+// createSignedStructuredPayloadWithCertID builds a Payload whose creator identity uses a certificate-ID
+// (hash) instead of the full certificate PEM.
+func createSignedStructuredPayloadWithCertID(data []byte, certBytes []byte, org string) *common.Payload {
+	creator, err := certIDCreator(certBytes, org)
+	if err != nil {
+		panic(err)
+	}
+	return createSignedStructuredPayloadWithCreator(data, creator)
+}
+
+// certIDCreator returns the marshaled creator identity that names the certificate by its certificate-ID.
+func certIDCreator(certBytes []byte, org string) ([]byte, error) {
+	certID, err := computeCertID(certBytes)
+	if err != nil {
+		return nil, err
+	}
+	return deterministicMarshall(msppb.NewIdentityWithIDOfCert(org, certID)), nil
+}
+
 func computeCertID(certBytes []byte) (string, error) {
 	digest, err := certificate.DigestPemContent(certBytes, bccsp.SHA256)
 	if err != nil {
 		return "", fmt.Errorf("failed computing cert ID: %w", err)
 	}
 	return hex.EncodeToString(digest), nil
-}
-
-// createSignedStructuredPayloadWithCertID builds a Payload whose creator identity uses a certificate-ID
-// (hash) instead of the full certificate PEM.
-func createSignedStructuredPayloadWithCertID(data []byte, certBytes []byte, org string) *common.Payload {
-	payloadChannelHeader := createChannelHeader(common.HeaderType_MESSAGE, 0, channelID, 0)
-
-	certID, err := computeCertID(certBytes)
-	if err != nil {
-		panic(err)
-	}
-
-	sId := msppb.NewIdentityWithIDOfCert(org, certID)
-
-	payloadSignatureHeader := &common.SignatureHeader{
-		Creator: deterministicMarshall(sId),
-		Nonce:   protoutil.CreateNonceOrPanic(),
-	}
-	protoutil.SetTxID(payloadChannelHeader, payloadSignatureHeader)
-	return &common.Payload{
-		Header: createPayloadHeader(payloadChannelHeader, payloadSignatureHeader),
-		Data:   data,
-	}
 }
 
 func CreateSignedStructuredEnvelope(data []byte, signer *crypto.ECDSASigner, certBytes []byte, org string) *common.Envelope {
@@ -356,12 +382,16 @@ func signPayload(payload *common.Payload, signer *crypto.ECDSASigner) *common.En
 
 // TODO: Revise it when cert registry is integrated into orderer
 func createSignedStructuredPayload(data []byte, certBytes []byte, org string) *common.Payload {
+	return createSignedStructuredPayloadWithCreator(data, deterministicMarshall(msppb.NewIdentity(org, certBytes)))
+}
+
+// createSignedStructuredPayloadWithCreator builds a Payload with the given marshaled creator identity, a fresh nonce,
+// and the TxID derived from both.
+func createSignedStructuredPayloadWithCreator(data []byte, creator []byte) *common.Payload {
 	payloadChannelHeader := createChannelHeader(common.HeaderType_MESSAGE, 0, channelID, 0)
 
-	sId := msppb.NewIdentity(org, certBytes)
-
 	payloadSignatureHeader := &common.SignatureHeader{
-		Creator: deterministicMarshall(sId),
+		Creator: creator,
 		Nonce:   protoutil.CreateNonceOrPanic(),
 	}
 	protoutil.SetTxID(payloadChannelHeader, payloadSignatureHeader)

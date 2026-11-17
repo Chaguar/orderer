@@ -7,9 +7,14 @@ SPDX-License-Identifier: Apache-2.0
 package tx
 
 import (
+	"crypto/ecdsa"
+	"crypto/sha256"
+	"crypto/x509"
+	"encoding/hex"
 	"encoding/pem"
 	"testing"
 
+	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-x-orderer/node/crypto"
@@ -45,6 +50,8 @@ func TestPrepareUnsignedEnvelopeSize(t *testing.T) {
 func TestPrepareSignedEnvelopeSize(t *testing.T) {
 	signer, certBytes := createTestSigner(t)
 	sessionNumber := make([]byte, 16)
+	builder, err := NewShortModeEnvelopeBuilder(signer, certBytes, "org1")
+	require.NoError(t, err)
 
 	for name, prepare := range map[string]func(txNumber int, envSize int) *common.Envelope{
 		"certificate": func(txNumber int, envSize int) *common.Envelope {
@@ -52,6 +59,9 @@ func TestPrepareSignedEnvelopeSize(t *testing.T) {
 		},
 		"certificate id": func(txNumber int, envSize int) *common.Envelope {
 			return PrepareSignedEnvelopeWithCertificateID(txNumber, envSize, sessionNumber, signer, certBytes, "org1")
+		},
+		"certificate id builder": func(txNumber int, envSize int) *common.Envelope {
+			return builder.Envelope(txNumber, envSize, sessionNumber)
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
@@ -82,6 +92,8 @@ func TestStructuredEnvelopeTxID(t *testing.T) {
 func TestPreparedEnvelopesUniqueTxID(t *testing.T) {
 	signer, certBytes := createTestSigner(t)
 	sessionNumber := make([]byte, 16)
+	builder, err := NewShortModeEnvelopeBuilder(signer, certBytes, "org1")
+	require.NoError(t, err)
 
 	for name, create := range map[string]func() []byte{
 		"unsigned": func() []byte { return PrepareUnsignedEnvelope(1, 512, sessionNumber).Payload },
@@ -90,6 +102,9 @@ func TestPreparedEnvelopesUniqueTxID(t *testing.T) {
 		},
 		"signed with certificate id": func() []byte {
 			return PrepareSignedEnvelopeWithCertificateID(1, 512, sessionNumber, signer, certBytes, "org1").Payload
+		},
+		"signed with certificate id builder": func() []byte {
+			return builder.Envelope(1, 512, sessionNumber).Payload
 		},
 		"signed structured": func() []byte {
 			return CreateSignedStructuredEnvelope([]byte{1}, signer, certBytes, "org1").Payload
@@ -105,6 +120,54 @@ func TestPreparedEnvelopesUniqueTxID(t *testing.T) {
 			require.NotEqual(t, requireValidTxID(t, create()), requireValidTxID(t, create()))
 		})
 	}
+}
+
+// Scenario:
+//  1. Create a signing identity and a short mode envelope builder for it.
+//  2. Prepare three envelopes with the builder.
+//  3. Expect each signature to verify against the public key of the signer's certificate.
+//  4. Expect each creator identity to name the certificate by its certificate-ID, and to carry no certificate.
+func TestShortModeEnvelopeBuilderSignsWithCertificateID(t *testing.T) {
+	signer, certBytes := createTestSigner(t)
+	builder, err := NewShortModeEnvelopeBuilder(signer, certBytes, "org1")
+	require.NoError(t, err)
+
+	block, _ := pem.Decode(certBytes)
+	require.NotNil(t, block)
+	cert, err := x509.ParseCertificate(block.Bytes)
+	require.NoError(t, err)
+	publicKey, isECDSA := cert.PublicKey.(*ecdsa.PublicKey)
+	require.True(t, isECDSA)
+	certDigest := sha256.Sum256(cert.Raw)
+	certID := hex.EncodeToString(certDigest[:])
+
+	for txNumber := range 3 {
+		env := builder.Envelope(txNumber, 512, make([]byte, 16))
+		require.NotNil(t, env)
+
+		digest := sha256.Sum256(env.Payload)
+		require.True(t, ecdsa.VerifyASN1(publicKey, digest[:], env.Signature))
+
+		payload, err := protoutil.UnmarshalPayload(env.Payload)
+		require.NoError(t, err)
+		shdr, err := protoutil.UnmarshalSignatureHeader(payload.Header.SignatureHeader)
+		require.NoError(t, err)
+		creator := &msppb.Identity{}
+		require.NoError(t, proto.Unmarshal(shdr.Creator, creator))
+		require.Equal(t, "org1", creator.MspId)
+		require.Equal(t, certID, creator.GetCertificateId())
+		require.Empty(t, creator.GetCertificate())
+	}
+}
+
+// Scenario:
+//  1. Create a short mode envelope builder with content that is not a PEM certificate.
+//  2. Expect an error and no builder.
+func TestShortModeEnvelopeBuilderRejectsInvalidCertificate(t *testing.T) {
+	signer, _ := createTestSigner(t)
+	builder, err := NewShortModeEnvelopeBuilder(signer, []byte("not a certificate"), "org1")
+	require.Error(t, err)
+	require.Nil(t, builder)
 }
 
 // requireValidTxID checks that the payload's TxID is the one derived from its signature header, and returns it.

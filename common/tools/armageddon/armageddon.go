@@ -621,8 +621,13 @@ func SendTxsToAllAvailableRouters(userConfig *UserConfig, numOfTxs int, rate int
 			broadcastClient.SendTxToAllRouters(env)
 		}
 	case "short":
+		builder, builderErr := tx.NewShortModeEnvelopeBuilder(signer, certBytes, org)
+		if builderErr != nil {
+			fmt.Fprintf(os.Stderr, "failed to prepare the signing identity for signed mode %s: %v", signedMode, builderErr)
+			os.Exit(3)
+		}
 		for i := 0; i < numOfTxs; i++ {
-			env = tx.PrepareSignedEnvelopeWithCertificateID(i, txSize, sessionNumber, signer, certBytes, org)
+			env = builder.Envelope(i, txSize, sessionNumber)
 			if env == nil {
 				fmt.Fprintf(os.Stderr, "failed to prepare envelope %d in signed mode %s", i+1, signedMode)
 				os.Exit(3)
