@@ -237,6 +237,8 @@ func (pi *PartitionPrefetchIndex) PopOrWait(batchId types.BatchID) (types.Batch,
 			panic(fmt.Sprintf("unexpected error occured while poping batch %s: %v", BatchToString(batchId), err))
 		}
 		if err == nil {
+			// Lowered under the lock, so that it comes before the reset of the gauge when the index stops
+			pi.metrics.updatePrefetchIndexSize(pi.partition.Shard, -batchSizeBytes(batch))
 			return batch, nil
 		}
 

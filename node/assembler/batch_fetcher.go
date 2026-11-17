@@ -257,11 +257,10 @@ func (br *BatchFetcher) GetBatch(batchID types.BatchID) (types.Batch, error) {
 	count := 0
 
 	for {
-		// TODO use select with case for shutdown, will be implemented in next PR
 		select {
 		case <-ctx.Done():
 			cancelFunc(errors.New("batch fetcher is shutting down, assembler is stopping"))
-			br.logger.Errorf("operation canceled")
+			br.logger.Infof("Fetching batch %s was canceled: the batch fetcher is stopping", types.BatchIDToString(batchID))
 			return nil, context.Canceled
 		case fb := <-res:
 			count++
@@ -311,14 +310,14 @@ func (br *BatchFetcher) pullSingleBatch(ctx context.Context, batcherToPullFrom c
 		successErr,
 	)
 	if err != nil {
-		if cause := context.Cause(ctx); cause == successErr {
+		// A canceled pull has nobody to answer: GetBatch has returned, or the fetcher stopped and
+		// GetBatch returns through its ctx.Done case. A nil batch would count as "not found".
+		if cause := context.Cause(ctx); cause != nil {
 			br.logger.Infof("Assembler canceled pulling batch %s from batcher: shard: %d, party: %d, endpoint: %s. cause: %v", types.BatchIDToString(batchID), batchID.Shard(), batcherToPullFrom.PartyID, batcherToPullFrom.Endpoint, cause)
-		} else if cause != nil {
-			br.logger.Errorf("Assembler failed pulling batch %s from batcher, because context was canceled with cause %v. shard: %d, party: %d, endpoint: %s. error: %s", cause, types.BatchIDToString(batchID), batchID.Shard(), batcherToPullFrom.PartyID, batcherToPullFrom.Endpoint, err)
-		} else {
-			// context was not canceled, this is an actual error.
-			br.logger.Errorf("Assembler failed pulling batch %s from batcher: shard: %d, party: %d, endpoint: %s. error: %s", types.BatchIDToString(batchID), batchID.Shard(), batcherToPullFrom.PartyID, batcherToPullFrom.Endpoint, err)
+			return
 		}
+		// context was not canceled, this is an actual error.
+		br.logger.Errorf("Assembler failed pulling batch %s from batcher: shard: %d, party: %d, endpoint: %s. error: %s", types.BatchIDToString(batchID), batchID.Shard(), batcherToPullFrom.PartyID, batcherToPullFrom.Endpoint, err)
 		resultChan <- nil
 		return
 	}
