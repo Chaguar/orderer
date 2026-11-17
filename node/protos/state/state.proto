@@ -76,7 +76,6 @@ message ControlEvent {
 
 // State represents the state of the consensus
 message State {
-  uint32 number_of_parties = 1;
   repeated ShardTerm shards = 2; // The different shards and their current terms
   repeated BatchAttestationFragment pending = 3;  // Pending batch attestation fragments received by consenters from batchers
   repeated Complaint complaints = 4; // Complaints received by consenters from batchers

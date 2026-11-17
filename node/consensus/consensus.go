@@ -13,6 +13,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -79,7 +80,7 @@ type SigVerifier interface {
 }
 
 type Arma interface {
-	SimulateStateTransition(prevState *state.State, configSeq arma_types.ConfigSequence, events [][]byte) (*state.State, [][]arma_types.BatchAttestationFragment, []*state.ConfigRequest)
+	SimulateStateTransition(prevState *state.State, configSeq arma_types.ConfigSequence, parties []arma_types.PartyID, events [][]byte) (*state.State, [][]arma_types.BatchAttestationFragment, []*state.ConfigRequest)
 	Index([][]byte)
 }
 
@@ -480,9 +481,10 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 		c.lock.Unlock()
 		return nil, errors.Errorf("verification sequence changed from %d to %d while verifying the proposal", verificationSeq, currentSeq)
 	}
-	computedState, attestations, configRequests := c.Arma.SimulateStateTransition(c.State, arma_types.ConfigSequence(verificationSeq), requests)
+	parties := c.parties()
+	computedState, attestations, configRequests := c.Arma.SimulateStateTransition(c.State, arma_types.ConfigSequence(verificationSeq), parties, requests)
 	if configRequests != nil {
-		if computedState, err = c.ConfigApplier.ApplyConfigToState(computedState, configRequests[0]); err != nil {
+		if computedState, err = c.ConfigApplier.ApplyConfigToState(computedState, configRequests[0], parties); err != nil {
 			c.lock.Unlock()
 			return nil, fmt.Errorf("failed applying config to state, err: %s", err)
 		}
@@ -803,6 +805,16 @@ func (c *Consensus) verificationSequence() uint64 {
 	return c.Config.Bundle.ConfigtxValidator().Sequence()
 }
 
+// parties returns the party IDs of the config in force, sorted by party ID.
+func (c *Consensus) parties() []arma_types.PartyID {
+	parties := make([]arma_types.PartyID, 0, len(c.Config.Consenters))
+	for _, consenter := range c.Config.Consenters {
+		parties = append(parties, consenter.PartyID)
+	}
+	slices.Sort(parties)
+	return parties
+}
+
 // RequestsFromProposal returns from the given proposal the included requests' info
 // (from SmartBFT API)
 func (c *Consensus) RequestsFromProposal(proposal smartbft_types.Proposal) []smartbft_types.RequestInfo {
@@ -947,10 +959,11 @@ func (c *Consensus) SignProposal(proposal smartbft_types.Proposal, _ []byte) *sm
 // (from SmartBFT API)
 func (c *Consensus) AssembleProposal(metadata []byte, requests [][]byte) smartbft_types.Proposal {
 	c.lock.Lock()
-	newState, attestations, configRequests := c.Arma.SimulateStateTransition(c.State, arma_types.ConfigSequence(c.verificationSequence()), requests)
+	parties := c.parties()
+	newState, attestations, configRequests := c.Arma.SimulateStateTransition(c.State, arma_types.ConfigSequence(c.verificationSequence()), parties, requests)
 	if configRequests != nil {
 		var err error
-		if newState, err = c.ConfigApplier.ApplyConfigToState(newState, configRequests[0]); err != nil {
+		if newState, err = c.ConfigApplier.ApplyConfigToState(newState, configRequests[0], parties); err != nil {
 			c.Logger.Panicf("failed applying config to state, err: %s", err)
 		}
 	}

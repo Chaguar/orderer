@@ -352,7 +352,6 @@ func (s *syncTestSetup) addParty() (types.PartyID, *cb.Block) {
 		},
 	}
 	st := &state.State{
-		N:      uint16(s.numParties + 1),
 		Shards: []state.ShardTerm{{Shard: s.shardID, Term: 0}},
 	}
 	for _, c := range s.sourceConsenters {

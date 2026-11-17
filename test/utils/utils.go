@@ -294,7 +294,7 @@ func CreateConsenters(t *testing.T, num int, consenterNodes []*node, consenterIn
 		c := consensus.CreateConsensus(conf, testutil.ConfigurationWithDefaultCluster(), genesisBlock, logger, make(chan struct{}), signer, mockConfigUpdateProposer)
 		c.Net = net
 		mockConfigApplier := &consensusMocks.FakeConfigApplier{}
-		mockConfigApplier.ApplyConfigToStateCalls(func(s *state.State, request *state.ConfigRequest) (*state.State, error) {
+		mockConfigApplier.ApplyConfigToStateCalls(func(s *state.State, request *state.ConfigRequest, _ []types.PartyID) (*state.State, error) {
 			return s, nil
 		})
 		c.ConfigApplier = mockConfigApplier
@@ -521,7 +521,7 @@ func RecoverConsenter(t *testing.T, ca tlsgen.CA, conf *node_config.ConsenterNod
 	consenter := consensus.CreateConsensus(conf, testutil.ConfigurationWithDefaultCluster(), lastConfigBlock, logger, make(chan struct{}), signer, mockConfigUpdateProposer)
 	consenter.Net = newConsenterNode.GRPCServer
 	mockConfigApplier := &consensusMocks.FakeConfigApplier{}
-	mockConfigApplier.ApplyConfigToStateCalls(func(s *state.State, request *state.ConfigRequest) (*state.State, error) {
+	mockConfigApplier.ApplyConfigToStateCalls(func(s *state.State, request *state.ConfigRequest, _ []types.PartyID) (*state.State, error) {
 		return s, nil
 	})
 	consenter.ConfigApplier = mockConfigApplier

@@ -28,7 +28,7 @@ type Consenter struct {
 	DB     BatchAttestationDB
 }
 
-func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq types.ConfigSequence, requests [][]byte) (*state.State, [][]types.BatchAttestationFragment, []*state.ConfigRequest) {
+func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq types.ConfigSequence, parties []types.PartyID, requests [][]byte) (*state.State, [][]types.BatchAttestationFragment, []*state.ConfigRequest) {
 	controlEvents, err := requestsToControlEvents(requests)
 	if err != nil {
 		panic(err)
@@ -47,7 +47,7 @@ func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq ty
 		filteredControlEvents = append(filteredControlEvents, ce)
 	}
 
-	newState, fragments, configRequests := prevState.Process(c.Logger, configSeq, filteredControlEvents...)
+	newState, fragments, configRequests := prevState.Process(c.Logger, configSeq, parties, filteredControlEvents...)
 	batchAttestations := aggregateFragments(fragments)
 
 	return newState, batchAttestations, configRequests

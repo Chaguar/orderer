@@ -14,7 +14,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	arma_types "github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
 	"github.com/hyperledger/fabric-x-orderer/config"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/pkg/errors"
@@ -23,8 +22,9 @@ import (
 
 //go:generate counterfeiter -o mocks/config_applier.go . ConfigApplier
 type ConfigApplier interface {
-	// ApplyConfigToState update the current state based on the config request
-	ApplyConfigToState(state *state.State, configRequest *state.ConfigRequest) (*state.State, error)
+	// ApplyConfigToState update the current state based on the config request. currentParties are the party
+	// IDs of the config in force before the config request.
+	ApplyConfigToState(state *state.State, configRequest *state.ConfigRequest, currentParties []arma_types.PartyID) (*state.State, error)
 	// ExtractSmartBFTConfigFromBlock extracts the smartBFT config from a config block
 	ExtractSmartBFTConfigFromBlock(configBlock *common.Block, selfID arma_types.PartyID) ([]uint64, smartbft_types.Configuration, error)
 }
@@ -33,7 +33,7 @@ type DefaultConfigApplier struct {
 	bccsp bccsp.BCCSP
 }
 
-func (ca *DefaultConfigApplier) ApplyConfigToState(state *state.State, configRequest *state.ConfigRequest) (*state.State, error) {
+func (ca *DefaultConfigApplier) ApplyConfigToState(state *state.State, configRequest *state.ConfigRequest, currentParties []arma_types.PartyID) (*state.State, error) {
 	bundle, err := channelconfig.NewBundleFromEnvelope(configRequest.Envelope, ca.bccsp)
 	if err != nil {
 		return nil, err
@@ -50,12 +50,8 @@ func (ca *DefaultConfigApplier) ApplyConfigToState(state *state.State, configReq
 	}
 
 	newState := state.Clone()
-	newState.N = uint16(len(sharedConfig.PartiesConfig))
-	_, T, Q := utils.ComputeFTQ(newState.N)
-	newState.Threshold = T
-	newState.Quorum = Q
 
-	if newState.N != state.N {
+	if len(sharedConfig.PartiesConfig) != len(currentParties) {
 		// there was a party change, explicitly change term on all shards
 		for i := range newState.Shards {
 			newState.Shards[i].Term++
