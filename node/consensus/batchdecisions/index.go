@@ -4,10 +4,10 @@ Copyright IBM Corp. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 */
 
-// Package committedindex keeps, in memory, the decision that committed each batch of every
+// Package batchdecisions keeps, in memory, the decision that committed each batch of every
 // <shard, primary> that is not pruned yet, so that consensus can compute prune points without reading its
 // ledger.
-package committedindex
+package batchdecisions
 
 import (
 	"cmp"

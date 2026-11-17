@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/Chaguar/orderer/common/types"
-	"github.com/Chaguar/orderer/node/consensus/committedindex"
+	"github.com/Chaguar/orderer/node/consensus/batchdecisions"
 	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/Chaguar/orderer/node/ledger"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
@@ -31,9 +31,10 @@ type BatchAttestationDB interface {
 type Consenter struct {
 	Logger *flogging.FabricLogger
 	DB     BatchAttestationDB
-	// Committed indexes the committed batches that are not pruned yet, from which the prune points are
-	// computed. It is fed at commit, by IndexCommitted, and only read while simulating a decision.
-	Committed committedindex.Index
+	// BatchDecisions records the decision that committed each batch not pruned yet, from which the prune
+	// points are computed. It is fed at commit, by IndexBatchDecisions, and only read while simulating a
+	// decision.
+	BatchDecisions batchdecisions.Index
 }
 
 func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq types.ConfigSequence, parties []types.PartyID, requests [][]byte) (*state.State, [][]types.BatchAttestationFragment, []*state.ConfigRequest) {
@@ -74,16 +75,16 @@ func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq ty
 // it, so every node computes the same next state.
 func (c *Consenter) updatePrunePoints(prev, next *state.State, committing []types.BatchAttestationFragment) {
 	if next.DurableWatermark > prev.DurableWatermark {
-		lowestCommitting := make(map[committedindex.LedgerKey]types.BatchSequence)
+		lowestCommitting := make(map[batchdecisions.LedgerKey]types.BatchSequence)
 		for _, baf := range committing {
-			key := committedindex.LedgerKey{Shard: baf.Shard(), Primary: baf.Primary()}
+			key := batchdecisions.LedgerKey{Shard: baf.Shard(), Primary: baf.Primary()}
 			if seq, exists := lowestCommitting[key]; !exists || baf.Seq() < seq {
 				lowestCommitting[key] = baf.Seq()
 			}
 		}
 
-		for _, key := range c.Committed.Ledgers() {
-			seq := c.Committed.DurableFrontier(key.Shard, key.Primary, next.PrunePoint(key.Shard, key.Primary), next.DurableWatermark)
+		for _, key := range c.BatchDecisions.Ledgers() {
+			seq := c.BatchDecisions.DurableFrontier(key.Shard, key.Primary, next.PrunePoint(key.Shard, key.Primary), next.DurableWatermark)
 			if lowest, exists := lowestCommitting[key]; exists {
 				seq = min(seq, lowest)
 			}
@@ -91,7 +92,7 @@ func (c *Consenter) updatePrunePoints(prev, next *state.State, committing []type
 		}
 		next.DropPendingBelowPrunePoints(c.Logger)
 	}
-	next.ReplayFrom = c.Committed.ReplayFrom()
+	next.ReplayFrom = c.BatchDecisions.ReplayFrom()
 }
 
 // Index indexes BAs (digests).
@@ -104,20 +105,20 @@ func (c *Consenter) Index(digests [][]byte) {
 	}
 }
 
-// IndexCommitted adds the batches that the decision with the given header committed to the index of
-// committed batches, and drops the batches below the decision's prune points. It panics if a batch ID
-// cannot be read.
-func (c *Consenter) IndexCommitted(hdr *state.Header) {
+// IndexBatchDecisions records, in the batch decisions index, the batches that the decision with the given
+// header committed, and drops the batches below the decision's prune points. It panics if a batch ID cannot
+// be read.
+func (c *Consenter) IndexBatchDecisions(hdr *state.Header) {
 	ids, err := committedBatchIDs(hdr)
 	if err != nil {
 		c.Logger.Panicf("Failed indexing the batches of decision %d: %v", hdr.Num, err)
 	}
-	if err := c.Committed.Add(hdr.Num, ids); err != nil {
+	if err := c.BatchDecisions.Add(hdr.Num, ids); err != nil {
 		c.Logger.Panicf("Failed indexing the batches of decision %d: %v", hdr.Num, err)
 	}
 	if hdr.State != nil {
 		for _, p := range hdr.State.PrunePoints {
-			c.Committed.DropBelow(p.Shard, p.Primary, p.Seq)
+			c.BatchDecisions.DropBelow(p.Shard, p.Primary, p.Seq)
 		}
 	}
 }

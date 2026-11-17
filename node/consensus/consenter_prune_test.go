@@ -13,7 +13,7 @@ import (
 	arma_types "github.com/Chaguar/orderer/common/types"
 	"github.com/Chaguar/orderer/common/utils"
 	"github.com/Chaguar/orderer/node/consensus"
-	"github.com/Chaguar/orderer/node/consensus/committedindex"
+	"github.com/Chaguar/orderer/node/consensus/batchdecisions"
 	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/Chaguar/orderer/testutil"
 	"github.com/Chaguar/orderer/testutil/tx"
@@ -35,14 +35,14 @@ func pruneState(reported, durable arma_types.DecisionNum) *state.State {
 	}
 }
 
-// commitSeqs indexes, through IndexCommitted, one batch of <shard 1, primary 1> per decision: decisions[i]
+// commitSeqs indexes, through IndexBatchDecisions, one batch of <shard 1, primary 1> per decision: decisions[i]
 // commits seqs[i]. The decisions are in increasing order.
 func commitSeqs(t *testing.T, c *consensus.Consenter, seqs []arma_types.BatchSequence, decisions []arma_types.DecisionNum) {
 	require.Len(t, decisions, len(seqs))
 	for i := range seqs {
 		hdr := headerWithBatches(t, decisions[i], state.NewAvailableBatch(1, 1, seqs[i], []byte{byte(seqs[i])}))
 		hdr.State = &state.State{}
-		c.IndexCommitted(hdr)
+		c.IndexBatchDecisions(hdr)
 	}
 }
 
@@ -119,7 +119,7 @@ func TestConsenterDropsBAFsBelowPrunePoint(t *testing.T) {
 	})
 }
 
-func TestConsenterIndexCommitted(t *testing.T) {
+func TestConsenterIndexBatchDecisions(t *testing.T) {
 	batch := state.NewAvailableBatch(1, 1, 4, []byte{1})
 
 	t.Run("config decision", func(t *testing.T) {
@@ -132,11 +132,11 @@ func TestConsenterIndexCommitted(t *testing.T) {
 		hdr.DecisionNumOfLastConfigBlock = 7
 		hdr.State = &state.State{}
 
-		c.IndexCommitted(hdr)
+		c.IndexBatchDecisions(hdr)
 
-		require.Equal(t, 1, c.Committed.Size())
-		require.Equal(t, []committedindex.LedgerKey{{Shard: 1, Primary: 1}}, c.Committed.Ledgers())
-		require.Equal(t, arma_types.DecisionNum(7), c.Committed.ReplayFrom())
+		require.Equal(t, 1, c.BatchDecisions.Size())
+		require.Equal(t, []batchdecisions.LedgerKey{{Shard: 1, Primary: 1}}, c.BatchDecisions.Ledgers())
+		require.Equal(t, arma_types.DecisionNum(7), c.BatchDecisions.ReplayFrom())
 	})
 
 	t.Run("genesis", func(t *testing.T) {
@@ -144,10 +144,10 @@ func TestConsenterIndexCommitted(t *testing.T) {
 		genesis := tx.CreateConfigBlock(0, []byte{3})
 		genesis.Metadata.Metadata[common.BlockMetadataIndex_ORDERER] = utils.GenesisBlockMetadataBytes()
 
-		c.IndexCommitted(&state.Header{Num: 0, AvailableCommonBlocks: []*common.Block{genesis}, State: &state.State{}})
+		c.IndexBatchDecisions(&state.Header{Num: 0, AvailableCommonBlocks: []*common.Block{genesis}, State: &state.State{}})
 
-		require.Zero(t, c.Committed.Size())
-		require.Equal(t, arma_types.DecisionNum(1), c.Committed.ReplayFrom())
+		require.Zero(t, c.BatchDecisions.Size())
+		require.Equal(t, arma_types.DecisionNum(1), c.BatchDecisions.ReplayFrom())
 	})
 
 	t.Run("unverified signatures metadata is not read", func(t *testing.T) {
@@ -156,8 +156,8 @@ func TestConsenterIndexCommitted(t *testing.T) {
 		hdr.AvailableCommonBlocks[0].Metadata.Metadata[common.BlockMetadataIndex_SIGNATURES] = []byte{0xff, 0xff, 0xff}
 		hdr.State = &state.State{}
 
-		require.NotPanics(t, func() { c.IndexCommitted(hdr) })
-		require.Equal(t, 1, c.Committed.Size())
+		require.NotPanics(t, func() { c.IndexBatchDecisions(hdr) })
+		require.Equal(t, 1, c.BatchDecisions.Size())
 	})
 
 	t.Run("malformed orderer metadata panics", func(t *testing.T) {
@@ -166,7 +166,7 @@ func TestConsenterIndexCommitted(t *testing.T) {
 		hdr.AvailableCommonBlocks[0].Metadata.Metadata[common.BlockMetadataIndex_ORDERER] = []byte{0xff, 0xff, 0xff}
 		hdr.State = &state.State{}
 
-		require.Panics(t, func() { c.IndexCommitted(hdr) })
+		require.Panics(t, func() { c.IndexBatchDecisions(hdr) })
 	})
 
 	t.Run("skipped decision panics", func(t *testing.T) {
@@ -175,7 +175,7 @@ func TestConsenterIndexCommitted(t *testing.T) {
 
 		hdr := headerWithBatches(t, 3, batch)
 		hdr.State = &state.State{}
-		require.Panics(t, func() { c.IndexCommitted(hdr) })
+		require.Panics(t, func() { c.IndexBatchDecisions(hdr) })
 	})
 
 	t.Run("drops batches below the decision's prune points", func(t *testing.T) {
@@ -185,10 +185,10 @@ func TestConsenterIndexCommitted(t *testing.T) {
 		hdr := headerWithBatches(t, 5)
 		hdr.State = &state.State{}
 		hdr.State.SetPrunePoint(1, 1, 2)
-		c.IndexCommitted(hdr)
+		c.IndexBatchDecisions(hdr)
 
-		require.Equal(t, 2, c.Committed.Size())
-		require.Equal(t, arma_types.DecisionNum(3), c.Committed.ReplayFrom())
+		require.Equal(t, 2, c.BatchDecisions.Size())
+		require.Equal(t, arma_types.DecisionNum(3), c.BatchDecisions.ReplayFrom())
 	})
 }
 
@@ -203,7 +203,7 @@ func TestConsenterReplayFrom(t *testing.T) {
 	// replays from the lowest decision still held.
 	hdr := headerWithBatches(t, 5)
 	hdr.State = next
-	c.IndexCommitted(hdr)
+	c.IndexBatchDecisions(hdr)
 
 	next, _, _ = c.SimulateStateTransition(next, 0, testutil.PartyIDs(4), nil)
 	require.Equal(t, arma_types.DecisionNum(3), next.ReplayFrom)

@@ -11,7 +11,7 @@ import (
 
 	"github.com/Chaguar/common/protoutil"
 	arma_types "github.com/Chaguar/orderer/common/types"
-	"github.com/Chaguar/orderer/node/consensus/committedindex"
+	"github.com/Chaguar/orderer/node/consensus/batchdecisions"
 	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/Chaguar/orderer/node/ledger"
 	"github.com/Chaguar/orderer/testutil"
@@ -21,10 +21,10 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
-// TestRebuildCommittedIndex commits decisions through a live index while the prune points advance, writes
+// TestRebuildBatchDecisionsIndex commits decisions through a live index while the prune points advance, writes
 // them to a consenter ledger, and rebuilds a fresh index from the last state: the rebuilt index must hold
 // the same batches and answer the same as the live one.
-func TestRebuildCommittedIndex(t *testing.T) {
+func TestRebuildBatchDecisionsIndex(t *testing.T) {
 	logger := testutil.CreateLogger(t, 0)
 	l, err := ledger.NewConsensusLedger(t.TempDir())
 	require.NoError(t, err)
@@ -42,7 +42,7 @@ func TestRebuildCommittedIndex(t *testing.T) {
 		if n > 20 {
 			st.SetPrunePoint(1, 2, arma_types.BatchSequence(n-20))
 		}
-		st.ReplayFrom = live.Committed.ReplayFrom()
+		st.ReplayFrom = live.BatchDecisions.ReplayFrom()
 		hdr := &state.Header{Num: n, DecisionNumOfLastConfigBlock: 0, State: st}
 		if n > 0 && n%7 != 0 { // decision 0 and every 7th decision commit no batch
 			for i, primary := range []arma_types.PartyID{1, 2} {
@@ -51,7 +51,7 @@ func TestRebuildCommittedIndex(t *testing.T) {
 				hdr.AvailableCommonBlocks = append(hdr.AvailableCommonBlocks, block)
 			}
 		}
-		live.IndexCommitted(hdr)
+		live.IndexBatchDecisions(hdr)
 
 		md, err := proto.Marshal(&smartbftprotos.ViewMetadata{LatestSequence: uint64(n)})
 		require.NoError(t, err)
@@ -63,24 +63,24 @@ func TestRebuildCommittedIndex(t *testing.T) {
 	}
 	require.Positive(t, last.ReplayFrom)
 
-	rebuilt := &committedindex.Index{}
-	rebuildCommittedIndex(logger, rebuilt, l, last)
+	rebuilt := &batchdecisions.Index{}
+	rebuildBatchDecisionsIndex(logger, rebuilt, l, last)
 
-	require.Equal(t, live.Committed.Size(), rebuilt.Size())
-	require.Equal(t, live.Committed.Ledgers(), rebuilt.Ledgers())
-	require.Equal(t, live.Committed.ReplayFrom(), rebuilt.ReplayFrom())
-	for _, key := range live.Committed.Ledgers() {
+	require.Equal(t, live.BatchDecisions.Size(), rebuilt.Size())
+	require.Equal(t, live.BatchDecisions.Ledgers(), rebuilt.Ledgers())
+	require.Equal(t, live.BatchDecisions.ReplayFrom(), rebuilt.ReplayFrom())
+	for _, key := range live.BatchDecisions.Ledgers() {
 		from := last.PrunePoint(key.Shard, key.Primary)
 		require.Equal(t,
-			live.Committed.DurableFrontier(key.Shard, key.Primary, from, decisions-1),
+			live.BatchDecisions.DurableFrontier(key.Shard, key.Primary, from, decisions-1),
 			rebuilt.DurableFrontier(key.Shard, key.Primary, from, decisions-1),
 			"pair %v", key)
 	}
 }
 
-// TestRebuildCommittedIndexPanicsOnMismatchedDecision verifies that the rebuild fails when a ledger block does
+// TestRebuildBatchDecisionsIndexPanicsOnMismatchedDecision verifies that the rebuild fails when a ledger block does
 // not hold the decision of its number, instead of indexing it under the wrong decision.
-func TestRebuildCommittedIndexPanicsOnMismatchedDecision(t *testing.T) {
+func TestRebuildBatchDecisionsIndexPanicsOnMismatchedDecision(t *testing.T) {
 	logger := testutil.CreateLogger(t, 0)
 	l, err := ledger.NewConsensusLedger(t.TempDir())
 	require.NoError(t, err)
@@ -96,5 +96,5 @@ func TestRebuildCommittedIndexPanicsOnMismatchedDecision(t *testing.T) {
 		l.Append(block)
 	}
 
-	require.Panics(t, func() { rebuildCommittedIndex(logger, &committedindex.Index{}, l, &state.State{}) })
+	require.Panics(t, func() { rebuildBatchDecisionsIndex(logger, &batchdecisions.Index{}, l, &state.State{}) })
 }

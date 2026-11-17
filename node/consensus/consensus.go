@@ -82,7 +82,7 @@ type SigVerifier interface {
 type Arma interface {
 	SimulateStateTransition(prevState *state.State, configSeq arma_types.ConfigSequence, parties []arma_types.PartyID, events [][]byte) (*state.State, [][]arma_types.BatchAttestationFragment, []*state.ConfigRequest)
 	Index([][]byte)
-	IndexCommitted(hdr *state.Header)
+	IndexBatchDecisions(hdr *state.Header)
 }
 
 type BFT interface {
@@ -1084,7 +1084,7 @@ func (c *Consensus) Deliver(proposal smartbft_types.Proposal, signatures []smart
 	c.lock.Lock()
 
 	c.Arma.Index(digests)
-	c.Arma.IndexCommitted(hdr)
+	c.Arma.IndexBatchDecisions(hdr)
 	block := state.CreateBlockToAppendFromDecision(uint64(hdr.Num), proposal, signatures, c.PrevHash, uint64(hdr.DecisionNumOfLastConfigBlock))
 	c.Storage.Append(block)
 
