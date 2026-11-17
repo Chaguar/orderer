@@ -14,7 +14,7 @@ import (
 	"sync/atomic"
 
 	"github.com/Chaguar/common/tools/fileutil"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/util/leveldbhelper"
+	"github.com/hyperledger/fabric-x-orderer/common/ledger/util/kvdb"
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
@@ -32,7 +32,7 @@ var blkMgrInfoKey = []byte("blkMgrInfo")
 type blockfileMgr struct {
 	rootDir           string
 	conf              *Conf
-	db                *leveldbhelper.DBHandle
+	db                *kvdb.DBHandle
 	index             *blockIndex
 	blockfilesInfo    *blockfilesInfo
 	blkfilesInfoCond  *sync.Cond
@@ -85,7 +85,7 @@ At start up a new manager:
 	  *)  Updates blockchain info used by the APIs
 	  *)  Removes the block files an interrupted prune left behind
 */
-func newBlockfileMgr(id string, conf *Conf, indexStore *leveldbhelper.DBHandle) (*blockfileMgr, error) {
+func newBlockfileMgr(id string, conf *Conf, indexStore *kvdb.DBHandle) (*blockfileMgr, error) {
 	logger.Debugf("newBlockfileMgr() initializing file-based block storage for ledger: %s ", id)
 	rootDir := conf.getLedgerBlockDir(id)
 	_, err := fileutil.CreateDirIfMissing(rootDir)

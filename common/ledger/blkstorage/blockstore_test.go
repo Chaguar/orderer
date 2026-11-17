@@ -50,7 +50,7 @@ func TestBlockNumIndexErrorPropagation(t *testing.T) {
 		require.NoError(t, store.AddBlock(b))
 	}
 
-	env.provider.leveldbProvider.Close()
+	env.provider.dbProvider.Close()
 
 	block, err := store.RetrieveBlockByNumber(1)
 	require.Nil(t, block)

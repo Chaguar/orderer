@@ -4,7 +4,7 @@ Copyright IBM Corp. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package leveldbhelper
+package kvdb
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	flogging.ActivateSpec("leveldbhelper=debug")
+	flogging.ActivateSpec("kvdb=debug")
 	os.Exit(m.Run())
 }
 

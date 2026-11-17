@@ -4,7 +4,7 @@ Copyright IBM Corp. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package leveldbhelper
+package kvdb
 
 import (
 	"bytes"
@@ -18,7 +18,7 @@ import (
 	"github.com/hyperledger/fabric-x-orderer/common/pebbledb"
 )
 
-var logger = flogging.MustGetLogger("leveldbhelper")
+var logger = flogging.MustGetLogger("kvdb")
 
 type dbState int32
 

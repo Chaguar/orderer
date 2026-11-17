@@ -4,7 +4,7 @@ Copyright IBM Corp. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package leveldbhelper
+package kvdb
 
 import (
 	"bytes"
@@ -42,8 +42,8 @@ func checkHandleEntries(t *testing.T, h *DBHandle, expectedKeys []string, expect
 }
 
 // retrieveAppKey returns the key of a handle's iterator entry without the handle's prefix.
-func retrieveAppKey(levelKey []byte) []byte {
-	return bytes.SplitN(levelKey, dbNameKeySep, 2)[1]
+func retrieveAppKey(dbKey []byte) []byte {
+	return bytes.SplitN(dbKey, dbNameKeySep, 2)[1]
 }
 
 func createTestKey(i int) string {

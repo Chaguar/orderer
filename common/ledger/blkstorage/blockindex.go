@@ -10,7 +10,7 @@ import (
 	"fmt"
 
 	"github.com/hyperledger/fabric-x-orderer/common/ledger/util"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/util/leveldbhelper"
+	"github.com/hyperledger/fabric-x-orderer/common/ledger/util/kvdb"
 
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protowire"
@@ -35,10 +35,10 @@ type blockIdxInfo struct {
 // index the orderer keeps: blocks are addressed by number on every read path, and nothing addresses
 // them by hash or by the transactions they carry.
 type blockIndex struct {
-	db *leveldbhelper.DBHandle
+	db *kvdb.DBHandle
 }
 
-func newBlockIndex(db *leveldbhelper.DBHandle) *blockIndex {
+func newBlockIndex(db *kvdb.DBHandle) *blockIndex {
 	return &blockIndex{db: db}
 }
 
@@ -65,7 +65,7 @@ func (index *blockIndex) indexBlock(blockIdxInfo *blockIdxInfo) error {
 
 // addBlockNumDeletions queues the removal of the index entries of blocks [from, to). The savepoint is not
 // touched: it records how far indexing has reached, which pruning the front does not change.
-func (index *blockIndex) addBlockNumDeletions(batch *leveldbhelper.UpdateBatch, from, to uint64) {
+func (index *blockIndex) addBlockNumDeletions(batch *kvdb.UpdateBatch, from, to uint64) {
 	for n := from; n < to; n++ {
 		batch.Delete(constructBlockNumKey(n))
 	}

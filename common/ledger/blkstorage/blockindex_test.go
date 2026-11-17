@@ -38,7 +38,7 @@ func testBlockIndexSync(t *testing.T, numBlocks int, numBlocksToIndex int, syncB
 		blkfileMgrWrapper.addBlocks(blocks[:numBlocksToIndex])
 
 		// redirect index writes to some random place and add remaining blocks
-		blkfileMgr.index.db = env.provider.leveldbProvider.GetDBHandle("someRandomPlace")
+		blkfileMgr.index.db = env.provider.dbProvider.GetDBHandle("someRandomPlace")
 		blkfileMgrWrapper.addBlocks(blocks[numBlocksToIndex:])
 
 		// Plug-in back the original index store

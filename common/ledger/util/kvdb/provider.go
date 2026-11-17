@@ -4,7 +4,7 @@ Copyright IBM Corp. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package leveldbhelper
+package kvdb
 
 import (
 	"bytes"
@@ -195,17 +195,17 @@ type DBHandle struct {
 
 // Get returns the value for the given key
 func (h *DBHandle) Get(key []byte) ([]byte, error) {
-	return h.db.Get(constructLevelKey(h.dbName, key))
+	return h.db.Get(constructDBKey(h.dbName, key))
 }
 
 // Put saves the key/value
 func (h *DBHandle) Put(key []byte, value []byte, sync bool) error {
-	return h.db.Put(constructLevelKey(h.dbName, key), value, sync)
+	return h.db.Put(constructDBKey(h.dbName, key), value, sync)
 }
 
 // Delete deletes the given key
 func (h *DBHandle) Delete(key []byte, sync bool) error {
-	return h.db.Delete(constructLevelKey(h.dbName, key), sync)
+	return h.db.Delete(constructDBKey(h.dbName, key), sync)
 }
 
 // deleteAll deletes all the keys that belong to the channel (dbName), in one atomic range deletion.
@@ -267,8 +267,8 @@ func (h *DBHandle) WriteBatch(batch *UpdateBatch, sync bool) error {
 
 // keyRange returns the db keys that bound all the keys of this handle, as [start, end).
 func (h *DBHandle) keyRange() ([]byte, []byte) {
-	sKey := constructLevelKey(h.dbName, nil)
-	eKey := constructLevelKey(h.dbName, nil)
+	sKey := constructDBKey(h.dbName, nil)
+	eKey := constructDBKey(h.dbName, nil)
 	// replace the last byte 'dbNameKeySep' by 'lastKeyIndicator'
 	eKey[len(eKey)-1] = lastKeyIndicator
 	return sKey, eKey
@@ -296,7 +296,7 @@ func (b *UpdateBatch) Put(key []byte, value []byte) {
 		panic("Nil value not allowed")
 	}
 	b.requireNotWritten()
-	k := constructLevelKey(b.dbName, key)
+	k := constructDBKey(b.dbName, key)
 	// A batch without an index never fails to record an operation.
 	_ = b.batch.Set(k, value, nil)
 	b.size += len(k) + len(value)
@@ -305,7 +305,7 @@ func (b *UpdateBatch) Put(key []byte, value []byte) {
 // Delete deletes a Key and associated value
 func (b *UpdateBatch) Delete(key []byte) {
 	b.requireNotWritten()
-	k := constructLevelKey(b.dbName, key)
+	k := constructDBKey(b.dbName, key)
 	b.size += len(k)
 	_ = b.batch.Delete(k, nil)
 }
@@ -341,6 +341,6 @@ func (b *UpdateBatch) requireNotWritten() {
 	}
 }
 
-func constructLevelKey(dbName string, key []byte) []byte {
+func constructDBKey(dbName string, key []byte) []byte {
 	return append(append([]byte(dbName), dbNameKeySep...), key...)
 }

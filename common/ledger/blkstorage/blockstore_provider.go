@@ -11,7 +11,7 @@ import (
 
 	"github.com/Chaguar/common/tools/fileutil"
 	"github.com/hyperledger/fabric-x-orderer/common/ledger/dataformat"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/util/leveldbhelper"
+	"github.com/hyperledger/fabric-x-orderer/common/ledger/util/kvdb"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-lib-go/common/metrics"
@@ -22,14 +22,14 @@ var logger = flogging.MustGetLogger("blkstorage")
 
 // BlockStoreProvider provides handle to block storage - this is not thread-safe
 type BlockStoreProvider struct {
-	conf            *Conf
-	leveldbProvider *leveldbhelper.Provider
-	stats           *stats
+	conf       *Conf
+	dbProvider *kvdb.Provider
+	stats      *stats
 }
 
 // NewProvider constructs a filesystem based block store provider
 func NewProvider(conf *Conf, metricsProvider metrics.Provider) (*BlockStoreProvider, error) {
-	dbConf := &leveldbhelper.Conf{
+	dbConf := &kvdb.Conf{
 		DBPath: conf.getIndexDir(),
 		// The index holds only the block-number index, which is the format every orderer ledger has
 		// ever been written in. An empty expected format also means the index carries no format
@@ -37,7 +37,7 @@ func NewProvider(conf *Conf, metricsProvider metrics.Provider) (*BlockStoreProvi
 		ExpectedFormat: dataformat.PreviousFormat,
 	}
 
-	p, err := leveldbhelper.NewProvider(dbConf)
+	p, err := kvdb.NewProvider(dbConf)
 	if err != nil {
 		return nil, err
 	}
@@ -62,7 +62,7 @@ func NewProvider(conf *Conf, metricsProvider metrics.Provider) (*BlockStoreProvi
 // If a blockstore is not existing, this method creates one
 // This method should be invoked only once for a particular ledgerid
 func (p *BlockStoreProvider) Open(ledgerid string) (*BlockStore, error) {
-	indexStoreHandle := p.leveldbProvider.GetDBHandle(ledgerid)
+	indexStoreHandle := p.dbProvider.GetDBHandle(ledgerid)
 	return newBlockStore(ledgerid, p.conf, indexStoreHandle, p.stats)
 }
 
@@ -85,7 +85,7 @@ func (p *BlockStoreProvider) Drop(ledgerid string) error {
 	if !exists {
 		return nil
 	}
-	if err := p.leveldbProvider.Drop(ledgerid); err != nil {
+	if err := p.dbProvider.Drop(ledgerid); err != nil {
 		return err
 	}
 	if err := os.RemoveAll(p.conf.getLedgerBlockDir(ledgerid)); err != nil {
@@ -101,5 +101,5 @@ func (p *BlockStoreProvider) List() ([]string, error) {
 
 // Close closes the BlockStoreProvider
 func (p *BlockStoreProvider) Close() {
-	p.leveldbProvider.Close()
+	p.dbProvider.Close()
 }

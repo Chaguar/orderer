@@ -10,7 +10,7 @@ import (
 	"time"
 
 	"github.com/hyperledger/fabric-x-orderer/common/ledger"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/util/leveldbhelper"
+	"github.com/hyperledger/fabric-x-orderer/common/ledger/util/kvdb"
 
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 )
@@ -24,7 +24,7 @@ type BlockStore struct {
 }
 
 // newBlockStore constructs a `BlockStore`
-func newBlockStore(id string, conf *Conf, dbHandle *leveldbhelper.DBHandle, stats *stats) (*BlockStore, error) {
+func newBlockStore(id string, conf *Conf, dbHandle *kvdb.DBHandle, stats *stats) (*BlockStore, error) {
 	fileMgr, err := newBlockfileMgr(id, conf, dbHandle)
 	if err != nil {
 		return nil, err
