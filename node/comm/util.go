@@ -665,7 +665,11 @@ func GetTLSSessionBinding(ctx context.Context, bindingPayload []byte) ([]byte, e
 	if !ok {
 		return nil, errors.New("failed extracting stream context")
 	}
-	connState := peerInfo.AuthInfo.(credentials.TLSInfo).State
+	tlsInfo, ok := peerInfo.AuthInfo.(credentials.TLSInfo)
+	if !ok {
+		return nil, fmt.Errorf("expected TLS auth info, got %T", peerInfo.AuthInfo)
+	}
+	connState := tlsInfo.State
 
 	tlsBinding, err := exportKM(connState, KeyingMaterialLabel, bindingPayload)
 	if err != nil {
@@ -793,9 +797,11 @@ func LatestHeightAndEndpoint(puller ChainPuller) (string, uint64, error) {
 	return mostUpToDateEndpoint, maxHeight, nil
 }
 
+// EncodeTimestamp encodes the timestamp's seconds as 8 little-endian bytes.
+// A nil timestamp encodes as zero seconds.
 func EncodeTimestamp(t *timestamppb.Timestamp) []byte {
 	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, uint64(t.Seconds))
+	binary.LittleEndian.PutUint64(b, uint64(t.GetSeconds()))
 	return b
 }
 

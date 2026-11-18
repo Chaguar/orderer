@@ -9,6 +9,7 @@ package comm
 import (
 	"bytes"
 	"encoding/asn1"
+	"fmt"
 	"io"
 	"strconv"
 	"sync"
@@ -126,6 +127,9 @@ func (s *ClusterService) VerifyAuthRequest(stream orderer.ClusterNodeService_Ste
 	authReq := request.GetNodeAuthrequest()
 	if authReq == nil {
 		return nil, nil, errors.New("invalid request object")
+	}
+	if authReq.GetTimestamp() == nil {
+		return nil, nil, fmt.Errorf("auth request is missing a timestamp")
 	}
 
 	bindingFieldsHash := GetSessionBindingHash(authReq)
