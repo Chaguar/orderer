@@ -156,6 +156,38 @@ func TestValidateConfigRequestTxID(t *testing.T) {
 	}
 }
 
+func TestValidateConfigRequestReportsWhyTheUpdateWasRejected(t *testing.T) {
+	lastUpdate := &common.Envelope{
+		Payload: marshalPayload(t, common.HeaderType_CONFIG_UPDATE, "arma",
+			[]byte("nonce"), protoutil.ComputeTxID, &common.ConfigUpdateEnvelope{}),
+		Signature: []byte("signature"),
+	}
+	envelope := &common.Envelope{
+		Payload: marshalPayload(t, common.HeaderType_CONFIG, "arma",
+			[]byte("nonce"), protoutil.ComputeTxID, &common.ConfigEnvelope{Config: &common.Config{Sequence: 1}, LastUpdate: lastUpdate}),
+		Signature: []byte("signature"),
+	}
+
+	policy := &policyMock.FakePolicyEvaluator{}
+	policyManager := &policyMock.FakePolicyManager{}
+	policyManager.GetPolicyReturns(policy, true)
+	fc := &mocks.FakeFilterConfig{}
+	fc.GetPolicyManagerReturns(policyManager)
+	fc.GetChannelIDReturns("arma")
+	verifier := requestfilter.NewRulesVerifier(nil)
+	verifier.AddStructureRule(requestfilter.NewSigFilter(fc, policies.ChannelWriters))
+
+	proposerErr := errors.New("implicit policy evaluation failed - 1 sub-policies were satisfied, but this policy requires 2 of the 'Admins' sub-policies to be satisfied")
+	proposer := &policyMock.FakeConfigUpdateProposer{}
+	proposer.AuthorizeAndVerifyConfigUpdateReturns(nil, proposerErr)
+	validator := &configrequest.DefaultValidateConfigRequest{ConfigUpdateProposer: proposer, RequestVerifier: verifier}
+
+	err := validator.ValidateConfigRequest(envelope)
+	require.EqualError(t, err, "failed to authorize and verify the config update: "+proposerErr.Error())
+	require.ErrorIs(t, err, proposerErr)
+	require.Equal(t, 1, proposer.AuthorizeAndVerifyConfigUpdateCallCount())
+}
+
 // channelOr returns the channel ID channel points to, or "arma" if it is nil.
 func channelOr(channel *string) string {
 	if channel == nil {

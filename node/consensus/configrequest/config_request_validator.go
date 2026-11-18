@@ -65,7 +65,7 @@ func (vc *DefaultValidateConfigRequest) ValidateConfigRequest(envelope *common.E
 	var expectedConfigEnvelope *common.ConfigEnvelope
 	expectedConfigEnvelope, err = vc.ConfigUpdateProposer.AuthorizeAndVerifyConfigUpdate(configEnvelope.LastUpdate, vc.Bundle, vc.BCCSP)
 	if err != nil {
-		return errors.Errorf("falied to propose a new config update")
+		return fmt.Errorf("failed to authorize and verify the config update: %w", err)
 	}
 
 	if !proto.Equal(configEnvelope.Config, expectedConfigEnvelope.Config) {
