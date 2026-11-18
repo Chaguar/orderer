@@ -1501,6 +1501,34 @@ func decisionOfBlock(block *cb.Block) types.Decision {
 }
 
 func TestBFTSynchronizer_StopIsNotLost(t *testing.T) {
+	t.Run("stop before Sync", func(t *testing.T) {
+		s := newStopTestSetup(t)
+		s.targetHeight.Store(110)
+
+		s.sync.Stop()
+		resp := s.syncWithTimeout(t)
+
+		require.Equal(t, decisionOfBlock(s.ledger[99]), resp.Latest)
+		require.Zero(t, s.heights.HeightsByEndpointsCallCount())
+		require.Nil(t, s.sync.Buffer())
+		require.Zero(t, s.cs.WriteBlockSyncCallCount())
+	})
+
+	t.Run("stop before Sync on an empty ledger", func(t *testing.T) {
+		s := newStopTestSetup(t)
+		s.targetHeight.Store(110)
+		s.ledger = nil
+
+		s.sync.Stop()
+		resp := s.syncWithTimeout(t)
+
+		require.Equal(t, types.Decision{}, resp.Latest)
+		require.Equal(t, []uint64{1, 2, 3, 4}, resp.Reconfig.CurrentNodes)
+		require.Zero(t, s.heights.HeightsByEndpointsCallCount())
+		require.Zero(t, s.heights.GenesisByEndpointsCallCount())
+		require.Zero(t, s.cs.WriteConfigBlockCallCount())
+	})
+
 	t.Run("stop while the target height is detected", func(t *testing.T) {
 		s := newStopTestSetup(t)
 		s.targetHeight.Store(110)
@@ -1543,9 +1571,10 @@ func TestBFTSynchronizer_StopIsNotLost(t *testing.T) {
 		require.Equal(t, 1, s.cs.WriteBlockSyncCallCount())
 		require.Equal(t, decisionOfBlock(s.ledger[100]), resp.Latest)
 
-		// A later Sync does not sync again.
+		// A later Sync does not sync again, nor probe the peers.
 		resp = s.syncWithTimeout(t)
 		require.Equal(t, 1, s.cs.WriteBlockSyncCallCount())
+		require.Equal(t, 1, s.heights.HeightsByEndpointsCallCount())
 		require.Equal(t, decisionOfBlock(s.ledger[100]), resp.Latest)
 	})
 }

@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"sort"
@@ -62,6 +63,11 @@ func (s *BFTSynchronizer) Sync() smartbft_types.SyncResponse {
 
 		h := s.Support.Height()
 		s.Logger.Warnf("Could not synchronize with remote orderers, returning state from local ledger, h: %d, party: %d", h, s.selfID)
+		if h == 0 && s.isStopped() {
+			// Stopped before the genesis block was fetched; there is no state to return.
+			config, nodes := s.LatestConfig()
+			return smartbft_types.SyncResponse{Reconfig: smartbft_types.ReconfigSync{CurrentNodes: nodes, CurrentConfig: config}}
+		}
 		if h == 0 {
 			s.Logger.Panicf("Cannot join the cluster: failed to fetch genesis block and fetch state from local ledger: party: %d", s.selfID)
 		}
@@ -125,6 +131,10 @@ func (s *BFTSynchronizer) Buffer() *commonsync.SyncBuffer {
 }
 
 func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
+	if s.isStopped() {
+		return nil, fmt.Errorf("synchronizer stopped")
+	}
+
 	// === We probe all the endpoints and establish a target height, as well as detect the self endpoint.
 	// TODO make the target height detection stoppable
 	targetHeight, _, err := s.detectTargetHeight()
@@ -154,9 +164,9 @@ func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 		capacityBlocks = max(uint(s.LocalConfigCluster.ReplicationBufferSize)/uint(absMax), 100)
 	}
 	s.mutex.Lock()
-	if s.stopped { // Stop was called before the buffer existed
+	if s.stopped { // Stop was called while the target height was detected
 		s.mutex.Unlock()
-		return nil, errors.New("synchronizer stopped")
+		return nil, fmt.Errorf("synchronizer stopped")
 	}
 	s.syncBuff = commonsync.NewSyncBuffer(capacityBlocks)
 	s.mutex.Unlock()
