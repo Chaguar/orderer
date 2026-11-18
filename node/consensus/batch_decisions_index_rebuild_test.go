@@ -1,0 +1,100 @@
+/*
+Copyright IBM Corp. All Rights Reserved.
+
+SPDX-License-Identifier: Apache-2.0
+*/
+
+package consensus
+
+import (
+	"testing"
+
+	"github.com/Chaguar/common/protoutil"
+	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
+	"github.com/hyperledger/SmartBFT/smartbftprotos"
+	arma_types "github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/hyperledger/fabric-x-orderer/node/consensus/batchdecisions"
+	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
+	"github.com/hyperledger/fabric-x-orderer/node/ledger"
+	"github.com/hyperledger/fabric-x-orderer/testutil"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/proto"
+)
+
+// TestRebuildBatchDecisionsIndex commits decisions through a live index while the prune points advance, writes
+// them to a consenter ledger, and rebuilds a fresh index from the last state: the rebuilt index must hold
+// the same batches and answer the same as the live one.
+func TestRebuildBatchDecisionsIndex(t *testing.T) {
+	logger := testutil.CreateLogger(t, 0)
+	l, err := ledger.NewConsensusLedger(t.TempDir())
+	require.NoError(t, err)
+	defer l.Close()
+
+	live := &Consenter{Logger: logger}
+	var prevHash []byte
+	var last *state.State
+	const decisions = 50
+	for n := arma_types.DecisionNum(0); n < decisions; n++ {
+		st := &state.State{}
+		if n > 10 {
+			st.SetPrunePoint(1, 1, arma_types.BatchSequence(n-10))
+		}
+		if n > 20 {
+			st.SetPrunePoint(1, 2, arma_types.BatchSequence(n-20))
+		}
+		st.ReplayFrom = live.BatchDecisions.ReplayFrom()
+		hdr := &state.Header{Num: n, DecisionNumOfLastConfigBlock: 0, State: st}
+		if n > 0 && n%7 != 0 { // decision 0 and every 7th decision commit no batch
+			for i, primary := range []arma_types.PartyID{1, 2} {
+				block, err := CreateDataCommonBlock(uint64(n)*2+uint64(i), nil, state.NewAvailableBatch(primary, 1, arma_types.BatchSequence(n), []byte{byte(n), byte(primary)}), 1, n, 2, i, 0)
+				require.NoError(t, err)
+				hdr.AvailableCommonBlocks = append(hdr.AvailableCommonBlocks, block)
+			}
+		}
+		live.IndexBatchDecisions(hdr)
+
+		md, err := proto.Marshal(&smartbftprotos.ViewMetadata{LatestSequence: uint64(n)})
+		require.NoError(t, err)
+		proposal := smartbft_types.Proposal{Header: hdr.Serialize(), Payload: []byte{1}, Metadata: md}
+		block := state.CreateBlockToAppendFromDecision(uint64(n), proposal, nil, prevHash, 0)
+		prevHash = protoutil.BlockHeaderHash(block.Header)
+		l.Append(block)
+		last = st
+	}
+	require.Positive(t, last.ReplayFrom)
+
+	rebuilt := &batchdecisions.Index{}
+	rebuildBatchDecisionsIndex(logger, rebuilt, l, last)
+
+	require.Equal(t, live.BatchDecisions.Size(), rebuilt.Size())
+	require.Equal(t, live.BatchDecisions.Ledgers(), rebuilt.Ledgers())
+	require.Equal(t, live.BatchDecisions.ReplayFrom(), rebuilt.ReplayFrom())
+	for _, key := range live.BatchDecisions.Ledgers() {
+		from := last.PrunePoint(key.Shard, key.Primary)
+		require.Equal(t,
+			live.BatchDecisions.DurableFrontier(key.Shard, key.Primary, from, decisions-1),
+			rebuilt.DurableFrontier(key.Shard, key.Primary, from, decisions-1),
+			"pair %v", key)
+	}
+}
+
+// TestRebuildBatchDecisionsIndexPanicsOnMismatchedDecision verifies that the rebuild fails when a ledger block does
+// not hold the decision of its number, instead of indexing it under the wrong decision.
+func TestRebuildBatchDecisionsIndexPanicsOnMismatchedDecision(t *testing.T) {
+	logger := testutil.CreateLogger(t, 0)
+	l, err := ledger.NewConsensusLedger(t.TempDir())
+	require.NoError(t, err)
+	defer l.Close()
+
+	var prevHash []byte
+	for n, num := range []arma_types.DecisionNum{1, 2, 3} { // every block holds the decision after its number
+		hdr := &state.Header{Num: num, State: &state.State{}}
+		md, err := proto.Marshal(&smartbftprotos.ViewMetadata{LatestSequence: uint64(num)})
+		require.NoError(t, err)
+		block := state.CreateBlockToAppendFromDecision(uint64(n), smartbft_types.Proposal{Header: hdr.Serialize(), Payload: []byte{1}, Metadata: md}, nil, prevHash, 0)
+		prevHash = protoutil.BlockHeaderHash(block.Header)
+		l.Append(block)
+	}
+
+	require.Panics(t, func() { rebuildBatchDecisionsIndex(logger, &batchdecisions.Index{}, l, &state.State{}) })
+}

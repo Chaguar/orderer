@@ -7,9 +7,14 @@ SPDX-License-Identifier: Apache-2.0
 package consensus
 
 import (
+	"fmt"
+
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/hyperledger/fabric-x-orderer/node/consensus/batchdecisions"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
+	"github.com/hyperledger/fabric-x-orderer/node/ledger"
 )
 
 type TotalOrder interface {
@@ -26,6 +31,10 @@ type BatchAttestationDB interface {
 type Consenter struct {
 	Logger *flogging.FabricLogger
 	DB     BatchAttestationDB
+	// BatchDecisions records the decision that committed each batch not pruned yet, from which the prune
+	// points are computed. It is fed at commit, by IndexBatchDecisions, and only read while simulating a
+	// decision.
+	BatchDecisions batchdecisions.Index
 }
 
 func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq types.ConfigSequence, requests [][]byte) (*state.State, [][]types.BatchAttestationFragment, []*state.ConfigRequest) {
@@ -36,9 +45,14 @@ func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq ty
 
 	filteredControlEvents := make([]state.ControlEvent, 0, len(controlEvents))
 
-	// Iterate over all control events and prune those that already exist in our DB
+	// Iterate over all control events and prune those that already exist in our DB, or that attest a
+	// batch below the prune point, which batchers may already have dropped.
 	for _, ce := range controlEvents {
 		if ce.BAF != nil {
+			if ce.BAF.Seq() < prevState.PrunePoint(ce.BAF.Shard(), ce.BAF.Primary()) {
+				c.Logger.Debugf("Batch attestation fragment below the prune point; %s", ce.BAF.String())
+				continue
+			}
 			if c.DB.Exists(ce.BAF.Digest()) {
 				c.Logger.Debugf("Batch attestation for digest %x already exists", ce.BAF.Digest())
 				continue
@@ -49,8 +63,36 @@ func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq ty
 
 	newState, fragments, configRequests := prevState.Process(c.Logger, configSeq, filteredControlEvents...)
 	batchAttestations := aggregateFragments(fragments)
+	c.updatePrunePoints(prevState, newState, fragments)
 
 	return newState, batchAttestations, configRequests
+}
+
+// updatePrunePoints advances the prune points of next when its durable watermark advanced, over the batches
+// the index holds as committed in decisions up to the watermark, and records where to replay the index from.
+// A prune point never passes a seq that this decision commits, given by the extracted fragments: the index
+// holds only committed decisions, so it would not stop at such a seq. It reads the index and never changes
+// it, so every node computes the same next state.
+func (c *Consenter) updatePrunePoints(prev, next *state.State, committing []types.BatchAttestationFragment) {
+	if next.DurableWatermark > prev.DurableWatermark {
+		lowestCommitting := make(map[batchdecisions.LedgerKey]types.BatchSequence)
+		for _, baf := range committing {
+			key := batchdecisions.LedgerKey{Shard: baf.Shard(), Primary: baf.Primary()}
+			if seq, exists := lowestCommitting[key]; !exists || baf.Seq() < seq {
+				lowestCommitting[key] = baf.Seq()
+			}
+		}
+
+		for _, key := range c.BatchDecisions.Ledgers() {
+			seq := c.BatchDecisions.DurableFrontier(key.Shard, key.Primary, next.PrunePoint(key.Shard, key.Primary), next.DurableWatermark)
+			if lowest, exists := lowestCommitting[key]; exists {
+				seq = min(seq, lowest)
+			}
+			next.SetPrunePoint(key.Shard, key.Primary, seq)
+		}
+		next.DropPendingBelowPrunePoints(c.Logger)
+	}
+	next.ReplayFrom = c.BatchDecisions.ReplayFrom()
 }
 
 // Index indexes BAs (digests).
@@ -61,6 +103,44 @@ func (c *Consenter) Index(digests [][]byte) {
 		epochs := make([]uint64, len(digests)) // TODO remove
 		c.DB.Put(digests, epochs)
 	}
+}
+
+// IndexBatchDecisions records, in the batch decisions index, the batches that the decision with the given
+// header committed, and drops the batches below the decision's prune points. It panics if a batch ID cannot
+// be read.
+func (c *Consenter) IndexBatchDecisions(hdr *state.Header) {
+	ids, err := committedBatchIDs(hdr)
+	if err != nil {
+		c.Logger.Panicf("Failed indexing the batches of decision %d: %v", hdr.Num, err)
+	}
+	if err := c.BatchDecisions.Add(hdr.Num, ids); err != nil {
+		c.Logger.Panicf("Failed indexing the batches of decision %d: %v", hdr.Num, err)
+	}
+	if hdr.State != nil {
+		for _, p := range hdr.State.PrunePoints {
+			c.BatchDecisions.DropBelow(p.Shard, p.Primary, p.Seq)
+		}
+	}
+}
+
+// committedBatchIDs returns the batch IDs of the batches that the decision with the given header committed.
+// It reads only what proposal verification fixes: a config decision carries its config block last, after
+// the data blocks, and the batch ID of a data block is in its ORDERER metadata and its header data hash.
+func committedBatchIDs(hdr *state.Header) ([]types.BatchID, error) {
+	dataBlocks := hdr.AvailableCommonBlocks
+	if hdr.Num == hdr.DecisionNumOfLastConfigBlock && len(dataBlocks) > 0 {
+		dataBlocks = dataBlocks[:len(dataBlocks)-1]
+	}
+
+	ids := make([]types.BatchID, 0, len(dataBlocks))
+	for _, block := range dataBlocks {
+		primary, shard, seq, _, _, _, _, err := ledger.AssemblerBlockMetadataFromBytes(block.GetMetadata().GetMetadata()[common.BlockMetadataIndex_ORDERER])
+		if err != nil {
+			return nil, fmt.Errorf("failed reading the batch ID of block %d: %w", block.GetHeader().GetNumber(), err)
+		}
+		ids = append(ids, state.NewAvailableBatch(primary, shard, seq, block.GetHeader().GetDataHash()))
+	}
+	return ids, nil
 }
 
 // batchIDKey is the comparable form of types.BatchID (<shard, primary, seq, digest>): the
