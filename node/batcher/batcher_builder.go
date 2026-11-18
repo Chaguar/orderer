@@ -72,8 +72,8 @@ func CreateBatcher(nodeConfig *node_config.BatcherNodeConfig, fullConfig *config
 	return b
 }
 
-// configureBatcher starts the batcher in the term of lastKnownState, or in term 0 if it is nil or does not
-// match the current config.
+// configureBatcher starts the batcher in the term of lastKnownState, or in term 0 if it is nil or has no
+// term for our shard.
 func (b *Batcher) configureBatcher(
 	senderCreator ConsenterControlEventSenderCreator,
 	memPool MemPool,

@@ -301,11 +301,7 @@ type ShardTerm struct {
 // attestation fragments that reached the threshold, and the config requests. parties are the party IDs
 // of the config in force, sorted by party ID; the thresholds are derived from their number.
 func (s *State) Process(l *flogging.FabricLogger, configSeq types.ConfigSequence, parties []types.PartyID, ces ...ControlEvent) (*State, []types.BatchAttestationFragment, []*ConfigRequest) {
-	n := uint16(len(parties))
-	var threshold uint16
-	if n > 0 {
-		_, threshold, _ = utils.ComputeFTQ(n)
-	}
+	f, threshold, _ := utils.ComputeFTQ(uint16(len(parties)))
 
 	nextState := s.Clone()
 
@@ -321,7 +317,7 @@ func (s *State) Process(l *flogging.FabricLogger, configSeq types.ConfigSequence
 
 	// After applying the rules above, extract all batch attestations for which enough fragments have been collected.
 	extracted := ExtractBatchAttestationsFromPending(nextState, l, threshold)
-	nextState.UpdateDurableWatermark(l, n)
+	nextState.UpdateDurableWatermark(l, f)
 	nextState.UpdatePrunePoints()
 	configRequests := ExtractConfigRequests(filteredCEs)
 	return nextState, extracted, configRequests
@@ -544,16 +540,12 @@ func (s *State) CollectAssemblerReports(l *flogging.FabricLogger, ces ...Control
 
 // UpdateDurableWatermark raises s.DurableWatermark to the 2f+1-th highest height in s.AssemblerHeights, the
 // highest decision that at least 2f+1 assemblers reported as committed. Of those 2f+1, at most f are
-// faulty, so at least f+1 honest assemblers hold every decision up to it. f is derived from n, the number of
-// parties, and 2f+1 may be below the quorum when n is not 3f+1: holding the decisions needs f+1 honest
-// assemblers, not a quorum.
+// faulty, so at least f+1 honest assemblers hold every decision up to it. f is the number of faulty parties
+// the config in force tolerates, and 2f+1 may be below the quorum when the number of parties is not 3f+1:
+// holding the decisions needs f+1 honest assemblers, not a quorum.
 // With fewer than 2f+1 heights, or when the 2f+1-th highest is lower, the watermark is kept: it never
 // decreases, also when a reconfiguration drops a party's height or changes f.
-func (s *State) UpdateDurableWatermark(l *flogging.FabricLogger, n uint16) {
-	if n == 0 {
-		return
-	}
-	f, _, _ := utils.ComputeFTQ(n)
+func (s *State) UpdateDurableWatermark(l *flogging.FabricLogger, f uint16) {
 	k := int(2*f + 1)
 	if len(s.AssemblerHeights) < k {
 		return

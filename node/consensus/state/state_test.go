@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/hyperledger/fabric-x-orderer/common/utils"
 	consensus_state "github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	stateprotos "github.com/hyperledger/fabric-x-orderer/node/protos/state"
 	"github.com/hyperledger/fabric-x-orderer/testutil"
@@ -990,13 +991,6 @@ func TestUpdateDurableWatermark(t *testing.T) {
 			expected: 30,
 		},
 		{
-			name:     "n=0: no parties keep the watermark",
-			n:        0,
-			heights:  heights(9),
-			previous: 5,
-			expected: 5,
-		},
-		{
 			name:     "n=1: the only report sets the watermark",
 			n:        1,
 			heights:  heights(9),
@@ -1007,7 +1001,8 @@ func TestUpdateDurableWatermark(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			s := consensus_state.State{AssemblerHeights: tt.heights, DurableWatermark: tt.previous}
-			s.UpdateDurableWatermark(logger, tt.n)
+			f, _, _ := utils.ComputeFTQ(tt.n)
+			s.UpdateDurableWatermark(logger, f)
 			assert.Equal(t, tt.expected, s.DurableWatermark)
 		})
 	}

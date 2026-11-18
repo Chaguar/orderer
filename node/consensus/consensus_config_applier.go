@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package consensus
 
 import (
+	"slices"
+
 	"github.com/Chaguar/common/api/ordererpb"
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil"
@@ -51,17 +53,19 @@ func (ca *DefaultConfigApplier) ApplyConfigToState(state *state.State, configReq
 
 	newState := state.Clone()
 
-	if len(sharedConfig.PartiesConfig) != len(currentParties) {
-		// there was a party change, explicitly change term on all shards
+	parties := make([]arma_types.PartyID, 0, len(sharedConfig.PartiesConfig))
+	for _, party := range sharedConfig.PartiesConfig {
+		parties = append(parties, arma_types.PartyID(party.GetPartyID()))
+	}
+	slices.Sort(parties)
+
+	// Primaries are picked from the sorted parties, so when the parties change, change every shard's term.
+	if !slices.Equal(parties, currentParties) {
 		for i := range newState.Shards {
 			newState.Shards[i].Term++
 		}
 	}
 
-	parties := make([]arma_types.PartyID, 0, len(sharedConfig.PartiesConfig))
-	for _, party := range sharedConfig.PartiesConfig {
-		parties = append(parties, arma_types.PartyID(party.GetPartyID()))
-	}
 	newState.RetainAssemblerHeights(parties)
 
 	return newState, nil
