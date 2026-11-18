@@ -19,7 +19,7 @@ import (
 func TestHeaderSerializeDeserialize(t *testing.T) {
 	t.Run("basic serialization with state", func(t *testing.T) {
 		hdr := Header{
-			State:                        &State{N: 4, Threshold: 2, Quorum: 3, AppContext: []byte{}},
+			State:                        &State{Shards: []ShardTerm{{Shard: 1, Term: 1}}, AppContext: []byte{}},
 			Num:                          100,
 			DecisionNumOfLastConfigBlock: 10,
 			PrevHash:                     []byte{123},
@@ -261,9 +261,6 @@ func TestHeaderSerializeDeserialize(t *testing.T) {
 	t.Run("serialize deterministic", func(t *testing.T) {
 		hdr := Header{
 			State: &State{
-				N:          4,
-				Threshold:  2,
-				Quorum:     3,
 				Shards:     []ShardTerm{{Shard: 1, Term: 1}},
 				AppContext: []byte("test"),
 			},
@@ -348,9 +345,6 @@ func TestHeaderSerializeDeserialize(t *testing.T) {
 
 		hdr := Header{
 			State: &State{
-				N:          10,
-				Threshold:  4,
-				Quorum:     7,
 				Shards:     []ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 2}},
 				AppContext: make([]byte, 1024), // 1KB
 			},
@@ -371,16 +365,13 @@ func TestHeaderSerializeDeserialize(t *testing.T) {
 		require.Equal(t, hdr.Num, hdr2.Num)
 		require.Equal(t, hdr.DecisionNumOfLastConfigBlock, hdr2.DecisionNumOfLastConfigBlock)
 		require.Equal(t, len(hdr.AvailableCommonBlocks), len(hdr2.AvailableCommonBlocks))
-		require.Equal(t, hdr.State.N, hdr2.State.N)
+		require.Equal(t, hdr.State.Shards, hdr2.State.Shards)
 	})
 
 	t.Run("state with complaints and pending", func(t *testing.T) {
 		hdr := Header{
 			State: &State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
-				Shards:    []ShardTerm{{Shard: 1, Term: 1}},
+				Shards: []ShardTerm{{Shard: 1, Term: 1}},
 				Complaints: []Complaint{
 					{
 						ShardTerm: ShardTerm{Shard: 1, Term: 1},

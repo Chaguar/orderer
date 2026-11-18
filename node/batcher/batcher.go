@@ -759,7 +759,7 @@ func (b *Batcher) getPrimaryIDAndTerm(state *state.State) (types.PartyID, uint64
 		b.logger.Panicf("Could not find our shard (%d) within the shards: %v", b.config.ShardId, state.Shards)
 	}
 
-	primaryIndex := types.PartyID((uint64(b.config.ShardId) + term) % uint64(state.N))
+	primaryIndex := (uint64(b.config.ShardId) + term) % uint64(len(b.config.Consenters))
 
 	primaryID := b.batchers[primaryIndex].PartyID
 

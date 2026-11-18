@@ -391,8 +391,8 @@ A batcher's durable state is its batch ledger array, its WAL of decision headers
 store. On restart it reads the last decision number from the WAL and resumes pulling decisions from
 there, and it takes its configuration from the last config block in the config store. It also starts in
 the term of its shard in that last decision, so it knows the primary and complains in the current term
-before the next decision arrives; if the WAL is empty or its last decision does not match the current
-configuration, it starts in term 0 until the first decision arrives. The batch
+before the next decision arrives; if the WAL is empty or its last decision has no term for its shard,
+it starts in term 0 until the first decision arrives. The batch
 sequence it resumes from is the height of the current primary's ledger, so a primary continues after
 its last stored batch, and a secondary pulls from where it stopped. The mempool is not persisted, so
 the requests it held that were not yet in a stored batch are lost on this batcher; since clients

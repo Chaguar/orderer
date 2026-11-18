@@ -14,6 +14,7 @@ import (
 	"math"
 	"math/big"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -183,10 +184,7 @@ func TestConsensus(t *testing.T) {
 			verifier := make(crypto.ECDSAVerifier)
 
 			initialState := &state.State{
-				N:          4,
 				Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
-				Threshold:  2,
-				Quorum:     3,
 				AppContext: protoutil.MarshalOrPanic(&common.BlockHeader{Number: 0}),
 			}
 
@@ -330,8 +328,9 @@ func makeConsensusNode(t *testing.T, sk *ecdsa.PrivateKey, partyID arma_types.Pa
 	bundle.ConfigtxValidatorReturns(configtxValidator)
 
 	consenterNodeConfig := nodeconfig.ConsenterNodeConfig{
-		Bundle:  bundle,
-		PartyId: partyID,
+		Bundle:     bundle,
+		PartyId:    partyID,
+		Consenters: consentersOfNodes(nodes),
 		Operations: &operations.Operations{
 			ListenAddress: testutil.AllocateLocalhostAddress(t),
 		},
@@ -476,6 +475,7 @@ func TestAssembleProposalAndVerify(t *testing.T) {
 	bundle.ConfigtxValidatorReturns(configtxValidator)
 
 	config := &nodeconfig.ConsenterNodeConfig{
+		Consenters:                          testConsenters(4),
 		ClientSignatureVerificationRequired: false,
 		Bundle:                              bundle,
 		RequestMaxBytes:                     1000,
@@ -730,10 +730,7 @@ func TestAssembleProposalAndVerify(t *testing.T) {
 			}
 
 			initialState := &state.State{
-				N:          4,
 				Shards:     shards,
-				Threshold:  2,
-				Quorum:     3,
 				AppContext: protoutil.MarshalOrPanic(tst.initialAppContext),
 				Pending:    []arma_types.BatchAttestationFragment{baf123id1p1s1cs1},
 				Complaints: []state.Complaint{*complaint1ConfigSeq1},
@@ -761,7 +758,7 @@ func TestAssembleProposalAndVerify(t *testing.T) {
 			mockConfigRulesVerifier.ValidateTransitionReturns(nil)
 
 			mockConfigApplier := &consensus_mocks.FakeConfigApplier{}
-			mockConfigApplier.ApplyConfigToStateCalls(func(s *state.State, request *state.ConfigRequest) (*state.State, error) {
+			mockConfigApplier.ApplyConfigToStateCalls(func(s *state.State, request *state.ConfigRequest, _ []arma_types.PartyID) (*state.State, error) {
 				return s, nil
 			})
 
@@ -876,7 +873,7 @@ func TestVerifyRequestAcceptsStaleConfigSeq(t *testing.T) {
 	c := &node_consensus.Consensus{
 		Logger:      logger,
 		SigVerifier: verifier,
-		Config:      &nodeconfig.ConsenterNodeConfig{Bundle: bundle},
+		Config:      &nodeconfig.ConsenterNodeConfig{Consenters: testConsenters(4), Bundle: bundle},
 	}
 
 	dig123 := append([]byte{1, 2, 3}, make([]byte, 32-3)...)
@@ -945,7 +942,7 @@ func TestVerifyRequestAssemblerDecisionReport(t *testing.T) {
 	c := &node_consensus.Consensus{
 		Logger:      logger,
 		SigVerifier: verifier,
-		Config:      &nodeconfig.ConsenterNodeConfig{Bundle: bundle},
+		Config:      &nodeconfig.ConsenterNodeConfig{Consenters: testConsenters(4), Bundle: bundle},
 		Storage:     storageHeight{height: uint64(lastCommitted) + 1},
 	}
 
@@ -1043,7 +1040,7 @@ func TestVerifyRequestAssemblerDecisionReport(t *testing.T) {
 		empty := &node_consensus.Consensus{
 			Logger:      logger,
 			SigVerifier: verifier,
-			Config:      &nodeconfig.ConsenterNodeConfig{Bundle: bundle},
+			Config:      &nodeconfig.ConsenterNodeConfig{Consenters: testConsenters(4), Bundle: bundle},
 			Storage:     storageHeight{height: 0},
 		}
 		_, err := empty.VerifyRequest(reportReq(signedReportOf(t, assemblerSigner, 1, currentConfigSeq, 0)))
@@ -1076,7 +1073,7 @@ func TestVerifyProposalAcceptsOneBehindBAFAndSkipsOtherStaleCEs(t *testing.T) {
 	configtxValidator.SequenceReturns(1) // current (verification) config sequence; one-behind == 0
 	bundle.ConfigtxValidatorReturns(configtxValidator)
 
-	config := &nodeconfig.ConsenterNodeConfig{Bundle: bundle, RequestMaxBytes: 1000}
+	config := &nodeconfig.ConsenterNodeConfig{Consenters: testConsenters(4), Bundle: bundle, RequestMaxBytes: 1000}
 	requestVerifier := node_consensus.CreateConsensusRulesVerifier(config)
 
 	numOfParties := 4
@@ -1107,10 +1104,7 @@ func TestVerifyProposalAcceptsOneBehindBAFAndSkipsOtherStaleCEs(t *testing.T) {
 	oneBehindComplaint.Signature = sig
 
 	initialState := &state.State{
-		N:          4,
 		Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
-		Threshold:  2,
-		Quorum:     3,
 		AppContext: protoutil.MarshalOrPanic(&common.BlockHeader{Number: 0}),
 	}
 
@@ -1175,10 +1169,7 @@ func TestVerifyProposalRejectsMalformedRequest(t *testing.T) {
 	bundle.ConfigtxValidatorReturns(configtxValidator)
 
 	initialState := &state.State{
-		N:          4,
 		Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
-		Threshold:  2,
-		Quorum:     3,
 		AppContext: protoutil.MarshalOrPanic(&common.BlockHeader{Number: 0}),
 	}
 
@@ -1228,7 +1219,7 @@ func TestVerifyProposalRejectsMalformedRequest(t *testing.T) {
 				State:       initialState,
 				Logger:      logger,
 				SigVerifier: verifier,
-				Config:      &nodeconfig.ConsenterNodeConfig{Bundle: bundle},
+				Config:      &nodeconfig.ConsenterNodeConfig{Consenters: testConsenters(4), Bundle: bundle},
 			}
 
 			brs := arma_types.BatchedRequests(tc.reqs)
@@ -1262,10 +1253,7 @@ func TestVerifyProposalReleasesLockWhenApplyingConfigFails(t *testing.T) {
 	bundle.ConfigtxValidatorReturns(configtxValidator)
 
 	initialState := &state.State{
-		N:          4,
 		Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
-		Threshold:  2,
-		Quorum:     3,
 		AppContext: protoutil.MarshalOrPanic(&common.BlockHeader{Number: 0}),
 	}
 
@@ -1277,7 +1265,7 @@ func TestVerifyProposalReleasesLockWhenApplyingConfigFails(t *testing.T) {
 		State:                  initialState,
 		Logger:                 logger,
 		SigVerifier:            make(crypto.ECDSAVerifier),
-		Config:                 &nodeconfig.ConsenterNodeConfig{Bundle: bundle},
+		Config:                 &nodeconfig.ConsenterNodeConfig{Consenters: testConsenters(4), Bundle: bundle},
 		ConfigApplier:          mockConfigApplier,
 		ConfigRequestValidator: &configrequest_mocks.FakeConfigRequestValidator{},
 		ConfigRulesVerifier:    &ordererRulesMocks.FakeOrdererRules{},
@@ -1358,6 +1346,7 @@ func TestAssembleProposalWithMultipleConfigRequests(t *testing.T) {
 	bundle.ConfigtxValidatorReturns(configtxValidator)
 
 	config := &nodeconfig.ConsenterNodeConfig{
+		Consenters:                          testConsenters(4),
 		ClientSignatureVerificationRequired: false,
 		Bundle:                              bundle,
 		RequestMaxBytes:                     1000,
@@ -1366,15 +1355,12 @@ func TestAssembleProposalWithMultipleConfigRequests(t *testing.T) {
 	consenter := &node_consensus.Consenter{DB: db, Logger: logger}
 
 	mockConfigApplier := &consensus_mocks.FakeConfigApplier{}
-	mockConfigApplier.ApplyConfigToStateCalls(func(s *state.State, request *state.ConfigRequest) (*state.State, error) {
+	mockConfigApplier.ApplyConfigToStateCalls(func(s *state.State, request *state.ConfigRequest, _ []arma_types.PartyID) (*state.State, error) {
 		return s, nil
 	})
 
 	initialState := &state.State{
-		N:          4,
 		Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
-		Threshold:  2,
-		Quorum:     3,
 		AppContext: protoutil.MarshalOrPanic(&common.BlockHeader{Number: 10}),
 	}
 
@@ -1413,7 +1399,7 @@ func TestAssembleProposalWithMultipleConfigRequests(t *testing.T) {
 
 	// The applied config request survives as a config block, and only one config request was applied.
 	require.Equal(t, 1, mockConfigApplier.ApplyConfigToStateCallCount())
-	_, appliedReq := mockConfigApplier.ApplyConfigToStateArgsForCall(0)
+	_, appliedReq, _ := mockConfigApplier.ApplyConfigToStateArgsForCall(0)
 	appliedID, err := appliedReq.ID()
 	require.NoError(t, err)
 	require.Equal(t, "tx-first", appliedID)
@@ -1453,10 +1439,7 @@ func TestVerifyProposal(t *testing.T) {
 	}
 
 	initialState := state.State{
-		N:          4,
 		Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
-		Threshold:  2,
-		Quorum:     3,
 		AppContext: protoutil.MarshalOrPanic(initialAppContext),
 	}
 
@@ -1476,7 +1459,7 @@ func TestVerifyProposal(t *testing.T) {
 		State:       &initialState,
 		Logger:      logger,
 		SigVerifier: verifier,
-		Config:      &nodeconfig.ConsenterNodeConfig{Bundle: bundle},
+		Config:      &nodeconfig.ConsenterNodeConfig{Consenters: testConsenters(4), Bundle: bundle},
 	}
 
 	dig := make([]byte, 32-3)
@@ -1686,14 +1669,13 @@ func TestVerifyProposal(t *testing.T) {
 	header1.Num = proposalNum + 1
 	verifyProposalRequireError(t, c, header1.Serialize(), brs.Serialize(), mBytes)
 
-	// 6. mismatch state config in header
-	t.Log("mismatch state config in header")
+	// 6. mismatch state shard terms in header
+	t.Log("mismatch state shard terms in header")
 	headerState := header
 	badState := newState
 	headerState.State = &badState
-	headerState.State.N = 10
-	headerState.State.Quorum = 7
-	headerState.State.Threshold = 4
+	headerState.State.Shards = slices.Clone(newState.Shards)
+	headerState.State.Shards[0].Term += 10
 	verifyProposalRequireError(t, c, headerState.Serialize(), brs.Serialize(), mBytes)
 
 	// 7. mismatch state pending in header
@@ -1800,10 +1782,7 @@ func TestSignProposal(t *testing.T) {
 	}
 
 	initialState := state.State{
-		N:          4,
 		Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
-		Threshold:  2,
-		Quorum:     3,
 		AppContext: protoutil.MarshalOrPanic(initialAppContext),
 	}
 
@@ -1921,10 +1900,7 @@ func TestVerifyConsenterSigWithInvalidSignatures(t *testing.T) {
 	}
 
 	initialState := state.State{
-		N:          4,
 		Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
-		Threshold:  2,
-		Quorum:     3,
 		AppContext: protoutil.MarshalOrPanic(initialAppContext),
 	}
 
@@ -2170,10 +2146,7 @@ func TestConsensusStartStop(t *testing.T) {
 	}
 
 	initialState := &state.State{
-		N:          1,
 		Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
-		Threshold:  1,
-		Quorum:     1,
 		AppContext: protoutil.MarshalOrPanic(initialAppContext),
 	}
 
@@ -2597,10 +2570,7 @@ func startSingleConsensusNode(t *testing.T) (*node_consensus.Consensus, *ecdsa.P
 	require.NoError(t, err)
 
 	initialState := &state.State{
-		N:          1,
 		Shards:     []state.ShardTerm{{Shard: 1}},
-		Threshold:  1,
-		Quorum:     1,
 		AppContext: protoutil.MarshalOrPanic(&common.BlockHeader{Number: 1}),
 	}
 
@@ -2613,4 +2583,22 @@ func startSingleConsensusNode(t *testing.T) (*node_consensus.Consensus, *ecdsa.P
 
 	require.NoError(t, c.Start())
 	return c, sk, listener
+}
+
+// testConsenters returns the consenters of parties 1 to n.
+func testConsenters(n int) []nodeconfig.ConsenterInfo {
+	consenters := make([]nodeconfig.ConsenterInfo, n)
+	for i := range consenters {
+		consenters[i] = nodeconfig.ConsenterInfo{PartyID: arma_types.PartyID(i + 1)}
+	}
+	return consenters
+}
+
+// consentersOfNodes returns a consenter for each of the BFT node IDs.
+func consentersOfNodes(nodeIDs []uint64) []nodeconfig.ConsenterInfo {
+	consenters := make([]nodeconfig.ConsenterInfo, len(nodeIDs))
+	for i, id := range nodeIDs {
+		consenters[i] = nodeconfig.ConsenterInfo{PartyID: arma_types.PartyID(id)}
+	}
+	return consenters
 }

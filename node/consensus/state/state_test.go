@@ -22,9 +22,7 @@ import (
 
 var (
 	initialState = consensus_state.State{
-		N:         4,
-		Threshold: 2,
-		Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+		Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 	}
 
 	complaint = consensus_state.Complaint{
@@ -46,9 +44,6 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "full state with all fields",
 			state: consensus_state.State{
-				N:          4,
-				Threshold:  2,
-				Quorum:     3,
 				Shards:     []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 				AppContext: make([]byte, 64),
 			},
@@ -56,9 +51,6 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with empty app context",
 			state: consensus_state.State{
-				N:          4,
-				Threshold:  2,
-				Quorum:     3,
 				Shards:     []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 				AppContext: []byte{}, // empty slice, never nil after proto serialization
 			},
@@ -66,9 +58,6 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with multiple shards",
 			state: consensus_state.State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
 				Shards: []consensus_state.ShardTerm{
 					{Shard: 1, Term: 1},
 					{Shard: 2, Term: 3},
@@ -80,10 +69,7 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with complaints",
 			state: consensus_state.State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
-				Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+				Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 				Complaints: []consensus_state.Complaint{
 					{
 						ShardTerm: consensus_state.ShardTerm{Shard: 1, Term: 1},
@@ -99,9 +85,6 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "minimal state with zero values",
 			state: consensus_state.State{
-				N:          0,
-				Threshold:  0,
-				Quorum:     0,
 				Shards:     nil,
 				Pending:    nil,
 				Complaints: nil,
@@ -111,9 +94,6 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with large app context",
 			state: consensus_state.State{
-				N:          10,
-				Threshold:  4,
-				Quorum:     7,
 				Shards:     []consensus_state.ShardTerm{{Shard: 5, Term: 100}},
 				AppContext: make([]byte, 1024), // 1KB
 			},
@@ -121,9 +101,6 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with high term numbers",
 			state: consensus_state.State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
 				Shards: []consensus_state.ShardTerm{
 					{Shard: 1, Term: 999999},
 					{Shard: 2, Term: 1000000},
@@ -134,10 +111,7 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with single pending BAF",
 			state: consensus_state.State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
-				Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+				Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 				Pending: []types.BatchAttestationFragment{
 					func() types.BatchAttestationFragment {
 						baf := types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil)
@@ -151,10 +125,7 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with multiple pending BAFs",
 			state: consensus_state.State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
-				Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 2}},
+				Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 2}},
 				Pending: []types.BatchAttestationFragment{
 					func() types.BatchAttestationFragment {
 						baf := types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil)
@@ -178,10 +149,7 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with pending BAFs and complaints",
 			state: consensus_state.State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
-				Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+				Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 				Pending: []types.BatchAttestationFragment{
 					func() types.BatchAttestationFragment {
 						baf := types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(5), []byte{11, 22, 33}, types.PartyID(2), 5, 0, nil)
@@ -204,10 +172,7 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with pending BAFs with signatures",
 			state: consensus_state.State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
-				Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+				Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 				Pending: []types.BatchAttestationFragment{
 					func() types.BatchAttestationFragment {
 						baf := types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(10), []byte{44, 55, 66}, types.PartyID(2), 3, 0, nil)
@@ -221,10 +186,7 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with many pending BAFs",
 			state: consensus_state.State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
-				Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+				Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 				Pending: []types.BatchAttestationFragment{
 					func() types.BatchAttestationFragment {
 						baf := types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1}, types.PartyID(2), 0, 0, nil)
@@ -263,10 +225,7 @@ func TestStateSerializeDeserialize(t *testing.T) {
 		{
 			name: "state with assembler heights and prune points",
 			state: consensus_state.State{
-				N:         4,
-				Threshold: 2,
-				Quorum:    3,
-				Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 2}},
+				Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 2}},
 				AssemblerHeights: []consensus_state.AssemblerHeight{
 					{Party: 1, DecisionNum: 7},
 					{Party: 3, DecisionNum: 12},
@@ -306,9 +265,6 @@ func TestStateSerializeDeserialize(t *testing.T) {
 
 func TestStateString(t *testing.T) {
 	s := consensus_state.State{
-		N:          4,
-		Threshold:  2,
-		Quorum:     3,
 		Shards:     []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 3}},
 		AppContext: make([]byte, 64),
 		Complaints: []consensus_state.Complaint{
@@ -321,9 +277,6 @@ func TestStateString(t *testing.T) {
 	assert.NotEmpty(t, str)
 
 	// Test that the string contains key information
-	assert.Contains(t, str, "N: 4")
-	assert.Contains(t, str, "Threshold: 2")
-	assert.Contains(t, str, "Quorum: 3")
 	assert.Contains(t, str, "ShardCount: 2")
 	assert.Contains(t, str, "AssemblerHeights: 0")
 	assert.Contains(t, str, "PrunePoints: 0")
@@ -334,9 +287,6 @@ func TestStateString(t *testing.T) {
 
 	// Test with more than 5 BAFs
 	s2 := consensus_state.State{
-		N:          4,
-		Threshold:  2,
-		Quorum:     3,
 		Shards:     []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 		AppContext: make([]byte, 64),
 		Pending: []types.BatchAttestationFragment{
@@ -375,8 +325,6 @@ func TestCollectAndDeduplicateEvents(t *testing.T) {
 	state.CollectAndDeduplicateEvents(logger, ce, ce2)
 
 	expectedState := consensus_state.State{
-		N:          4,
-		Threshold:  2,
 		Shards:     []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 		Complaints: []consensus_state.Complaint{complaint},
 	}
@@ -461,10 +409,7 @@ func TestCollectAndDeduplicateEvents_SameSignerDifferentDigests(t *testing.T) {
 	}
 
 	state := consensus_state.State{
-		N:         4,
-		Threshold: 2,
-		Quorum:    3,
-		Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+		Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 	}
 
 	// Round 1: the signer reports digest X.
@@ -492,9 +437,6 @@ func TestProcessCountsRepeatedBAFOnce(t *testing.T) {
 	logger := testutil.CreateLogger(t, 0)
 
 	s := &consensus_state.State{
-		N:          4,
-		Threshold:  2,
-		Quorum:     3,
 		Shards:     []consensus_state.ShardTerm{{Shard: 1, Term: 0}},
 		AppContext: []byte{},
 	}
@@ -503,16 +445,14 @@ func TestProcessCountsRepeatedBAFOnce(t *testing.T) {
 	baf.SetSignature([]byte{1})
 	ce := consensus_state.ControlEvent{BAF: baf}
 
-	next, extracted, _ := s.Process(logger, 0, ce, ce)
+	next, extracted, _ := s.Process(logger, 0, testutil.PartyIDs(4), ce, ce)
 	require.Empty(t, extracted)
 	require.Equal(t, []types.BatchAttestationFragment{baf}, next.Pending)
 }
 
 func TestFilterPendingEventsWithDiffConfigSeq(t *testing.T) {
 	state := consensus_state.State{
-		N:         4,
-		Threshold: 2,
-		Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
+		Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
 		Complaints: []consensus_state.Complaint{
 			{ShardTerm: consensus_state.ShardTerm{Shard: 1, Term: 1}, Signer: 2},
 			{ShardTerm: consensus_state.ShardTerm{Shard: 1, Term: 1}, Signer: 3},
@@ -561,9 +501,7 @@ func TestFilterPendingEventsWithDiffConfigSeq(t *testing.T) {
 func TestProcessSurfacesStaleConfigBAFsBehind(t *testing.T) {
 	logger := testutil.CreateLogger(t, 0)
 	st := consensus_state.State{
-		N:         4,
-		Threshold: 2,
-		Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+		Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 	}
 	const cur = types.ConfigSequence(2)
 
@@ -572,7 +510,7 @@ func TestProcessSurfacesStaleConfigBAFsBehind(t *testing.T) {
 	twoBehind := bafCE(1, 1, 12, []byte{3}, 2, cur-2, 0, nil) // two behind -> StaleConfigBAFs
 	ahead := bafCE(1, 1, 13, []byte{4}, 2, cur+1, 0, nil)     // ahead -> dropped
 
-	next, extracted, _ := st.Process(logger, cur, currentBAF, staleOne, twoBehind, ahead)
+	next, extracted, _ := st.Process(logger, cur, testutil.PartyIDs(4), currentBAF, staleOne, twoBehind, ahead)
 
 	// exact-match BAF collected into Pending
 	require.Len(t, next.Pending, 1)
@@ -593,7 +531,7 @@ func TestProcessSurfacesStaleConfigBAFsBehind(t *testing.T) {
 
 	// one decision only: a subsequent Process without the stale CEs clears StaleConfigBAFs,
 	// while Pending is unaffected.
-	next2, _, _ := next.Process(logger, cur)
+	next2, _, _ := next.Process(logger, cur, testutil.PartyIDs(4))
 	assert.Empty(t, next2.StaleConfigBAFs)
 	assert.Len(t, next2.Pending, 1)
 }
@@ -605,9 +543,6 @@ func TestStateSerializeDeserializeStaleConfigBAFs(t *testing.T) {
 	baf := types.NewSimpleBatchAttestationFragment(1, 1, 5, []byte{7}, 2, 3, 0, nil)
 	baf.SetSignature([]byte{9})
 	st := consensus_state.State{
-		N:               4,
-		Threshold:       2,
-		Quorum:          3,
 		Shards:          []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 		StaleConfigBAFs: []types.BatchAttestationFragment{baf},
 	}
@@ -623,9 +558,7 @@ func TestStateSerializeDeserializeStaleConfigBAFs(t *testing.T) {
 
 func TestPrimaryRotateDueToComplaints(t *testing.T) {
 	state := consensus_state.State{
-		N:         4,
-		Threshold: 2,
-		Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
+		Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
 		Complaints: []consensus_state.Complaint{
 			{ShardTerm: consensus_state.ShardTerm{Shard: 1, Term: 1}, Signer: 2},
 			{ShardTerm: consensus_state.ShardTerm{Shard: 1, Term: 1}, Signer: 3},
@@ -634,7 +567,7 @@ func TestPrimaryRotateDueToComplaints(t *testing.T) {
 
 	logger := testutil.CreateLogger(t, 0)
 
-	state.PrimaryRotateDueToComplaints(logger)
+	state.PrimaryRotateDueToComplaints(logger, 2)
 
 	// Check that the term for shard 1 has been incremented
 	expectedShards := []consensus_state.ShardTerm{{Shard: 1, Term: 2}, {Shard: 2, Term: 1}}
@@ -667,10 +600,7 @@ func TestDetectEquivocation(t *testing.T) {
 
 	t.Run("no equivocation - single digest per batch attestation", func(t *testing.T) {
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+			Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 			Pending: []types.BatchAttestationFragment{
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil),
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(3), 0, 0, nil),
@@ -685,10 +615,7 @@ func TestDetectEquivocation(t *testing.T) {
 
 	t.Run("equivocation detected - multiple digests for same seq/shard/primary", func(t *testing.T) {
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+			Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 			Pending: []types.BatchAttestationFragment{
 				// Primary 1 sends different digests for the same sequence in shard 1
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil),
@@ -704,10 +631,7 @@ func TestDetectEquivocation(t *testing.T) {
 
 	t.Run("equivocation with multiple signers on different digests", func(t *testing.T) {
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 5}},
+			Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 5}},
 			Pending: []types.BatchAttestationFragment{
 				// Primary 1 (term 5 % 4 = 1) sends three different digests
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(10), []byte{1, 1, 1}, types.PartyID(2), 0, 0, nil),
@@ -724,10 +648,7 @@ func TestDetectEquivocation(t *testing.T) {
 
 	t.Run("no equivocation - different sequences", func(t *testing.T) {
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+			Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 			Pending: []types.BatchAttestationFragment{
 				// Different sequences - not equivocation
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil),
@@ -743,10 +664,7 @@ func TestDetectEquivocation(t *testing.T) {
 
 	t.Run("no equivocation - different shards", func(t *testing.T) {
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
+			Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
 			Pending: []types.BatchAttestationFragment{
 				// Different shards - not equivocation
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil),
@@ -763,10 +681,7 @@ func TestDetectEquivocation(t *testing.T) {
 
 	t.Run("no equivocation - different primaries", func(t *testing.T) {
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+			Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 			Pending: []types.BatchAttestationFragment{
 				// Different primaries - not equivocation
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil),
@@ -782,10 +697,7 @@ func TestDetectEquivocation(t *testing.T) {
 
 	t.Run("equivocation in multiple shards", func(t *testing.T) {
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
+			Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
 			Pending: []types.BatchAttestationFragment{
 				// Equivocation in shard 1
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil),
@@ -805,11 +717,8 @@ func TestDetectEquivocation(t *testing.T) {
 
 	t.Run("empty pending - no equivocation", func(t *testing.T) {
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
-			Pending:   []types.BatchAttestationFragment{},
+			Shards:  []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+			Pending: []types.BatchAttestationFragment{},
 		}
 
 		state.DetectEquivocation(logger)
@@ -824,10 +733,7 @@ func TestDetectEquivocation(t *testing.T) {
 		// never re-broadcast its own batch as a secondary voter, such BAFs are filtered out
 		// and must not trigger equivocation detection.
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+			Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 			Pending: []types.BatchAttestationFragment{
 				// Both BAFs claim Primary==Signer==2: self-signed, ignored for equivocation.
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(2), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil),
@@ -845,10 +751,7 @@ func TestDetectEquivocation(t *testing.T) {
 		// Genuine equivocation: two different secondaries received different batches from
 		// the same primary and both signed their BAF (Signer != Primary).
 		state := consensus_state.State{
-			N:         4,
-			Threshold: 2,
-			Quorum:    3,
-			Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+			Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 			Pending: []types.BatchAttestationFragment{
 				// Signer 2 attests digest {1,2,3} for primary 1.
 				types.NewSimpleBatchAttestationFragment(types.ShardID(1), types.PartyID(1), types.BatchSequence(1), []byte{1, 2, 3}, types.PartyID(2), 0, 0, nil),
@@ -887,10 +790,7 @@ func TestExtractBatchAttestationsFromPending_EquivocationDigestLeak(t *testing.T
 	seq := types.BatchSequence(1)
 
 	state := consensus_state.State{
-		N:         4,
-		Threshold: 2,
-		Quorum:    3,
-		Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+		Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 		Pending: []types.BatchAttestationFragment{
 			// Equivocating digest with a single signer (below the threshold of 2).
 			// Placed first so it would become ba[0] downstream.
@@ -905,7 +805,7 @@ func TestExtractBatchAttestationsFromPending_EquivocationDigestLeak(t *testing.T
 	// Equivocation is detected: term must be incremented.
 	assert.Equal(t, uint64(2), state.Shards[0].Term)
 
-	extracted := consensus_state.ExtractBatchAttestationsFromPending(&state, logger)
+	extracted := consensus_state.ExtractBatchAttestationsFromPending(&state, logger, 2)
 
 	// Only the threshold-reaching digest should be extracted; the under-attested digest must not leak.
 	for _, baf := range extracted {
@@ -916,10 +816,7 @@ func TestExtractBatchAttestationsFromPending_EquivocationDigestLeak(t *testing.T
 
 	thresholdDigest2 := []byte{4, 5, 6}
 	state2 := consensus_state.State{
-		N:         4,
-		Threshold: 2,
-		Quorum:    3,
-		Shards:    []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
+		Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 1}},
 		Pending: []types.BatchAttestationFragment{
 			// Legitimate digest reaching threshold (2 distinct signers).
 			types.NewSimpleBatchAttestationFragment(shardID, primary, seq, thresholdDigest, types.PartyID(1), 0, 1, nil),
@@ -934,7 +831,7 @@ func TestExtractBatchAttestationsFromPending_EquivocationDigestLeak(t *testing.T
 	// Equivocation is detected: term must be incremented.
 	assert.Equal(t, uint64(2), state2.Shards[0].Term)
 
-	extracted2 := consensus_state.ExtractBatchAttestationsFromPending(&state2, logger)
+	extracted2 := consensus_state.ExtractBatchAttestationsFromPending(&state2, logger, 2)
 	assert.Len(t, extracted2, 4, "expected all fragments to be extracted")
 }
 
@@ -1024,7 +921,7 @@ func TestProcessRecordsAssemblerReports(t *testing.T) {
 	st := initialState.Clone()
 	st.PrunePoints = []consensus_state.PrunePoint{{Shard: 1, Primary: 2, Seq: 8}}
 
-	next, _, _ := st.Process(logger, cur, reportCE(1, 20, cur), reportCE(2, 30, cur-1), reportCE(3, 40, cur+1))
+	next, _, _ := st.Process(logger, cur, testutil.PartyIDs(4), reportCE(1, 20, cur), reportCE(2, 30, cur-1), reportCE(3, 40, cur+1))
 
 	assert.Equal(t, []consensus_state.AssemblerHeight{{Party: 1, DecisionNum: 20}}, next.AssemblerHeights)
 	assert.Equal(t, []consensus_state.PrunePoint{{Shard: 1, Primary: 2, Seq: 8}}, next.PrunePoints)
@@ -1094,13 +991,6 @@ func TestUpdateDurableWatermark(t *testing.T) {
 			expected: 30,
 		},
 		{
-			name:     "n=0: no parties keep the watermark",
-			n:        0,
-			heights:  heights(9),
-			previous: 5,
-			expected: 5,
-		},
-		{
 			name:     "n=1: the only report sets the watermark",
 			n:        1,
 			heights:  heights(9),
@@ -1110,9 +1000,9 @@ func TestUpdateDurableWatermark(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			s := consensus_state.State{N: tt.n, AssemblerHeights: tt.heights, DurableWatermark: tt.previous}
-			_, s.Threshold, s.Quorum = utils.ComputeFTQ(tt.n)
-			s.UpdateDurableWatermark(logger)
+			s := consensus_state.State{AssemblerHeights: tt.heights, DurableWatermark: tt.previous}
+			f, _, _ := utils.ComputeFTQ(tt.n)
+			s.UpdateDurableWatermark(logger, f)
 			assert.Equal(t, tt.expected, s.DurableWatermark)
 		})
 	}
@@ -1125,19 +1015,19 @@ func TestProcessAdvancesDurableWatermark(t *testing.T) {
 
 	st := initialState.Clone() // n=4, so 2f+1=3
 
-	st, _, _ = st.Process(logger, 0, reportCE(1, 10, 0), reportCE(2, 20, 0))
+	st, _, _ = st.Process(logger, 0, testutil.PartyIDs(4), reportCE(1, 10, 0), reportCE(2, 20, 0))
 	assert.Zero(t, st.DurableWatermark, "two reports are not enough")
 
-	st, _, _ = st.Process(logger, 0, reportCE(3, 30, 0))
+	st, _, _ = st.Process(logger, 0, testutil.PartyIDs(4), reportCE(3, 30, 0))
 	assert.Equal(t, types.DecisionNum(10), st.DurableWatermark)
 
-	st, _, _ = st.Process(logger, 0, reportCE(1, 40, 0), reportCE(1, 15, 0))
+	st, _, _ = st.Process(logger, 0, testutil.PartyIDs(4), reportCE(1, 40, 0), reportCE(1, 15, 0))
 	assert.Equal(t, types.DecisionNum(20), st.DurableWatermark, "the latest (highest) report of party 1 counts")
 
 	// A reconfiguration removes party 3; with party 4's low report the third highest height drops to 5,
 	// but the watermark does not.
 	st.RetainAssemblerHeights([]types.PartyID{1, 2, 4})
-	st, _, _ = st.Process(logger, 0, reportCE(4, 5, 0))
+	st, _, _ = st.Process(logger, 0, testutil.PartyIDs(4), reportCE(4, 5, 0))
 	assert.Equal(t, types.DecisionNum(20), st.DurableWatermark)
 }
 

@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package consensus
 
 import (
+	"slices"
+
 	"github.com/Chaguar/common/api/ordererpb"
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil"
@@ -14,7 +16,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	arma_types "github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
 	"github.com/hyperledger/fabric-x-orderer/config"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/pkg/errors"
@@ -23,8 +24,9 @@ import (
 
 //go:generate counterfeiter -o mocks/config_applier.go . ConfigApplier
 type ConfigApplier interface {
-	// ApplyConfigToState update the current state based on the config request
-	ApplyConfigToState(state *state.State, configRequest *state.ConfigRequest) (*state.State, error)
+	// ApplyConfigToState update the current state based on the config request. currentParties are the party
+	// IDs of the config in force before the config request.
+	ApplyConfigToState(state *state.State, configRequest *state.ConfigRequest, currentParties []arma_types.PartyID) (*state.State, error)
 	// ExtractSmartBFTConfigFromBlock extracts the smartBFT config from a config block
 	ExtractSmartBFTConfigFromBlock(configBlock *common.Block, selfID arma_types.PartyID) ([]uint64, smartbft_types.Configuration, error)
 }
@@ -33,7 +35,7 @@ type DefaultConfigApplier struct {
 	bccsp bccsp.BCCSP
 }
 
-func (ca *DefaultConfigApplier) ApplyConfigToState(state *state.State, configRequest *state.ConfigRequest) (*state.State, error) {
+func (ca *DefaultConfigApplier) ApplyConfigToState(state *state.State, configRequest *state.ConfigRequest, currentParties []arma_types.PartyID) (*state.State, error) {
 	bundle, err := channelconfig.NewBundleFromEnvelope(configRequest.Envelope, ca.bccsp)
 	if err != nil {
 		return nil, err
@@ -50,22 +52,20 @@ func (ca *DefaultConfigApplier) ApplyConfigToState(state *state.State, configReq
 	}
 
 	newState := state.Clone()
-	newState.N = uint16(len(sharedConfig.PartiesConfig))
-	_, T, Q := utils.ComputeFTQ(newState.N)
-	newState.Threshold = T
-	newState.Quorum = Q
-
-	if newState.N != state.N {
-		// there was a party change, explicitly change term on all shards
-		for i := range newState.Shards {
-			newState.Shards[i].Term++
-		}
-	}
 
 	parties := make([]arma_types.PartyID, 0, len(sharedConfig.PartiesConfig))
 	for _, party := range sharedConfig.PartiesConfig {
 		parties = append(parties, arma_types.PartyID(party.GetPartyID()))
 	}
+	slices.Sort(parties)
+
+	// Primaries are picked from the sorted parties, so when the parties change, change every shard's term.
+	if !slices.Equal(parties, currentParties) {
+		for i := range newState.Shards {
+			newState.Shards[i].Term++
+		}
+	}
+
 	newState.RetainAssemblerHeights(parties)
 
 	return newState, nil

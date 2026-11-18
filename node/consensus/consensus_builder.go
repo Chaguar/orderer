@@ -339,11 +339,6 @@ func getInitialStateAndMetadata(logger *flogging.FabricLogger, config *node_conf
 
 func initialStateFromConfig(config *node_config.ConsenterNodeConfig) *state.State {
 	var initState state.State
-	initState.N = uint16(len(config.Consenters))
-	_, T, Q := utils.ComputeFTQ(initState.N)
-	initState.Threshold = T
-	initState.Quorum = Q
-
 	for _, shard := range config.Shards {
 		initState.Shards = append(initState.Shards, state.ShardTerm{
 			Shard: arma_types.ShardID(shard.ShardId),

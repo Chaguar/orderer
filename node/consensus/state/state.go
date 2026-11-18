@@ -74,9 +74,6 @@ func attestationKeyOf(baf types.BatchAttestationFragment) attestationKey {
 }
 
 type State struct {
-	N          uint16
-	Quorum     uint16
-	Threshold  uint16
 	Shards     []ShardTerm
 	Pending    []types.BatchAttestationFragment
 	Complaints []Complaint
@@ -129,10 +126,9 @@ func (s *State) String() string {
 		}
 	}
 
-	return fmt.Sprintf("State{N: %d, Quorum: %d, Threshold: %d, ShardCount: %d, AssemblerHeights: %d, PrunePoints: %d, "+
-		"DurableWatermark: %d, \nPending: %s, \nComplaints: %s}",
-		s.N, s.Quorum, s.Threshold, len(s.Shards), len(s.AssemblerHeights), len(s.PrunePoints), s.DurableWatermark,
-		pendingStr, complaintsStr)
+	return fmt.Sprintf("State{ShardCount: %d, AssemblerHeights: %d, PrunePoints: %d, DurableWatermark: %d, "+
+		"\nPending: %s, \nComplaints: %s}",
+		len(s.Shards), len(s.AssemblerHeights), len(s.PrunePoints), s.DurableWatermark, pendingStr, complaintsStr)
 }
 
 func (s *State) Serialize() []byte {
@@ -186,7 +182,6 @@ func (s *State) Serialize() []byte {
 	}
 
 	protoState := &stateprotos.State{
-		NumberOfParties:  uint32(s.N),
 		Shards:           protoShards,
 		Pending:          protoPending,
 		Complaints:       protoComplaints,
@@ -209,18 +204,6 @@ func (s *State) Deserialize(rawBytes []byte) error {
 	var ps stateprotos.State
 	if err := proto.Unmarshal(rawBytes, &ps); err != nil {
 		return err
-	}
-
-	if ps.NumberOfParties > math.MaxUint16 {
-		return fmt.Errorf("the NumberOfParties value %d exceeds uint16 maximum %d", ps.NumberOfParties, math.MaxUint16)
-	}
-
-	s.N = uint16(ps.NumberOfParties)
-	if s.N == 0 {
-		s.Threshold = 0
-		s.Quorum = 0
-	} else {
-		_, s.Threshold, s.Quorum = utils.ComputeFTQ(s.N)
 	}
 
 	s.Shards = nil
@@ -314,7 +297,12 @@ type ShardTerm struct {
 	Term  uint64
 }
 
-func (s *State) Process(l *flogging.FabricLogger, configSeq types.ConfigSequence, ces ...ControlEvent) (*State, []types.BatchAttestationFragment, []*ConfigRequest) {
+// Process applies the control events of a decision to the state and returns the next state, the batch
+// attestation fragments that reached the threshold, and the config requests. parties are the party IDs
+// of the config in force, sorted by party ID; the thresholds are derived from their number.
+func (s *State) Process(l *flogging.FabricLogger, configSeq types.ConfigSequence, parties []types.PartyID, ces ...ControlEvent) (*State, []types.BatchAttestationFragment, []*ConfigRequest) {
+	f, threshold, _ := utils.ComputeFTQ(uint16(len(parties)))
+
 	nextState := s.Clone()
 
 	filteredCEs, staleConfigBAFs := filterCEsWithDiffConfigSeq(configSeq, l, ces...)
@@ -324,12 +312,12 @@ func (s *State) Process(l *flogging.FabricLogger, configSeq types.ConfigSequence
 	nextState.CollectAndDeduplicateEvents(l, filteredCEs...)
 	nextState.CollectAssemblerReports(l, filteredCEs...)
 	nextState.DetectEquivocation(l)
-	nextState.PrimaryRotateDueToComplaints(l)
+	nextState.PrimaryRotateDueToComplaints(l, threshold)
 	nextState.CleanupOldComplaints(l)
 
 	// After applying the rules above, extract all batch attestations for which enough fragments have been collected.
-	extracted := ExtractBatchAttestationsFromPending(nextState, l)
-	nextState.UpdateDurableWatermark(l)
+	extracted := ExtractBatchAttestationsFromPending(nextState, l, threshold)
+	nextState.UpdateDurableWatermark(l, f)
 	nextState.UpdatePrunePoints()
 	configRequests := ExtractConfigRequests(filteredCEs)
 	return nextState, extracted, configRequests
@@ -372,7 +360,7 @@ func (s *State) CleanupOldComplaints(l *flogging.FabricLogger) {
 	s.Complaints = newComplaints
 }
 
-func (s *State) PrimaryRotateDueToComplaints(l *flogging.FabricLogger) {
+func (s *State) PrimaryRotateDueToComplaints(l *flogging.FabricLogger, threshold uint16) {
 	complaintsToNum := make(map[ShardTerm]int)
 
 	for _, complaint := range s.Complaints {
@@ -395,7 +383,7 @@ func (s *State) PrimaryRotateDueToComplaints(l *flogging.FabricLogger) {
 	var newComplaints []Complaint
 
 	for _, complaint := range s.Complaints {
-		if complaintsToNum[complaint.ShardTerm] >= int(s.Threshold) {
+		if complaintsToNum[complaint.ShardTerm] >= int(threshold) {
 
 			shardIndex, _ := shardExists(complaint.Shard, s.Shards)
 			term := s.Shards[shardIndex].Term
@@ -411,7 +399,7 @@ func (s *State) PrimaryRotateDueToComplaints(l *flogging.FabricLogger) {
 			newTerm := s.Shards[shardIndex].Term
 
 			l.Infof("Shard %d advanced from term %d to term %d due to %d complaints (threshold is %d)",
-				complaint.Shard, oldTerm, newTerm, complaintNum, s.Threshold)
+				complaint.Shard, oldTerm, newTerm, complaintNum, threshold)
 		} else {
 			newComplaints = append(newComplaints, complaint)
 		}
@@ -552,15 +540,12 @@ func (s *State) CollectAssemblerReports(l *flogging.FabricLogger, ces ...Control
 
 // UpdateDurableWatermark raises s.DurableWatermark to the 2f+1-th highest height in s.AssemblerHeights, the
 // highest decision that at least 2f+1 assemblers reported as committed. Of those 2f+1, at most f are
-// faulty, so at least f+1 honest assemblers hold every decision up to it. f is derived from N, and 2f+1 may
-// be below the quorum when N is not 3f+1: holding the decisions needs f+1 honest assemblers, not a quorum.
+// faulty, so at least f+1 honest assemblers hold every decision up to it. f is the number of faulty parties
+// the config in force tolerates, and 2f+1 may be below the quorum when the number of parties is not 3f+1:
+// holding the decisions needs f+1 honest assemblers, not a quorum.
 // With fewer than 2f+1 heights, or when the 2f+1-th highest is lower, the watermark is kept: it never
 // decreases, also when a reconfiguration drops a party's height or changes f.
-func (s *State) UpdateDurableWatermark(l *flogging.FabricLogger) {
-	if s.N == 0 {
-		return
-	}
-	f, _, _ := utils.ComputeFTQ(s.N)
+func (s *State) UpdateDurableWatermark(l *flogging.FabricLogger, f uint16) {
 	k := int(2*f + 1)
 	if len(s.AssemblerHeights) < k {
 		return
@@ -802,7 +787,7 @@ func batchAttestationVotesByDigests(s *State, excludeSelfSigned bool) map[batchK
 	return m
 }
 
-func ExtractBatchAttestationsFromPending(s *State, l *flogging.FabricLogger) []types.BatchAttestationFragment {
+func ExtractBatchAttestationsFromPending(s *State, l *flogging.FabricLogger, threshold uint16) []types.BatchAttestationFragment {
 	m := batchAttestationVotesByDigests(s, false)
 
 	// decidedBatches holds the <seq, shard, primary> batches for which at least one digest
@@ -822,8 +807,8 @@ func ExtractBatchAttestationsFromPending(s *State, l *flogging.FabricLogger) []t
 		l.Debugf("A total of %d digests were found for seq %d in shard %d with primary %d", len(digest2signers), bk.seq, bk.shard, bk.primary)
 
 		for digest, signers := range digest2signers {
-			if len(signers) >= int(s.Threshold) {
-				l.Debugf("Found threshold (%d >= %d) of batch attestation fragments for shard %d, seq %d, digest %s", len(signers), s.Threshold, bk.shard, bk.seq, digest)
+			if len(signers) >= int(threshold) {
+				l.Debugf("Found threshold (%d >= %d) of batch attestation fragments for shard %d, seq %d, digest %s", len(signers), threshold, bk.shard, bk.seq, digest)
 				decidedBatches[bk] = struct{}{}
 				thresholdDigests[thresholdDigestKey{batch: bk, digest: digest}] = struct{}{}
 			}

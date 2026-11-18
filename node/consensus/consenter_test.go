@@ -23,11 +23,8 @@ import (
 
 func TestConsenter(t *testing.T) {
 	s := &state.State{
-		N:         4,
-		Shards:    []state.ShardTerm{{Shard: 1, Term: 1}},
-		Threshold: 2,
-		Pending:   []arma_types.BatchAttestationFragment{},
-		Quorum:    4,
+		Shards:  []state.ShardTerm{{Shard: 1, Term: 1}},
+		Pending: []arma_types.BatchAttestationFragment{},
 	}
 
 	logger := testutil.CreateLogger(t, 0)
@@ -42,7 +39,7 @@ func TestConsenter(t *testing.T) {
 
 	// Test with an event that should be filtered out
 	db.ExistsReturns(true)
-	newState, batchAttestations, _ := consenter.SimulateStateTransition(s, 0, events)
+	newState, batchAttestations, _ := consenter.SimulateStateTransition(s, 0, testutil.PartyIDs(4), events)
 	assert.Empty(t, batchAttestations)
 	assert.Empty(t, newState.Pending)
 
@@ -51,7 +48,7 @@ func TestConsenter(t *testing.T) {
 
 	// Test a valid event below threshold
 	db.ExistsReturns(false)
-	newState, batchAttestations, _ = consenter.SimulateStateTransition(s, 0, events)
+	newState, batchAttestations, _ = consenter.SimulateStateTransition(s, 0, testutil.PartyIDs(4), events)
 	assert.Empty(t, batchAttestations)
 	assert.Len(t, newState.Pending, 1)
 
@@ -63,7 +60,7 @@ func TestConsenter(t *testing.T) {
 	ba2.SetSignature([]byte{1})
 	events = append(events, (&state.ControlEvent{BAF: ba2}).Bytes())
 
-	newState, batchAttestations, _ = consenter.SimulateStateTransition(s, 0, events)
+	newState, batchAttestations, _ = consenter.SimulateStateTransition(s, 0, testutil.PartyIDs(4), events)
 	assert.Len(t, batchAttestations[0], 2)
 	assert.Empty(t, newState.Pending)
 
@@ -79,7 +76,7 @@ func TestConsenter(t *testing.T) {
 
 	events = [][]byte{(&state.ControlEvent{Complaint: &c}).Bytes()}
 
-	_, batchAttestations, _ = consenter.SimulateStateTransition(s, 0, events)
+	_, batchAttestations, _ = consenter.SimulateStateTransition(s, 0, testutil.PartyIDs(4), events)
 	assert.Empty(t, batchAttestations)
 	consenter.Index([][]byte{})
 	assert.Equal(t, db.PutCallCount(), 1)
@@ -99,7 +96,7 @@ func TestConsenter(t *testing.T) {
 	}
 	events = [][]byte{(&state.ControlEvent{ConfigRequest: cr}).Bytes()}
 
-	_, _, configRequests := consenter.SimulateStateTransition(s, 0, events)
+	_, _, configRequests := consenter.SimulateStateTransition(s, 0, testutil.PartyIDs(4), events)
 	assert.Equal(t, cr.Envelope.Payload, configRequests[0].Envelope.Payload)
 	assert.Equal(t, cr.Envelope.Signature, configRequests[0].Envelope.Signature)
 }
@@ -122,11 +119,8 @@ func TestConsenterAggregateFragmentsHonest(t *testing.T) {
 
 	newState := func() *state.State {
 		return &state.State{
-			N:         7,
-			Shards:    []state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
-			Threshold: 2,
-			Pending:   []arma_types.BatchAttestationFragment{},
-			Quorum:    5,
+			Shards:  []state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2, Term: 1}},
+			Pending: []arma_types.BatchAttestationFragment{},
 		}
 	}
 
@@ -147,7 +141,7 @@ func TestConsenterAggregateFragmentsHonest(t *testing.T) {
 		newBAF(arma_types.ShardID(2), arma_types.PartyID(3), arma_types.BatchSequence(1), digestB, arma_types.PartyID(6)),
 	}
 
-	_, batchAttestations, _ := consenter.SimulateStateTransition(newState(), 0, events)
+	_, batchAttestations, _ := consenter.SimulateStateTransition(newState(), 0, testutil.PartyIDs(4), events)
 
 	// One group per batch, in first-seen order: batch A (shard 1) then batch B (shard 2).
 	assert.Len(t, batchAttestations, 2)
@@ -186,11 +180,8 @@ func TestConsenterEquivocatingDigests(t *testing.T) {
 
 	newState := func() *state.State {
 		return &state.State{
-			N:         7,
-			Shards:    []state.ShardTerm{{Shard: 1, Term: 1}},
-			Threshold: 2,
-			Pending:   []arma_types.BatchAttestationFragment{},
-			Quorum:    5,
+			Shards:  []state.ShardTerm{{Shard: 1, Term: 1}},
+			Pending: []arma_types.BatchAttestationFragment{},
 		}
 	}
 
@@ -212,7 +203,7 @@ func TestConsenterEquivocatingDigests(t *testing.T) {
 			newBAF(arma_types.PartyID(1), threshold, arma_types.PartyID(3)), // 2 signers -> reaches threshold
 		}
 
-		_, batchAttestations, _ := newConsenter().SimulateStateTransition(newState(), 0, events)
+		_, batchAttestations, _ := newConsenter().SimulateStateTransition(newState(), 0, testutil.PartyIDs(4), events)
 
 		// Exactly one block, backed only by the threshold digest.
 		assert.Len(t, batchAttestations, 1)
@@ -234,7 +225,7 @@ func TestConsenterEquivocatingDigests(t *testing.T) {
 			newBAF(arma_types.PartyID(1), digestB, arma_types.PartyID(5)),
 		}
 
-		_, batchAttestations, _ := newConsenter().SimulateStateTransition(newState(), 0, events)
+		_, batchAttestations, _ := newConsenter().SimulateStateTransition(newState(), 0, testutil.PartyIDs(4), events)
 
 		// Both digests crossed threshold -> two separate blocks, each grouping only its own digest.
 		assert.Len(t, batchAttestations, 2)
@@ -265,7 +256,7 @@ func TestConsenterEquivocatingDigests(t *testing.T) {
 			newBAF(arma_types.PartyID(6), digest, arma_types.PartyID(5)),
 		}
 
-		_, batchAttestations, _ := newConsenter().SimulateStateTransition(newState(), 0, events)
+		_, batchAttestations, _ := newConsenter().SimulateStateTransition(newState(), 0, testutil.PartyIDs(4), events)
 
 		// Same digest, different primary -> two distinct BatchIDs -> two blocks.
 		assert.Len(t, batchAttestations, 2)

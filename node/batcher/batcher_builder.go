@@ -72,8 +72,8 @@ func CreateBatcher(nodeConfig *node_config.BatcherNodeConfig, fullConfig *config
 	return b
 }
 
-// configureBatcher starts the batcher in the term of lastKnownState, or in term 0 if it is nil or does not
-// match the current config.
+// configureBatcher starts the batcher in the term of lastKnownState, or in term 0 if it is nil or has no
+// term for our shard.
 func (b *Batcher) configureBatcher(
 	senderCreator ConsenterControlEventSenderCreator,
 	memPool MemPool,
@@ -144,10 +144,11 @@ func (b *Batcher) configureBatcher(
 
 	b.batcherCerts2IDs = indexTLSCerts(b.batchers, b.logger)
 
-	f := (initState.N - 1) / 3
+	n := uint16(len(b.config.Consenters))
+	f := (n - 1) / 3
 
 	ctxBroadcast, cancelBroadcast := context.WithCancel(context.Background())
-	b.controlEventBroadcaster = NewControlEventBroadcaster(b.controlEventSenders, int(initState.N), int(f), 100*time.Millisecond, 10*time.Second, b.logger, ctxBroadcast, cancelBroadcast)
+	b.controlEventBroadcaster = NewControlEventBroadcaster(b.controlEventSenders, int(n), int(f), 100*time.Millisecond, 10*time.Second, b.logger, ctxBroadcast, cancelBroadcast)
 
 	b.primaryAckConnector = CreatePrimaryAckConnector(b.primaryID, b.config.ShardId, b.logger, b.config, GetBatchersEndpointsAndCerts(b.batchers), context.Background(), 1*time.Second, 100*time.Millisecond, 500*time.Millisecond)
 	b.primaryReqConnector = CreatePrimaryReqConnector(b.primaryID, b.logger, b.config, GetBatchersEndpointsAndCerts(b.batchers), context.Background(), 10*time.Second, 100*time.Millisecond, 1*time.Second)
@@ -178,7 +179,7 @@ func (b *Batcher) configureBatcher(
 	b.batcher = &BatcherRole{
 		BatchPuller:             batchPuller,
 		Threshold:               int(f + 1),
-		N:                       initState.N,
+		N:                       n,
 		BatchTimeout:            b.config.BatchCreationTimeout,
 		Ledger:                  ledgerArray,
 		ID:                      b.config.PartyId,
@@ -229,17 +230,12 @@ func batchersFromConfig(config *node_config.BatcherNodeConfig) []node_config.Bat
 	return batchers
 }
 
-// computeInitState returns lastKnownState if it matches the current config, so the batcher starts in the
+// computeInitState returns lastKnownState if it has a term for our shard, so the batcher starts in the
 // term it last knew of rather than in term 0: the last decision in the WAL on a restart, or the decision
 // that carries the config block on a reconfiguration. Otherwise it returns the zero state.
 func (b *Batcher) computeInitState(lastKnownState *state.State) state.State {
 	zeroState := computeZeroState(b.config)
 	if lastKnownState == nil {
-		return zeroState
-	}
-	if lastKnownState.N != zeroState.N {
-		b.logger.Warnf("Start state has N=%d but the config has %d consenters; starting in term 0",
-			lastKnownState.N, zeroState.N)
 		return zeroState
 	}
 	for _, shard := range lastKnownState.Shards {
@@ -259,8 +255,6 @@ func computeZeroState(config *node_config.BatcherNodeConfig) state.State {
 			Shard: shard.ShardId,
 		})
 	}
-
-	s.N = uint16(len(config.Consenters))
 
 	return s
 }
