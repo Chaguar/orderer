@@ -2535,6 +2535,26 @@ func TestConsensusSoftStop(t *testing.T) {
 	assert.Error(t, err)
 }
 
+// TestConsensusStopStopsSynchronizerBeforeBFT checks that Stop stops the synchronizer while the
+// BFT still runs: while the node catches up, the BFT is inside Synchronizer.Sync, and stopping the
+// BFT first would wait for the sync to finish on its own.
+func TestConsensusStopStopsSynchronizerBeforeBFT(t *testing.T) {
+	c, _, _ := startSingleConsensusNode(t)
+
+	synchronizer := &consensus_mocks.FakeSynchronizerStopper{}
+	var bftRunningOnStop []bool
+	synchronizer.StopCalls(func() {
+		bftRunningOnStop = append(bftRunningOnStop, c.BFT.GetLeaderID() != 0)
+	})
+	c.Synchronizer = synchronizer
+	require.NotZero(t, c.BFT.GetLeaderID())
+
+	c.Stop()
+
+	require.NotEmpty(t, bftRunningOnStop)
+	require.True(t, bftRunningOnStop[0], "the synchronizer was stopped after the BFT")
+}
+
 // TestOnSubmitDropsInvalidRequest checks that OnSubmit does not return an error for an invalid
 // forwarded request, since an error makes the ClusterService close the forwarder's stream.
 func TestOnSubmitDropsInvalidRequest(t *testing.T) {

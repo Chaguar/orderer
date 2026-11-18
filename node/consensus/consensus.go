@@ -216,6 +216,8 @@ func (c *Consensus) Stop() {
 	default:
 		close(c.ReconfigAbort)
 	}
+	// bft.Stop waits for a Sync in progress, so stop the synchronizer first.
+	c.Synchronizer.Stop()
 	c.lock.Unlock()
 	bft.Stop() // stop the bft without holding the lock to avoid deadlock (it is safe to stop it multiple times)
 
@@ -230,7 +232,6 @@ func (c *Consensus) Stop() {
 	c.Logger.Infof("Stopping consensus node")
 	if state != node_utils.StateSoftStopped && state != node_utils.StatePendingAdmin {
 		close(c.softStopCh)
-		c.Synchronizer.Stop()
 		c.BADB.Close()
 		c.Metrics.StopMetricsTracker()
 	}
