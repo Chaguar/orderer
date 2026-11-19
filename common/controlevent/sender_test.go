@@ -4,7 +4,7 @@ Copyright IBM Corp. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package batcher_test
+package controlevent_test
 
 import (
 	"net"
@@ -13,8 +13,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/batcher"
 	"github.com/hyperledger/fabric-x-orderer/node/comm"
 	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
 	"github.com/hyperledger/fabric-x-orderer/node/config"
@@ -92,12 +92,12 @@ func TestControlEventSenderCloseClosesConnection(t *testing.T) {
 }
 
 // newControlEventSender creates a control-event sender to the consenter at endpoint, trusting ca.
-func newControlEventSender(t *testing.T, ca tlsgen.CA, endpoint string) batcher.ConsenterControlEventSender {
+func newControlEventSender(t *testing.T, ca tlsgen.CA, endpoint string) controlevent.Sender {
 	clientKeyPair, err := ca.NewClientCertKeyPair()
 	require.NoError(t, err)
 	consenterInfo := config.ConsenterInfo{PartyID: 1, Endpoint: endpoint, TLSCACerts: []config.RawBytes{ca.CertBytes()}}
-	factory := &batcher.ConsenterControlEventSenderFactory{}
-	return factory.CreateConsenterControlEventSender(clientKeyPair.Key, clientKeyPair.Cert, consenterInfo)
+	factory := &controlevent.SenderFactory{}
+	return factory.CreateSender(clientKeyPair.Key, clientKeyPair.Cert, consenterInfo)
 }
 
 // controlEvent returns a control event carrying a complaint.

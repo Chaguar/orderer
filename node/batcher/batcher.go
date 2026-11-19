@@ -25,6 +25,7 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/hyperledger/fabric-x-orderer/common/configack"
 	"github.com/hyperledger/fabric-x-orderer/common/configstore"
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
 	"github.com/hyperledger/fabric-x-orderer/common/operations"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 	"github.com/hyperledger/fabric-x-orderer/common/utils"
@@ -69,7 +70,7 @@ type Batcher struct {
 	consensusDecisionReplicatorCreator ConsensusDecisionReplicatorCreator
 	batcher                            *BatcherRole
 	batcherCerts2IDs                   map[string]types.PartyID
-	controlEventSenders                []ConsenterControlEventSender
+	controlEventSenders                []controlevent.Sender
 	controlEventBroadcaster            *ControlEventBroadcaster
 	primaryAckConnector                *PrimaryAckConnector
 	primaryReqConnector                *PrimaryReqConnector
@@ -438,7 +439,7 @@ func (b *Batcher) stopAndReconfigure(
 		b.logger.Warnf("The decision of config block %d has no state; starting in term 0", lastBlock.GetHeader().GetNumber())
 	}
 	prevPrimaryID := b.GetPrimaryID()
-	b.configureBatcher(&ConsenterControlEventSenderFactory{}, b.batcher.MemPool, lastKnownDecisionNum, configState)
+	b.configureBatcher(&controlevent.SenderFactory{}, b.batcher.MemPool, lastKnownDecisionNum, configState)
 	// The decision loop stops at the config decision before it compares primaries, and the batcher now starts in
 	// the config decision's term, so a primary change that comes with the config is counted here.
 	if primaryID := b.GetPrimaryID(); primaryID != prevPrimaryID {

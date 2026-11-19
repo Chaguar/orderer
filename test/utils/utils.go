@@ -34,6 +34,7 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/hyperledger/fabric-x-orderer/common/configstore"
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
 	"github.com/hyperledger/fabric-x-orderer/common/deliverclient"
 	"github.com/hyperledger/fabric-x-orderer/common/operations"
 	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
@@ -380,7 +381,7 @@ func CreateBatchersForShard(t *testing.T, num int, batcherNodes []*node, shards 
 
 		fullConfig := pinning.ConfigurationWithRouters(types.PartyID(i+1), routerKeyPairs)
 
-		batcher := batcher.CreateBatcher(batcherConf, fullConfig, logger, make(chan struct{}), &batcher.ConsensusDecisionReplicatorFactory{}, &batcher.ConsenterControlEventSenderFactory{}, signer)
+		batcher := batcher.CreateBatcher(batcherConf, fullConfig, logger, make(chan struct{}), &batcher.ConsensusDecisionReplicatorFactory{}, &controlevent.SenderFactory{}, signer)
 		batcher.Net = batcherNodes[i]
 		batchers = append(batchers, batcher)
 		batcher.Run()
@@ -480,7 +481,7 @@ func RecoverBatcher(t *testing.T, ca tlsgen.CA, conf *node_config.BatcherNodeCon
 	require.NoError(t, err)
 	signer, _ := signutil.NewSignerOfKey(t, newBatcherNode.sk, "org")
 
-	batcher := batcher.CreateBatcher(conf, pinning.ConfigurationWithRouters(conf.PartyId, routerKeyPairs), logger, make(chan struct{}), &batcher.ConsensusDecisionReplicatorFactory{}, &batcher.ConsenterControlEventSenderFactory{}, signer)
+	batcher := batcher.CreateBatcher(conf, pinning.ConfigurationWithRouters(conf.PartyId, routerKeyPairs), logger, make(chan struct{}), &batcher.ConsensusDecisionReplicatorFactory{}, &controlevent.SenderFactory{}, signer)
 	batcher.Net = newBatcherNode
 	batcher.Run()
 

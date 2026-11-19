@@ -21,6 +21,7 @@ import (
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
 	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
 	"github.com/hyperledger/fabric-x-orderer/common/utils"
@@ -1184,7 +1185,7 @@ func createBatcherNodes(t *testing.T, dir string, parties []types.PartyID, numOf
 			require.NoError(t, err)
 			require.NotNil(t, signer)
 			batcherLogger := testutil.CreateLogger(t, int(partyID))
-			batcher := batcher.CreateBatcher(batcherConfig, nodeConfig, batcherLogger, make(chan struct{}), consenters[i], &batcher.ConsenterControlEventSenderFactory{}, signer)
+			batcher := batcher.CreateBatcher(batcherConfig, nodeConfig, batcherLogger, make(chan struct{}), consenters[i], &controlevent.SenderFactory{}, signer)
 			batcherNodes = append(batcherNodes, batcher)
 			genesisBlock = lastConfigBlock
 			bundle = batcherConfig.Bundle

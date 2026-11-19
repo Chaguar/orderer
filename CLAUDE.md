@@ -125,8 +125,9 @@ Reconfiguration (membership, identity, endpoints, params) flows through new conf
 - `request/` — the batcher's router-side request pool/batching internals (pending, buckets, batch store).
 - `common/` — cross-cutting infra: `policy`, `msputils`, `requestfilter`, `monitoring`,
   `operations` (ops/metrics endpoint), `fabhttp` (HTTP server for it), `synchronizer` (shared
-  state-sync), `configstore`, `configack` (config-ack sender/receiver to consenters), `ratelimit`
-  (GCRA token-bucket limiter), `filerepo`, `metadata` (version vars injected via ldflags).
+  state-sync), `configstore`, `configack` (config-ack sender/receiver to consenters),
+  `controlevent` (control-event sender to consenters), `ratelimit` (GCRA token-bucket limiter),
+  `filerepo`, `metadata` (version vars injected via ldflags).
 - Protobuf definitions live under `node/protos/{comm,state}`; regenerate with `make protos`,
   never hand-edit generated `.pb.go` files. `check-protos` verifies they are current.
 - Dependencies are **vendored** (`vendor/`); `make check-deps` flags unused vendored deps.

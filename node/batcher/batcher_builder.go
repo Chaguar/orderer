@@ -22,6 +22,7 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-x-orderer/common/configack"
 	"github.com/hyperledger/fabric-x-orderer/common/configstore"
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
 	"github.com/hyperledger/fabric-x-orderer/common/deliver"
 	"github.com/hyperledger/fabric-x-orderer/common/operations"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
@@ -35,7 +36,7 @@ import (
 	"github.com/hyperledger/fabric-x-orderer/request"
 )
 
-func CreateBatcher(nodeConfig *node_config.BatcherNodeConfig, fullConfig *config.Configuration, logger *flogging.FabricLogger, mainExitChan chan struct{}, cdrc ConsensusDecisionReplicatorCreator, senderCreator ConsenterControlEventSenderCreator, signer identity.SignerSerializer) *Batcher {
+func CreateBatcher(nodeConfig *node_config.BatcherNodeConfig, fullConfig *config.Configuration, logger *flogging.FabricLogger, mainExitChan chan struct{}, cdrc ConsensusDecisionReplicatorCreator, senderCreator controlevent.SenderCreator, signer identity.SignerSerializer) *Batcher {
 	configStore, err := configstore.NewStore(nodeConfig.ConfigStorePath)
 	if err != nil {
 		logger.Panicf("Failed creating batcher config store: %s", err.Error())
@@ -75,7 +76,7 @@ func CreateBatcher(nodeConfig *node_config.BatcherNodeConfig, fullConfig *config
 // configureBatcher starts the batcher in the term of lastKnownState, or in term 0 if it is nil or has no
 // term for our shard.
 func (b *Batcher) configureBatcher(
-	senderCreator ConsenterControlEventSenderCreator,
+	senderCreator controlevent.SenderCreator,
 	memPool MemPool,
 	lastKnownDecisionNum types.DecisionNum,
 	lastKnownState *state.State,
@@ -133,9 +134,9 @@ func (b *Batcher) configureBatcher(
 	b.metrics = NewBatcherMetrics(b.config, batchers, ledgerMetrics, ledgerArray, b.logger)
 	b.opsSystem = operations.NewOperationsSystem(*b.config.Operations, *b.config.Metrics)
 
-	b.controlEventSenders = make([]ConsenterControlEventSender, len(b.config.Consenters))
+	b.controlEventSenders = make([]controlevent.Sender, len(b.config.Consenters))
 	for i, consenterInfo := range b.config.Consenters {
-		b.controlEventSenders[i] = senderCreator.CreateConsenterControlEventSender(b.config.TLSPrivateKeyFile, b.config.TLSCertificateFile, consenterInfo)
+		b.controlEventSenders[i] = senderCreator.CreateSender(b.config.TLSPrivateKeyFile, b.config.TLSCertificateFile, consenterInfo)
 	}
 
 	initState := b.computeInitState(lastKnownState)

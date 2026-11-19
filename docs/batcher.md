@@ -298,7 +298,7 @@ each holding the batches that party created while it was primary.*
 | Acks and the sequence gap | [`acker.go`](../node/batcher/acker.go) |
 | Pulling and serving batches | [`puller.go`](../node/batcher/puller.go), [`batcher_deliver_service.go`](../node/batcher/batcher_deliver_service.go) |
 | Request and batch verification | [`requests_inspector_verifier.go`](../node/batcher/requests_inspector_verifier.go) |
-| Sending BAFs and complaints to the consenters | [`control_event_broadcaster.go`](../node/batcher/control_event_broadcaster.go), [`consenter_control_event_sender.go`](../node/batcher/consenter_control_event_sender.go) |
+| Sending BAFs and complaints to the consenters | [`control_event_broadcaster.go`](../node/batcher/control_event_broadcaster.go), [`common/controlevent/sender.go`](../common/controlevent/sender.go) |
 | Acks and forwarded requests to the primary | [`primary_ack_connector.go`](../node/batcher/primary_ack_connector.go), [`primary_req_connector.go`](../node/batcher/primary_req_connector.go) |
 | Memory pool: batch store, pending store, strikes | [`request/`](../request) |
 | Batch ledger array | [`node/ledger/batch_ledger_array.go`](../node/ledger/batch_ledger_array.go) |
