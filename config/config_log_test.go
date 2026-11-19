@@ -52,7 +52,7 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 			require.NoError(t, yaml.Unmarshal([]byte(section), node.GeneralConfig.BCCSP))
 			require.NoError(t, utils.WriteToYAML(node, path))
 
-			logger, logged := recordLogs()
+			logger, recorded := recordLogs(zapcore.DebugLevel)
 			conf, block, err := config.ReadConfig(path, logger)
 			require.NoError(t, err)
 			general := conf.LocalConfig.NodeLocalConfig.GeneralConfig
@@ -60,7 +60,7 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 				require.Equal(t, hsmPIN, pkcs11.Elem().FieldByName("Pin").String(), "the PIN was not loaded")
 			}
 
-			entries := logged()
+			entries := recorded()
 			local, shared := configEntries(t, entries)
 			localTitle, localYAML, _ := strings.Cut(local, "\n")
 			sharedTitle, sharedYAML, _ := strings.Cut(shared, "\n")
@@ -95,18 +95,22 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 				}
 			}
 			require.NotEmpty(t, certsYAML, "the certificate details were not logged")
-			var details map[string]struct {
-				Subject  string    `yaml:"subject"`
-				Issuer   string    `yaml:"issuer"`
-				NotAfter time.Time `yaml:"notAfter"`
+			type details struct {
+				Subject   string    `yaml:"subject"`
+				Issuer    string    `yaml:"issuer"`
+				NotBefore time.Time `yaml:"notBefore"`
+				NotAfter  time.Time `yaml:"notAfter"`
 			}
-			require.NoError(t, yaml.Unmarshal([]byte(certsYAML), &details))
+			var logged map[string]details
+			require.NoError(t, yaml.Unmarshal([]byte(certsYAML), &logged))
 			parsed, err := x509.ParseCertificate(tlsCert)
 			require.NoError(t, err)
-			require.Contains(t, details, tlsCertName)
-			require.Equal(t, parsed.Subject.String(), details[tlsCertName].Subject)
-			require.Equal(t, parsed.Issuer.String(), details[tlsCertName].Issuer)
-			require.True(t, parsed.NotAfter.Equal(details[tlsCertName].NotAfter))
+			require.Equal(t, details{
+				Subject:   parsed.Subject.String(),
+				Issuer:    parsed.Issuer.String(),
+				NotBefore: parsed.NotBefore.UTC(),
+				NotAfter:  parsed.NotAfter.UTC(),
+			}, logged[tlsCertName])
 
 			tlsCertBase64 := base64.StdEncoding.EncodeToString(tlsCert)
 			privateKey := base64.StdEncoding.EncodeToString(readDER(general.TLSConfig.PrivateKey))
@@ -120,7 +124,23 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 	}
 }
 
-func recordLogs() (*flogging.FabricLogger, func() []zapcore.Entry) {
+func TestReadConfigLogsNoCertificateDetailsAtInfoLevel(t *testing.T) {
+	e := newRejoinTestEnv(t)
+	path := filepath.Join(e.dir, "config", "party1", "local_config_router.yaml")
+	testutil.EditDirectoryInNodeConfigYAML(t, path, filepath.Join(e.dir, "storage", config.RouterStr), "", 0)
+
+	logger, recorded := recordLogs(zapcore.InfoLevel)
+	_, _, err := config.ReadConfig(path, logger)
+	require.NoError(t, err)
+
+	entries := recorded()
+	configEntries(t, entries)
+	for _, entry := range entries {
+		require.NotContains(t, entry.Message, "Shared config certificates")
+	}
+}
+
+func recordLogs(level zapcore.Level) (*flogging.FabricLogger, func() []zapcore.Entry) {
 	var mu sync.Mutex
 	var entries []zapcore.Entry
 	record := zap.Hooks(func(entry zapcore.Entry) error {
@@ -129,7 +149,7 @@ func recordLogs() (*flogging.FabricLogger, func() []zapcore.Entry) {
 		entries = append(entries, entry)
 		return nil
 	})
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.AddSync(io.Discard), zapcore.DebugLevel)
+	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.AddSync(io.Discard), level)
 	return flogging.NewFabricLogger(zap.New(core, record)), func() []zapcore.Entry {
 		mu.Lock()
 		defer mu.Unlock()
