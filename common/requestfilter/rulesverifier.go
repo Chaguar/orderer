@@ -10,8 +10,8 @@ import (
 	"fmt"
 	"sync"
 
+	"github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 )
 
 // Verifier is a struct that holds a slice of rules, used to verify a request.

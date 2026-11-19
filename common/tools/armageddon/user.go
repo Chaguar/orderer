@@ -9,8 +9,8 @@ package armageddon
 import (
 	"fmt"
 
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	genconfig "github.com/hyperledger/fabric-x-orderer/config/generate"
+	"github.com/Chaguar/orderer/common/utils"
+	genconfig "github.com/Chaguar/orderer/config/generate"
 )
 
 // UserConfig holds the user information needed for connection to routers and assemblers

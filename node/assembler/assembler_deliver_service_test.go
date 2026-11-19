@@ -11,10 +11,10 @@ import (
 	"testing"
 
 	"github.com/Chaguar/common/protoutil"
+	policymocks "github.com/Chaguar/orderer/common/policy/mocks"
+	"github.com/Chaguar/orderer/node/assembler"
+	testmocks "github.com/Chaguar/orderer/test/mocks"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	policymocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
-	"github.com/hyperledger/fabric-x-orderer/node/assembler"
-	testmocks "github.com/hyperledger/fabric-x-orderer/test/mocks"
 
 	"github.com/stretchr/testify/require"
 )

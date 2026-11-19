@@ -4,8 +4,8 @@ package mock
 import (
 	"sync"
 
+	"github.com/Chaguar/orderer/common/ledger/blockledger"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger"
 )
 
 type BlockIterator struct {

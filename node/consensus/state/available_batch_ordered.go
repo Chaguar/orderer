@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package state
 
 import (
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 )
 
 type AvailableBatchOrdered struct {

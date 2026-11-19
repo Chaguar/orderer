@@ -8,8 +8,8 @@ package requestfilter
 
 import (
 	"github.com/Chaguar/common/common/policies"
+	"github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 )
 
 //go:generate counterfeiter -o ./mocks/rule.go . Rule

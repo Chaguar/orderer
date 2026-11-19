@@ -11,8 +11,8 @@ import (
 
 	"github.com/Chaguar/common/api/ordererpb"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
 )
 
 // SharedConfigYaml holds the initial configuration that will be used to bootstrap new nodes.

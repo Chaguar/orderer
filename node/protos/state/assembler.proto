@@ -8,7 +8,7 @@ syntax = "proto3";
 
 package state;
 
-option go_package = "github.com/hyperledger/fabric-x-orderer/node/protos/state";
+option go_package = "github.com/Chaguar/orderer/node/protos/state";
 
 // AssemblerBlockMetadata represents metadata about a batch that is stored in the assembler's block metadata.
 // This metadata is stored in the ORDERER metadata index of Fabric blocks created by the assembler.

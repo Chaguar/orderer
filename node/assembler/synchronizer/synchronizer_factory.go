@@ -9,13 +9,13 @@ package synchronizer
 import (
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil/identity"
+	commonsync "github.com/Chaguar/orderer/common/synchronizer"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/comm"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	commonsync "github.com/hyperledger/fabric-x-orderer/common/synchronizer"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
 )
 
 //go:generate counterfeiter -o mocks/assembler_support.go . AssemblerSupport

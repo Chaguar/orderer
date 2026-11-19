@@ -4,8 +4,8 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/node/batcher"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
+	"github.com/Chaguar/orderer/node/batcher"
+	"github.com/Chaguar/orderer/node/consensus/state"
 )
 
 type FakeDecisionReplicator struct {

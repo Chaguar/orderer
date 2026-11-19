@@ -10,7 +10,7 @@ import (
 	"sort"
 
 	"github.com/Chaguar/common/common/policies"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 )
 
 func (c *BatcherNodeConfig) GetShardsIDs() []types.ShardID {

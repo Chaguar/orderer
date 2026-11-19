@@ -18,17 +18,17 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/orderer/common/metadata"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/common/types"
+	test_utils "github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/test/utils"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/client"
+	"github.com/Chaguar/orderer/testutil/signutil"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-lib-go/common/flogging/httpadmin"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/metadata"
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	test_utils "github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/test/utils"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/client"
-	"github.com/hyperledger/fabric-x-orderer/testutil/signutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
 
 	"github.com/onsi/gomega/gexec"
 	"github.com/stretchr/testify/assert"
@@ -69,7 +69,7 @@ func TestSubmitAndReceive(t *testing.T) {
 	tts = append(tts, sometimes[rand.Intn(len(sometimes))])
 
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -183,7 +183,7 @@ func TestSubmitAndReceive(t *testing.T) {
 // receiving blocks from the assembler, and getting the status from the assembler.
 // It also tests edge cases such as pulling with endBlock < startBlock to ensure proper error handling.
 func TestSubmitAndReceiveStatus(t *testing.T) {
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -293,7 +293,7 @@ func TestSubmitAndReceiveStatus(t *testing.T) {
 // TestRunNodesAndGetResponseFromOperationEndpoints verifies that the nodes respond correctly to operation endpoints INSECURED.
 func TestRunNodesAndGetResponseFromOperationEndpoints(t *testing.T) {
 	// 1. compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() {
 		gexec.CleanupBuildArtifacts()
 	})
@@ -564,7 +564,7 @@ func TestRunNodesAndGetResponseFromOperationEndpoints(t *testing.T) {
 
 func TestSecuredTLSOperationsService(t *testing.T) {
 	// 1. compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() {
 		gexec.CleanupBuildArtifacts()
 	})

@@ -11,8 +11,8 @@ import (
 	"testing"
 
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/configstore"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/configstore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	stateprotos "github.com/hyperledger/fabric-x-orderer/node/protos/state"
+	"github.com/Chaguar/orderer/common/types"
+	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	"github.com/stretchr/testify/require"
 )
 

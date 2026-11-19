@@ -14,15 +14,15 @@ import (
 	"testing"
 
 	"github.com/Chaguar/common/protoutil/identity"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/batcher"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/config"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/testutil"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/batcher"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
 )
 
 type stubConsenter struct {

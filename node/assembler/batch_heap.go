@@ -9,7 +9,7 @@ package assembler
 import (
 	"container/heap"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 )
 
 type BatchHeapItem[T any] struct {

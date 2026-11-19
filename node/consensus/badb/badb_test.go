@@ -12,9 +12,9 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/Chaguar/orderer/testutil"
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/cockroachdb/pebble/v2/vfs"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"

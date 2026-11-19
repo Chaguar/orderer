@@ -9,8 +9,8 @@ package blkstorage
 import (
 	"fmt"
 
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/util"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/util/kvdb"
+	"github.com/Chaguar/orderer/common/ledger/util"
+	"github.com/Chaguar/orderer/common/ledger/util/kvdb"
 
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protowire"

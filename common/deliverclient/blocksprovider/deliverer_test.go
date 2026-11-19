@@ -25,12 +25,12 @@ import (
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/tools/test"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider/fake"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/config"
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider"
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider/fake"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/config"
 )
 
 const eventuallyTO = 20 * time.Second

@@ -11,8 +11,8 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/Chaguar/orderer/node/consensus/synchronizer"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/synchronizer"
 	"github.com/stretchr/testify/require"
 )
 

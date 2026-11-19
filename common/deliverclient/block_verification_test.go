@@ -16,10 +16,10 @@ import (
 	"github.com/Chaguar/common/common/crypto/tlsgen"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/tools/configtxgen"
+	arma_testutil "github.com/Chaguar/orderer/testutil/fabric"
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	arma_testutil "github.com/hyperledger/fabric-x-orderer/testutil/fabric"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )

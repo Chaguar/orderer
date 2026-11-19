@@ -7,9 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package consensus
 
 import (
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 )
 
 type TotalOrder interface {

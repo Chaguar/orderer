@@ -9,8 +9,8 @@ package generate
 import (
 	"gopkg.in/yaml.v3"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/config"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/config"
 )
 
 // Network describes an Arma network deployment by collecting all endpoints of nodes per party.

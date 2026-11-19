@@ -4,7 +4,7 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/node/consensus"
+	"github.com/Chaguar/orderer/node/consensus"
 )
 
 type FakeNetStopper struct {

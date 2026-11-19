@@ -9,14 +9,14 @@ package consensus_test
 import (
 	"testing"
 
+	arma_types "github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/consensus"
+	"github.com/Chaguar/orderer/node/consensus/mocks"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	arma_types "github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/mocks"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/proto"
 )

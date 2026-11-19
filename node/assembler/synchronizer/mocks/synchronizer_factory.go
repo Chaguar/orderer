@@ -4,12 +4,12 @@ package mocks
 import (
 	"sync"
 
+	synchronizera "github.com/Chaguar/orderer/common/synchronizer"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/assembler/synchronizer"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	synchronizera "github.com/hyperledger/fabric-x-orderer/common/synchronizer"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/assembler/synchronizer"
 )
 
 type FakeSynchronizerFactory struct {

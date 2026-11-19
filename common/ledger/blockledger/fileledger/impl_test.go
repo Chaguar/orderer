@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"testing"
 
-	cl "github.com/hyperledger/fabric-x-orderer/common/ledger"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger"
+	cl "github.com/Chaguar/orderer/common/ledger"
+	"github.com/Chaguar/orderer/common/ledger/blockledger"
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"

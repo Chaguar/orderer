@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/Chaguar/common/common/policies"
-	"github.com/hyperledger/fabric-x-orderer/common/deliver"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger"
+	"github.com/Chaguar/orderer/common/deliver"
+	"github.com/Chaguar/orderer/common/ledger/blockledger"
 )
 
 type Chain struct {

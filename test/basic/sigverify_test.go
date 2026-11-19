@@ -14,16 +14,16 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
+	"github.com/Chaguar/orderer/node/crypto"
+	test_utils "github.com/Chaguar/orderer/test/utils"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/client"
+	"github.com/Chaguar/orderer/testutil/signutil"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
-	"github.com/hyperledger/fabric-x-orderer/node/crypto"
-	test_utils "github.com/hyperledger/fabric-x-orderer/test/utils"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/client"
-	"github.com/hyperledger/fabric-x-orderer/testutil/signutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
 	"github.com/onsi/gomega/gexec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -41,7 +41,7 @@ import (
 //  6. Pulls blocks from all parties and verifies that the transactions have been correctly
 //     propagated and signed.
 func TestSubmitReceiveAndVerifySignaturesAssemblerBlocks(t *testing.T) {
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() {
 		gexec.CleanupBuildArtifacts()
 	})
@@ -139,7 +139,7 @@ func TestSubmitReceiveAndVerifySignaturesAssemblerBlocks(t *testing.T) {
 // A data TX with a fake signature did not satisfy the policy /Channel/Writer and is rejected as a result, while a well signed data TX is submitted and eventually appear in a block.
 func TestSubmitTXWithVerification(t *testing.T) {
 	t.Log("Compile Arma")
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -220,7 +220,7 @@ func TestSubmitTXWithVerification(t *testing.T) {
 //  6. Pull blocks from assembler and verify that the correct TX was committed.
 func TestSubmitTXWithKnownCertID(t *testing.T) {
 	t.Log("Compile Arma")
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)

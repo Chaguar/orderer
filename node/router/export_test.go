@@ -7,10 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package router
 
 import (
+	"github.com/Chaguar/orderer/common/operations"
+	"github.com/Chaguar/orderer/node/config"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/operations"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 )
 
 // CreateTrackedRequest creates a tracked request whose responses are queued on

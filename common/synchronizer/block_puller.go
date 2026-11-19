@@ -12,13 +12,13 @@ import (
 	"time"
 
 	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/comm"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
 	"github.com/pkg/errors"
 )
 

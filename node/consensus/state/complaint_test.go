@@ -11,8 +11,8 @@ import (
 	"math"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	consensus_state "github.com/hyperledger/fabric-x-orderer/node/consensus/state"
+	"github.com/Chaguar/orderer/common/types"
+	consensus_state "github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/stretchr/testify/assert"
 )
 

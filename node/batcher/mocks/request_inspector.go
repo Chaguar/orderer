@@ -4,7 +4,7 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/node/batcher"
+	"github.com/Chaguar/orderer/node/batcher"
 )
 
 type FakeRequestInspector struct {

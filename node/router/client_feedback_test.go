@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/orderer/common/monitoring"
+	"github.com/Chaguar/orderer/common/operations"
+	"github.com/Chaguar/orderer/node/config"
+	"github.com/Chaguar/orderer/testutil"
 	"github.com/hyperledger/fabric-lib-go/common/metrics"
-	"github.com/hyperledger/fabric-x-orderer/common/monitoring"
-	"github.com/hyperledger/fabric-x-orderer/common/operations"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 )

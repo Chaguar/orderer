@@ -13,8 +13,8 @@ import (
 
 	"github.com/Chaguar/common/api/types"
 	"github.com/Chaguar/common/tools/configtxgen"
+	"github.com/Chaguar/orderer/config"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/config"
 )
 
 // CreateGenesisBlock creates a config block and writes it to a file under dir/bootstrap.block

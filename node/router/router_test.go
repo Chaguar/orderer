@@ -20,30 +20,30 @@ import (
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/protoutil/identity/mocks"
+	"github.com/Chaguar/orderer/common/configstore"
+	"github.com/Chaguar/orderer/common/operations"
+	policyMocks "github.com/Chaguar/orderer/common/policy/mocks"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
+	fabricx_config "github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/config/generate"
+	ordererRulesMocks "github.com/Chaguar/orderer/config/verify/mocks"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
+	"github.com/Chaguar/orderer/node/config"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/node/router"
+	node_utils "github.com/Chaguar/orderer/node/utils"
+	configMocks "github.com/Chaguar/orderer/test/mocks"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/client"
+	cfgutil "github.com/Chaguar/orderer/testutil/configutil"
+	"github.com/Chaguar/orderer/testutil/stub"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-orderer/common/configstore"
-	"github.com/hyperledger/fabric-x-orderer/common/operations"
-	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	fabricx_config "github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/config/generate"
-	ordererRulesMocks "github.com/hyperledger/fabric-x-orderer/config/verify/mocks"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/router"
-	node_utils "github.com/hyperledger/fabric-x-orderer/node/utils"
-	configMocks "github.com/hyperledger/fabric-x-orderer/test/mocks"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/client"
-	cfgutil "github.com/hyperledger/fabric-x-orderer/testutil/configutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/stub"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
 	"github.com/onsi/gomega/gexec"
 	"github.com/pkg/errors"
 
@@ -843,7 +843,7 @@ func TestConfigSubmitterConsenterDown(t *testing.T) {
 // update transaction through the router to a consenter stub.
 func TestRouterSendConfigUpdateToConsenterStub(t *testing.T) {
 	// 1. Compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)

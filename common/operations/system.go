@@ -19,8 +19,8 @@ import (
 	"github.com/hyperledger/fabric-lib-go/healthz"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 
-	"github.com/hyperledger/fabric-x-orderer/common/fabhttp"
-	"github.com/hyperledger/fabric-x-orderer/common/metadata"
+	"github.com/Chaguar/orderer/common/fabhttp"
+	"github.com/Chaguar/orderer/common/metadata"
 )
 
 // Logger defines the logging interface for the operations system.

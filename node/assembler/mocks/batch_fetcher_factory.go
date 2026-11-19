@@ -5,10 +5,10 @@ import (
 	"sync"
 
 	"github.com/Chaguar/common/protoutil/identity"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/assembler"
+	"github.com/Chaguar/orderer/node/config"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/assembler"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
 )
 
 type FakeBatchBringerFactory struct {

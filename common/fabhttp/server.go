@@ -17,7 +17,7 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 
 	"github.com/Chaguar/common/common/util"
-	"github.com/hyperledger/fabric-x-orderer/common/fabhttp/middleware"
+	"github.com/Chaguar/orderer/common/fabhttp/middleware"
 )
 
 // Logger defines the logging interface for the HTTP server.

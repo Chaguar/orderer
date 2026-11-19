@@ -27,11 +27,11 @@ import (
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/Chaguar/common/utils/certificate"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/node/crypto"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/node/crypto"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
 	"github.com/stretchr/testify/require"
 )
 

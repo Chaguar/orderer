@@ -12,9 +12,9 @@ import (
 	"testing"
 
 	"github.com/Chaguar/common/api/ordererpb"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
 	"github.com/stretchr/testify/require"
 )
 

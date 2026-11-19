@@ -5,7 +5,7 @@ import (
 	"sync"
 
 	"github.com/Chaguar/common/common/policies"
-	"github.com/hyperledger/fabric-x-orderer/common/requestfilter"
+	"github.com/Chaguar/orderer/common/requestfilter"
 )
 
 type FakeFilterConfig struct {

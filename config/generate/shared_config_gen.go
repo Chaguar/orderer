@@ -11,8 +11,8 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/config"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/config"
 )
 
 // CreateArmaSharedConfig creates a bootstrap directory that includes the shared config yaml file.

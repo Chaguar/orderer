@@ -16,7 +16,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 	"github.com/onsi/gomega/gexec"
 	"github.com/stretchr/testify/require"
 )

@@ -16,7 +16,7 @@ import (
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/protoutil/identity"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
 )
 
 // DeliveryRequester is used to connect to an orderer and request the delivery of various types of block delivery

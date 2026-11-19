@@ -6,10 +6,10 @@ import (
 	"time"
 
 	"github.com/Chaguar/common/protoutil/identity"
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider"
+	"github.com/Chaguar/orderer/common/synchronizer"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
-	"github.com/hyperledger/fabric-x-orderer/common/synchronizer"
 )
 
 type BFTDelivererFactory struct {

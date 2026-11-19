@@ -16,18 +16,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/metadata"
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	config "github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
-	"github.com/hyperledger/fabric-x-orderer/node/crypto"
-	test_utils "github.com/hyperledger/fabric-x-orderer/test/utils"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/client"
-	"github.com/hyperledger/fabric-x-orderer/testutil/signutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
+	"github.com/Chaguar/orderer/common/metadata"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
+	config "github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
+	"github.com/Chaguar/orderer/node/crypto"
+	test_utils "github.com/Chaguar/orderer/test/utils"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/client"
+	"github.com/Chaguar/orderer/testutil/signutil"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/onsi/gomega/gexec"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -46,7 +46,7 @@ import (
 // 8. Query the router's health check endpoint and assert the health status.
 func TestSubmitToRouterGetResponseFromOperationEndpoints(t *testing.T) {
 	// 1. compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() {
 		gexec.CleanupBuildArtifacts()
 	})
@@ -151,7 +151,7 @@ func TestSubmitToRouterGetResponseFromOperationEndpoints(t *testing.T) {
 // and broadcasting transactions.
 func TestVerifySignedTxsByRouterSingleParty(t *testing.T) {
 	// 1. compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() {
 		gexec.CleanupBuildArtifacts()
 	})
@@ -273,7 +273,7 @@ func TestVerifySignedTxsByRouterSingleParty(t *testing.T) {
 // and delivery requests from a client whose certificate is not specified in the router's local configuration.
 func TestMTLSFromClientNotSpecifiedInLocalConfig(t *testing.T) {
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() {
 		gexec.CleanupBuildArtifacts()
 	})
@@ -398,7 +398,7 @@ func TestMTLSFromClientNotSpecifiedInLocalConfig(t *testing.T) {
 // and delivery requests from a client whose certificate is specified in application local configuration.
 func TestMTLSFromApplicationClient(t *testing.T) {
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() {
 		gexec.CleanupBuildArtifacts()
 	})

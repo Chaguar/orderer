@@ -22,10 +22,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/orderer/common/operations"
+	"github.com/Chaguar/orderer/common/utils"
 	"github.com/hyperledger/fabric-lib-go/common/flogging/httpadmin"
 	"github.com/hyperledger/fabric-lib-go/healthz"
-	"github.com/hyperledger/fabric-x-orderer/common/operations"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"

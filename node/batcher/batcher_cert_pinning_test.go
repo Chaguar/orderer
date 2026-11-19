@@ -11,13 +11,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/batcher"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	"github.com/hyperledger/fabric-x-orderer/testutil/pinning"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/batcher"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/testutil/pinning"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/stretchr/testify/require"
 )
 

@@ -14,8 +14,8 @@ import (
 	"encoding/pem"
 	"fmt"
 
+	"github.com/Chaguar/orderer/common/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
 )
 
 // ECDSAVerifier maps a node's identity to its ECDSA public key. The role is part of the key so that

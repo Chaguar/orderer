@@ -35,7 +35,7 @@ ORDERER_CREATED := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
 
 # Write the version and commit hash into the binaries at build time; /version and the version metric show them.
 # VERSION defaults to "latest"; for a real release pass it in, e.g. make binary VERSION=1.0.6
-METADATA_PKG = github.com/hyperledger/fabric-x-orderer/common/metadata
+METADATA_PKG = github.com/Chaguar/orderer/common/metadata
 GO_LDFLAGS = -X $(METADATA_PKG).Version=$(VERSION) -X $(METADATA_PKG).CommitSHA=$(ORDERER_REVISION)
 
 .PHONY: basic-checks
@@ -59,7 +59,7 @@ check-deps:
 # Optional vars: BIN_DIR        (output directory, default: ./bin)
 #                METADATA_VAR   (space-separated key=value pairs forwarded as -X ldflags)
 BIN_DIR      ?= ./bin
-RELEASE_LDFLAGS := $(patsubst %,-X 'github.com/hyperledger/fabric-x-orderer/common/metadata.%',$(METADATA_VAR))
+RELEASE_LDFLAGS := $(patsubst %,-X 'github.com/Chaguar/orderer/common/metadata.%',$(METADATA_VAR))
 .PHONY: binary
 binary:
 	mkdir -p $(BIN_DIR)

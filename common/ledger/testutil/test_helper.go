@@ -17,11 +17,11 @@ import (
 	"github.com/Chaguar/common/protoutil"
 	xcommon_configtxgen "github.com/Chaguar/common/tools/configtxgen"
 	xcommon_txflags "github.com/Chaguar/common/tools/pkg/txflags"
+	"github.com/Chaguar/orderer/common/ledger/testutil/fakes"
+	arma_testutil "github.com/Chaguar/orderer/testutil/fabric"
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	pb "github.com/hyperledger/fabric-protos-go-apiv2/peer"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/testutil/fakes"
-	arma_testutil "github.com/hyperledger/fabric-x-orderer/testutil/fabric"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )

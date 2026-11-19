@@ -10,8 +10,8 @@ import (
 	"bytes"
 	"testing"
 
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )

@@ -9,12 +9,12 @@ package basic
 import (
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	test_utils "github.com/hyperledger/fabric-x-orderer/test/utils"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/pinning"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
+	"github.com/Chaguar/orderer/node/config"
+	test_utils "github.com/Chaguar/orderer/test/utils"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/pinning"
 
 	_ "github.com/onsi/gomega/gexec"
 	"github.com/stretchr/testify/require"

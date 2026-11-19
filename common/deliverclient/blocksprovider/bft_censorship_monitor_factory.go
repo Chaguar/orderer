@@ -7,8 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package blocksprovider
 
 import (
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/utils"
 )
 
 // BFTCensorshipMonitorFactory creates an instance of a BFTCensorshipMonitor. It is an implementation of the

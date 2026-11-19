@@ -13,7 +13,7 @@ import (
 	"encoding/pem"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/testutil/tlsgen"
+	"github.com/Chaguar/orderer/testutil/tlsgen"
 	"github.com/stretchr/testify/require"
 )
 

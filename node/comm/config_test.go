@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
 
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

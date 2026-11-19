@@ -9,9 +9,9 @@ package router
 import (
 	"errors"
 
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 )
 
 // ErrThrottled is the sentinel error carried by a Response when a request is

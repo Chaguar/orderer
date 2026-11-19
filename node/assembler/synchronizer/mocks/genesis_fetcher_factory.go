@@ -4,12 +4,12 @@ package mocks
 import (
 	"sync"
 
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/assembler/synchronizer"
+	"github.com/Chaguar/orderer/node/comm"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/assembler/synchronizer"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
 )
 
 type FakeGenesisFetcherFactory struct {

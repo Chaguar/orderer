@@ -10,10 +10,10 @@ import (
 	"sort"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	orderer_config "github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	node_config "github.com/hyperledger/fabric-x-orderer/node/config"
+	"github.com/Chaguar/orderer/common/types"
+	orderer_config "github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/comm"
+	node_config "github.com/Chaguar/orderer/node/config"
 )
 
 func partiesFromAssemblerConfig(config *node_config.AssemblerNodeConfig) []types.PartyID {

@@ -5,9 +5,9 @@ import (
 	"context"
 	"sync"
 
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
 	"google.golang.org/grpc"
 )
 

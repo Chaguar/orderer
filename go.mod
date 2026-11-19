@@ -1,4 +1,4 @@
-module github.com/hyperledger/fabric-x-orderer
+module github.com/Chaguar/orderer
 
 go 1.27.3
 

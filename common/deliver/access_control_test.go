@@ -14,12 +14,12 @@ import (
 	"github.com/Chaguar/common/common/policies"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/protoutil/identity"
+	"github.com/Chaguar/orderer/common/deliver"
+	policyMocks "github.com/Chaguar/orderer/common/policy/mocks"
+	"github.com/Chaguar/orderer/test/mocks"
+	"github.com/Chaguar/orderer/testutil/signutil"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-orderer/common/deliver"
-	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
-	"github.com/hyperledger/fabric-x-orderer/test/mocks"
-	"github.com/hyperledger/fabric-x-orderer/testutil/signutil"
 	"github.com/stretchr/testify/require"
 )
 

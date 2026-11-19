@@ -7,7 +7,7 @@
 
 set -euo pipefail
 
-MODULE="github.com/hyperledger/fabric-x-orderer"
+MODULE="github.com/Chaguar/orderer"
 
 # Run tests and collect raw coverage data.
 if [[ "$1" == run ]]; then

@@ -14,11 +14,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	node_utils "github.com/hyperledger/fabric-x-orderer/node/utils"
-	cfgutil "github.com/hyperledger/fabric-x-orderer/testutil/configutil"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
+	node_utils "github.com/Chaguar/orderer/node/utils"
+	cfgutil "github.com/Chaguar/orderer/testutil/configutil"
 
 	"github.com/stretchr/testify/require"
 )

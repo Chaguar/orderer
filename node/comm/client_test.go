@@ -15,9 +15,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	testgrpc "github.com/hyperledger/fabric-x-orderer/node/comm/testdata/grpc"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
+	"github.com/Chaguar/orderer/node/comm"
+	testgrpc "github.com/Chaguar/orderer/node/comm/testdata/grpc"
+	"github.com/Chaguar/orderer/testutil"
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"

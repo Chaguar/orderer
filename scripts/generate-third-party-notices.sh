@@ -23,7 +23,7 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 OUTPUT="${1:-THIRD-PARTY-NOTICES}"
-OWN_MODULE="github.com/hyperledger/fabric-x-orderer"
+OWN_MODULE="github.com/Chaguar/orderer"
 
 : > "${OUTPUT}"
 

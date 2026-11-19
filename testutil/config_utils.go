@@ -6,7 +6,7 @@ SPDX-License-Identifier: Apache-2.0
 
 package testutil
 
-import "github.com/hyperledger/fabric-x-orderer/config"
+import "github.com/Chaguar/orderer/config"
 
 func CreateTestRouterLocalConfig() *config.NodeLocalConfig {
 	routerLocalConfig := &config.NodeLocalConfig{

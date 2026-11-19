@@ -8,10 +8,10 @@ package batcher
 
 import (
 	"github.com/Chaguar/common/protoutil/identity"
+	"github.com/Chaguar/orderer/common/types"
+	node_config "github.com/Chaguar/orderer/node/config"
+	"github.com/Chaguar/orderer/node/delivery"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	node_config "github.com/hyperledger/fabric-x-orderer/node/config"
-	"github.com/hyperledger/fabric-x-orderer/node/delivery"
 )
 
 //go:generate counterfeiter -o mocks/consensus_decision_replicator_creator.go . ConsensusDecisionReplicatorCreator

@@ -6,8 +6,8 @@ import (
 
 	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/msp"
+	"github.com/Chaguar/orderer/common/msputils"
 	mspa "github.com/hyperledger/fabric-protos-go-apiv2/msp"
-	"github.com/hyperledger/fabric-x-orderer/common/msputils"
 )
 
 type MSP struct {

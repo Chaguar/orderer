@@ -11,9 +11,9 @@ import (
 	"testing"
 
 	"github.com/Chaguar/common/common/util"
+	"github.com/Chaguar/orderer/internal/cryptogen/csp"
+	"github.com/Chaguar/orderer/node/crypto"
 	"github.com/hyperledger/fabric-lib-go/bccsp/utils"
-	"github.com/hyperledger/fabric-x-orderer/internal/cryptogen/csp"
-	"github.com/hyperledger/fabric-x-orderer/node/crypto"
 	"github.com/stretchr/testify/require"
 )
 

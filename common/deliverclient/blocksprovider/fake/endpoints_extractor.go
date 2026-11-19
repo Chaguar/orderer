@@ -5,8 +5,8 @@ import (
 	"sync"
 
 	"github.com/Chaguar/common/common/channelconfig"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
 )
 
 type EndpointsExtractor struct {
