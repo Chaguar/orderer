@@ -9,6 +9,7 @@ package synchronizer_test
 import (
 	"os"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1385,4 +1386,228 @@ func clusterClientConfig(t *testing.T) comm.ClientConfig {
 			Certificate: certKeyPair.Cert,
 		},
 	}
+}
+
+// stopTestSetup is a BFTSynchronizer over an in-memory ledger of 100 blocks, whose fake deliverer
+// hands the synchronizer the blocks from the ledger height up to the target height.
+type stopTestSetup struct {
+	sync         *synchronizer.BFTSynchronizer
+	cs           *mocks.FakeConsenterSupport
+	heights      *mocks.FakeHeightDetector
+	targetHeight atomic.Uint64 // read by the fake deliverer; set it before Sync
+
+	ledgerLock sync.Mutex
+	ledger     []*cb.Block
+}
+
+func newStopTestSetup(t *testing.T) *stopTestSetup {
+	t.Helper()
+
+	blockBytes, err := os.ReadFile("testdata/mychannel.block")
+	require.NoError(t, err)
+	configBlock := &cb.Block{}
+	require.NoError(t, proto.Unmarshal(blockBytes, configBlock))
+
+	s := &stopTestSetup{}
+	for i := uint64(0); i < 100; i++ {
+		s.ledger = append(s.ledger, makeBlockWithMetadata(i, 0, &smartbftprotos.ViewMetadata{ViewId: 1, LatestSequence: i}))
+	}
+
+	s.cs = &mocks.FakeConsenterSupport{}
+	s.cs.HeightCalls(func() uint64 {
+		s.ledgerLock.Lock()
+		defer s.ledgerLock.Unlock()
+		return uint64(len(s.ledger))
+	})
+	s.cs.BlockCalls(func(n uint64) *cb.Block {
+		s.ledgerLock.Lock()
+		defer s.ledgerLock.Unlock()
+		return s.ledger[n]
+	})
+	appendBlock := func(b *cb.Block) {
+		s.ledgerLock.Lock()
+		defer s.ledgerLock.Unlock()
+		s.ledger = append(s.ledger, b)
+	}
+	s.cs.WriteBlockSyncCalls(appendBlock)
+	s.cs.WriteConfigBlockCalls(appendBlock)
+	s.cs.LastConfigBlockReturns(configBlock, nil)
+	ordererConfig := &mocks.OrdererConfig{}
+	ordererConfig.ConsentersReturns([]*cb.Consenter{{Id: 1}, {Id: 2}, {Id: 3}, {Id: 4}})
+	ordererConfig.BatchSizeReturns(&orderer.BatchSize{AbsoluteMaxBytes: 1000000})
+	s.cs.SharedConfigReturns(ordererConfig)
+
+	s.heights = &mocks.FakeHeightDetector{}
+	s.heights.HeightsByEndpointsCalls(func() (map[string]uint64, string, error) {
+		h := s.targetHeight.Load()
+		return map[string]uint64{"example.com:1": 0, "example.com:2": h, "example.com:3": h, "example.com:4": h}, "example.com:1", nil
+	})
+	heightDetectors := &mocks.FakeHeightDetectorFactory{}
+	heightDetectors.CreateHeightDetectorReturns(s.heights, nil)
+
+	verifiers := &commonsyncmocks.VerifierFactory{}
+	verifiers.CreateBlockVerifierReturns(&mocks.UpdatableBlockVerifier{}, nil)
+
+	deliverer := &commonsyncmocks.BFTBlockDeliverer{}
+	deliverer.DeliverBlocksCalls(func() {
+		buff := s.sync.Buffer()
+		for n := s.cs.Height(); n < s.targetHeight.Load(); n++ {
+			if buff.HandleBlock("mychannel", makeBlockWithMetadata(n, 0, &smartbftprotos.ViewMetadata{ViewId: 1, LatestSequence: n})) != nil {
+				return
+			}
+		}
+	})
+	deliverers := &commonsyncmocks.BFTDelivererFactory{}
+	deliverers.CreateBFTDelivererReturns(deliverer)
+
+	s.sync = &synchronizer.BFTSynchronizer{
+		LatestConfig: func() (types.Configuration, []uint64) {
+			return types.Configuration{SelfID: 1}, []uint64{1, 2, 3, 4}
+		},
+		BlockToDecision: func(block *cb.Block) (*types.Decision, error) {
+			d := decisionOfBlock(block)
+			return &d, nil
+		},
+		OnCommit:            noopUpdateLastHash,
+		Support:             s.cs,
+		ClusterDialer:       &comm.PredicateDialer{Config: clusterClientConfig(t)},
+		LocalConfigCluster:  config.Cluster{},
+		BlockPullerFactory:  heightDetectors,
+		VerifierFactory:     verifiers,
+		BFTDelivererFactory: deliverers,
+		JoinConfigBlock:     configBlock,
+		Logger:              flogging.MustGetLogger("test.smartbft"),
+	}
+	return s
+}
+
+// syncWithTimeout runs Sync and fails the test if it does not return in time.
+func (s *stopTestSetup) syncWithTimeout(t *testing.T) types.SyncResponse {
+	t.Helper()
+
+	respCh := make(chan types.SyncResponse, 1)
+	go func() { respCh <- s.sync.Sync() }()
+	select {
+	case resp := <-respCh:
+		return resp
+	case <-time.After(10 * time.Second):
+		require.FailNow(t, "Sync did not return")
+		return types.SyncResponse{}
+	}
+}
+
+func decisionOfBlock(block *cb.Block) types.Decision {
+	return types.Decision{Proposal: types.Proposal{Header: protoutil.MarshalOrPanic(block.Header)}}
+}
+
+func TestBFTSynchronizer_StopIsNotLost(t *testing.T) {
+	t.Run("stop before Sync", func(t *testing.T) {
+		s := newStopTestSetup(t)
+		s.targetHeight.Store(110)
+
+		s.sync.Stop()
+		resp := s.syncWithTimeout(t)
+
+		require.Equal(t, decisionOfBlock(s.ledger[99]), resp.Latest)
+		require.Zero(t, s.heights.HeightsByEndpointsCallCount())
+		require.Nil(t, s.sync.Buffer())
+		require.Zero(t, s.cs.WriteBlockSyncCallCount())
+	})
+
+	t.Run("stop before Sync on an empty ledger", func(t *testing.T) {
+		s := newStopTestSetup(t)
+		s.targetHeight.Store(110)
+		s.ledger = nil
+
+		s.sync.Stop()
+		resp := s.syncWithTimeout(t)
+
+		require.Equal(t, types.Decision{}, resp.Latest)
+		require.Equal(t, []uint64{1, 2, 3, 4}, resp.Reconfig.CurrentNodes)
+		require.Zero(t, s.heights.HeightsByEndpointsCallCount())
+		require.Zero(t, s.heights.GenesisByEndpointsCallCount())
+		require.Zero(t, s.cs.WriteConfigBlockCallCount())
+	})
+
+	t.Run("stop while the target height is detected", func(t *testing.T) {
+		s := newStopTestSetup(t)
+		s.targetHeight.Store(110)
+
+		detecting := make(chan struct{})
+		release := make(chan struct{})
+		s.heights.HeightsByEndpointsCalls(func() (map[string]uint64, string, error) {
+			close(detecting)
+			<-release
+			return map[string]uint64{"example.com:1": 0, "example.com:2": 110, "example.com:3": 110, "example.com:4": 110}, "example.com:1", nil
+		})
+
+		go func() {
+			<-detecting
+			s.sync.Stop()
+			close(release)
+		}()
+		resp := s.syncWithTimeout(t)
+
+		require.Equal(t, decisionOfBlock(s.ledger[99]), resp.Latest)
+		require.Nil(t, s.sync.Buffer())
+		require.Zero(t, s.cs.WriteBlockSyncCallCount())
+	})
+
+	t.Run("stop while blocks are buffered", func(t *testing.T) {
+		s := newStopTestSetup(t)
+		s.targetHeight.Store(150)
+
+		// The stop lands while the first pulled block is written; the 49 other blocks are already
+		// buffered, and none of them may be written after the stop.
+		s.cs.WriteBlockSyncCalls(func(b *cb.Block) {
+			s.ledgerLock.Lock()
+			s.ledger = append(s.ledger, b)
+			s.ledgerLock.Unlock()
+			s.sync.Stop()
+		})
+
+		resp := s.syncWithTimeout(t)
+
+		require.Equal(t, 1, s.cs.WriteBlockSyncCallCount())
+		require.Equal(t, decisionOfBlock(s.ledger[100]), resp.Latest)
+
+		// A later Sync does not sync again, nor probe the peers.
+		resp = s.syncWithTimeout(t)
+		require.Equal(t, 1, s.cs.WriteBlockSyncCallCount())
+		require.Equal(t, 1, s.heights.HeightsByEndpointsCallCount())
+		require.Equal(t, decisionOfBlock(s.ledger[100]), resp.Latest)
+	})
+}
+
+func TestBFTSynchronizer_ResetsLastReconfigWhenSyncFails(t *testing.T) {
+	s := newStopTestSetup(t)
+
+	// The first sync writes block 100, which holds a config decision, and then fails because the
+	// decision of block 100 cannot be parsed.
+	s.targetHeight.Store(101)
+	s.sync.OnCommit = func(block *cb.Block) types.Reconfig {
+		return types.Reconfig{InLatestDecision: block.GetHeader().GetNumber() == 100}
+	}
+	failNext := true
+	s.sync.BlockToDecision = func(block *cb.Block) (*types.Decision, error) {
+		if failNext {
+			failNext = false
+			return nil, errors.New("bad decision")
+		}
+		d := decisionOfBlock(block)
+		return &d, nil
+	}
+
+	resp := s.syncWithTimeout(t)
+	require.Equal(t, 1, s.cs.WriteBlockSyncCallCount())
+	require.Equal(t, decisionOfBlock(s.ledger[100]), resp.Latest) // the state from the local ledger
+	require.False(t, resp.Reconfig.InReplicatedDecisions)
+
+	// The second sync writes block 101, which does not hold a config decision, so it must not
+	// report a reconfiguration.
+	s.targetHeight.Store(102)
+	resp = s.syncWithTimeout(t)
+	require.Equal(t, 2, s.cs.WriteBlockSyncCallCount())
+	require.Equal(t, decisionOfBlock(s.ledger[101]), resp.Latest)
+	require.False(t, resp.Reconfig.InReplicatedDecisions)
 }

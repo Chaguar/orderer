@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"fmt"
 	"maps"
 	"slices"
 	"sort"
@@ -45,16 +46,28 @@ type BFTSynchronizer struct {
 
 	mutex    sync.Mutex
 	syncBuff *commonsync.SyncBuffer
+	stopped  bool // set by Stop and never cleared
 }
 
 func (s *BFTSynchronizer) Sync() smartbft_types.SyncResponse {
 	s.Logger.Debugf("BFT Sync initiated, party: %d", s.selfID)
+
+	// After sync has ended, successfully or not, reset the state of the last reconfig.
+	defer func() {
+		s.lastReconfig = smartbft_types.Reconfig{}
+	}()
+
 	decision, err := s.synchronize()
 	if err != nil {
 		s.Logger.Warnf("Could not synchronize with remote orderers due to %s, returning state from local ledger, party: %d", err, s.selfID)
 
 		h := s.Support.Height()
 		s.Logger.Warnf("Could not synchronize with remote orderers, returning state from local ledger, h: %d, party: %d", h, s.selfID)
+		if h == 0 && s.isStopped() {
+			// Stopped before the genesis block was fetched; there is no state to return.
+			config, nodes := s.LatestConfig()
+			return smartbft_types.SyncResponse{Reconfig: smartbft_types.ReconfigSync{CurrentNodes: nodes, CurrentConfig: config}}
+		}
 		if h == 0 {
 			s.Logger.Panicf("Cannot join the cluster: failed to fetch genesis block and fetch state from local ledger: party: %d", s.selfID)
 		}
@@ -84,11 +97,6 @@ func (s *BFTSynchronizer) Sync() smartbft_types.SyncResponse {
 		}
 	}
 
-	// After sync has ended, reset the state of the last reconfig.
-	defer func() {
-		s.lastReconfig = smartbft_types.Reconfig{}
-	}()
-
 	s.Logger.Debugf("reconfig: %+v", s.lastReconfig)
 	return smartbft_types.SyncResponse{
 		Latest: *decision,
@@ -100,11 +108,13 @@ func (s *BFTSynchronizer) Sync() smartbft_types.SyncResponse {
 	}
 }
 
+// Stop stops the current sync, if any, and every later one.
 func (s *BFTSynchronizer) Stop() {
 	s.Logger.Infof("Stopping BFT Synchronizer, party: %d", s.selfID)
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 
+	s.stopped = true
 	if s.syncBuff == nil {
 		return
 	}
@@ -121,6 +131,10 @@ func (s *BFTSynchronizer) Buffer() *commonsync.SyncBuffer {
 }
 
 func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
+	if s.isStopped() {
+		return nil, fmt.Errorf("synchronizer stopped")
+	}
+
 	// === We probe all the endpoints and establish a target height, as well as detect the self endpoint.
 	// TODO make the target height detection stoppable
 	targetHeight, _, err := s.detectTargetHeight()
@@ -150,6 +164,10 @@ func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 		capacityBlocks = max(uint(s.LocalConfigCluster.ReplicationBufferSize)/uint(absMax), 100)
 	}
 	s.mutex.Lock()
+	if s.stopped { // Stop was called while the target height was detected
+		s.mutex.Unlock()
+		return nil, fmt.Errorf("synchronizer stopped")
+	}
 	s.syncBuff = commonsync.NewSyncBuffer(capacityBlocks)
 	s.mutex.Unlock()
 
@@ -340,7 +358,8 @@ func (s *BFTSynchronizer) getBlocksFromSyncBuffer(startHeight, targetHeight uint
 	s.Logger.Debugf("Will fetch sequences [%d-%d]", seq, targetSeq)
 
 	var lastPulledBlock *common.Block
-	for seq <= targetSeq {
+	// PullBlock may still return buffered blocks after Stop, so check the flag too.
+	for seq <= targetSeq && !s.isStopped() {
 		block := s.syncBuff.PullBlock(seq)
 		if block == nil {
 			s.Logger.Debugf("Failed to fetch block [%d] from cluster", seq)
@@ -373,4 +392,11 @@ func (s *BFTSynchronizer) getBlocksFromSyncBuffer(startHeight, targetHeight uint
 		blocksFetched, startHeight, lastPulledBlock.Header.Number)
 
 	return lastPulledBlock, nil
+}
+
+func (s *BFTSynchronizer) isStopped() bool {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+
+	return s.stopped
 }
