@@ -26,7 +26,8 @@ other three roles, start with the
     4. [Pairing batchIDs with Batches in the Index](#34-pairing-batchids-with-batches-in-the-index)
     5. [On-Demand Fetching](#35-on-demand-fetching)
     6. [Building the Block](#36-building-the-block)
-    7. [Code Map](#37-code-map)
+    7. [Reporting the Committed Decision](#37-reporting-the-committed-decision)
+    8. [Code Map](#38-code-map)
 4. [Configuration](#4-configuration)
 5. [Metrics and Monitoring](#5-metrics-and-monitoring)
 6. [Failure and Recovery](#6-failure-and-recovery)
@@ -196,13 +197,14 @@ outwards from there.
 Besides the collator, the prefetcher and the index, an assembler runs a **BA replicator**, which
 pulls decisions from the consenter of its own party, extracts each BA together with its ordering
 information, and hands them to the collator; a **batch fetcher**, which is what actually talks to
-the batchers; and the `Deliver` service, which reads the ledger for clients. Decisions reach the
+the batchers; a **decision reporter**, which tells the consenters how far the ledger has got; and the
+`Deliver` service, which reads the ledger for clients. Decisions reach the
 collator, and each shard's batches reach the prefetcher, through channels; the index is called
 directly. The BA replicator pulls decisions in one goroutine and the collator runs in another. The
 batch fetcher pulls each ⟨shard, primary⟩ stream in its own goroutine, and the prefetcher consumes
 each shard's stream in one more. A single goroutine consumes the index's request channel and starts
-one per on-demand fetch, which asks every batcher of the shard in parallel. The ledger is written by
-the collator alone.
+one per on-demand fetch, which asks every batcher of the shard in parallel. The decision reporter
+sends to each consenter in a goroutine of its own. The ledger is written by the collator alone.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="figures/assembler-units-dark.svg">
@@ -298,12 +300,28 @@ order, and each block records which batch it came from and where in the ordered 
 *Figure 3: One decision becoming blocks — where the header, the data and each metadata field come
 from.*
 
-### 3.7 Code Map
+### 3.7 Reporting the Committed Decision
+
+After each block it appends, the collator tells the decision reporter, which tracks the highest
+decision whose batches are all in the ledger. A block that is not the last of its decision counts as
+the decision before it, and a decision without batches never reaches the assembler. Whenever that
+decision is at least 100 above the last one reported, counting from 0 when the reporter starts, the
+reporter signs an `AssemblerDecisionReport` with its party and config sequence, and sends it to the
+consenter of every party over `NotifyEvent`. Consensus keeps the highest report of each party, and agrees on the durable
+watermark: the highest decision that at least 2f+1 assemblers reported.
+
+A report that is lost or rejected is not resent; the next one replaces it. Each consenter gets its
+own sending goroutine, which sends only the latest report, so a consenter that is down or slow
+delays only its own reports. The reporter stops with the collator, on a stop or a soft stop, and a
+reconfiguration starts a new one with the new config sequence.
+
+### 3.8 Code Map
 
 | Concept | Source |
 |---------|--------|
 | Node lifecycle: start, stop, soft stop, applying a new config | [`assembler.go`](../node/assembler/assembler.go) |
 | Collation | [`collator.go`](../node/assembler/collator.go) |
+| Decision reporter | [`decision_reporter.go`](../node/assembler/decision_reporter.go) |
 | Prefetcher: per-shard streams and the on-demand request loop | [`prefetcher.go`](../node/assembler/prefetcher.go) |
 | Index, and pairing within a partition | [`prefetch_index.go`](../node/assembler/prefetch_index.go), [`partition_prefetch_index.go`](../node/assembler/partition_prefetch_index.go) |
 | Caches, eviction heap, lookup by batchID | [`batch_cache.go`](../node/assembler/batch_cache.go), [`batch_heap.go`](../node/assembler/batch_heap.go), [`batch_mapper.go`](../node/assembler/batch_mapper.go) |

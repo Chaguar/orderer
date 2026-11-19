@@ -15,8 +15,10 @@ import (
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/Chaguar/orderer/common/configack"
+	"github.com/Chaguar/orderer/common/controlevent"
 	"github.com/Chaguar/orderer/common/operations"
 	commonsync "github.com/Chaguar/orderer/common/synchronizer"
+	"github.com/Chaguar/orderer/common/types"
 	common_utils "github.com/Chaguar/orderer/common/utils"
 	"github.com/Chaguar/orderer/config"
 	"github.com/Chaguar/orderer/node/assembler/synchronizer"
@@ -31,6 +33,10 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 )
+
+// decisionsPerReport is how far the committed decision must advance before the assembler reports it to the
+// consenters again.
+const decisionsPerReport = 100
 
 type Net interface {
 	Stop()
@@ -53,6 +59,7 @@ type Assembler struct {
 	lastConfigBlockNumber uint64
 	metrics               *Metrics
 	ds                    *AssemblerDeliverService
+	reporter              *DecisionReporter
 	opsSystem             *operations.System
 	configAcker           configack.Sender
 }
@@ -94,6 +101,7 @@ func (a *Assembler) Stop() {
 	if state != utils.StateSoftStopped && state != utils.StatePendingAdmin {
 		a.prefetcher.Stop()
 		a.collator.Stop()
+		a.reporter.Stop()
 	}
 
 	a.configAcker.Stop()
@@ -120,6 +128,7 @@ func (a *Assembler) SoftStop() {
 	a.logger.Infof("Initiating soft stop of assembler")
 	a.prefetcher.Stop()
 	a.collator.Stop()
+	a.reporter.Stop()
 
 	a.status.SetState(utils.StateSoftStopped)
 	a.logger.Warnf("Assembler has been partially stopped, delivery service is available. Pending restart")
@@ -252,6 +261,17 @@ func (a *Assembler) initFromConfig(
 
 	channelID := nodeConfig.Bundle.ConfigtxValidator().ChannelID()
 	baReplicator := consensusBringerFactory.Create(channelID, consenter.TLSCACerts, nodeConfig.TLSPrivateKeyFile, nodeConfig.TLSCertificateFile, consenter.Endpoint, a.ledger, a.signer, a.logger)
+	lastOrderingInfo, err := a.ledger.LastOrderingInfo()
+	if err != nil {
+		a.logger.Panicf("Failed reading the ordering info of the last block: %v", err)
+	}
+	senderFactory := &controlevent.SenderFactory{}
+	senders := make([]controlevent.Sender, 0, len(nodeConfig.Consenters))
+	for _, c := range nodeConfig.Consenters {
+		senders = append(senders, senderFactory.CreateSender(nodeConfig.TLSPrivateKeyFile, nodeConfig.TLSCertificateFile, c))
+	}
+	a.reporter = NewDecisionReporter(a.logger, nodeConfig.PartyId, types.ConfigSequence(configSequence), a.signer, senders, decisionsPerReport, lastOrderingInfo)
+
 	a.collator = Collator{
 		Shards:                            shardIds,
 		OrderedBatchAttestationReplicator: baReplicator,
@@ -261,6 +281,7 @@ func (a *Assembler) initFromConfig(
 		ShardCount:                        len(nodeConfig.Shards),
 		ConfigProcessor:                   a,
 		Metrics:                           a.metrics,
+		DecisionReporter:                  a.reporter,
 	}
 
 	a.ds = NewAssemblerDeliverService(a.ledger.LedgerReader(), a.logger, nodeConfig, a.metrics.deliverMetrics)
@@ -270,6 +291,7 @@ func (a *Assembler) initFromConfig(
 		a.net = net
 	}
 
+	a.reporter.Start()
 	a.prefetcher.Start()
 	a.collator.Run()
 

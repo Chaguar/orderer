@@ -51,6 +51,7 @@ type Collator struct {
 	runningWG                         sync.WaitGroup
 	ConfigProcessor                   ConfigProcessor
 	Metrics                           *Metrics
+	DecisionReporter                  *DecisionReporter
 }
 
 // Run starts a go routine which processes incoming ordered batch attestations from consensus
@@ -87,6 +88,10 @@ func (c *Collator) processOrderedBatchAttestations() {
 				return
 			}
 
+			// A config block that starts a reconfiguration is not reported: the report would carry the old config
+			// sequence, which the consenters reject once they apply the new config. The reporter of the new config
+			// reports it when it starts.
+			c.reportAppended(orderingInfo)
 			continue // skip collating for BA's with config blocks
 		}
 		baToBatchStart := time.Now()
@@ -104,8 +109,15 @@ func (c *Collator) processOrderedBatchAttestations() {
 		appendStart := time.Now()
 		c.Ledger.Append(batch, oba.OrderingInformation)
 		c.Metrics.batchLedgerAppendLatency.Observe(time.Since(appendStart).Seconds())
+		c.reportAppended(oba.OrderingInformation)
 	}
 	c.Logger.Infof("Finished processing incoming OrderedBatchAttestations from consensus")
+}
+
+func (c *Collator) reportAppended(orderingInfo *state.OrderingInformation) {
+	if c.DecisionReporter != nil {
+		c.DecisionReporter.Appended(orderingInfo)
+	}
 }
 
 func (c *Collator) collateAttestationWithBatch(ba types.BatchAttestation) (types.Batch, error) {
