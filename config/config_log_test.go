@@ -8,6 +8,7 @@ package config_test
 
 import (
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
@@ -19,6 +20,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Chaguar/orderer/common/utils"
 	"github.com/Chaguar/orderer/config"
@@ -80,7 +82,31 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 			}
 			tlsCert := readDER(general.TLSConfig.Certificate)
 			tlsCertHash := sha256.Sum256(tlsCert)
-			require.Contains(t, sharedYAML, "sha256:"+hex.EncodeToString(tlsCertHash[:]))
+			tlsCertName := "sha256:" + hex.EncodeToString(tlsCertHash[:])
+			require.Contains(t, sharedYAML, tlsCertName)
+
+			// At debug level, the certificate details are logged, keyed by the same hash.
+			certsTitle := fmt.Sprintf("Shared config certificates (block %d):", block.Header.Number)
+			var certsYAML string
+			for _, entry := range entries {
+				if title, content, _ := strings.Cut(entry.Message, "\n"); title == certsTitle {
+					require.Equal(t, zapcore.DebugLevel, entry.Level)
+					certsYAML = content
+				}
+			}
+			require.NotEmpty(t, certsYAML, "the certificate details were not logged")
+			var details map[string]struct {
+				Subject  string    `yaml:"subject"`
+				Issuer   string    `yaml:"issuer"`
+				NotAfter time.Time `yaml:"notAfter"`
+			}
+			require.NoError(t, yaml.Unmarshal([]byte(certsYAML), &details))
+			parsed, err := x509.ParseCertificate(tlsCert)
+			require.NoError(t, err)
+			require.Contains(t, details, tlsCertName)
+			require.Equal(t, parsed.Subject.String(), details[tlsCertName].Subject)
+			require.Equal(t, parsed.Issuer.String(), details[tlsCertName].Issuer)
+			require.True(t, parsed.NotAfter.Equal(details[tlsCertName].NotAfter))
 
 			tlsCertBase64 := base64.StdEncoding.EncodeToString(tlsCert)
 			privateKey := base64.StdEncoding.EncodeToString(readDER(general.TLSConfig.PrivateKey))
