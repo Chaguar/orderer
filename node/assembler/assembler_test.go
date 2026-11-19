@@ -130,12 +130,12 @@ func setupAssemblerTest(t *testing.T, shards []types.ShardID, parties []types.Pa
 			Provider:           "disabled",
 			MetricsLogInterval: 10 * time.Second,
 		},
-		Consenter: config.ConsenterInfo{
+		Consenters: []config.ConsenterInfo{{
 			PartyID:    myParty,
 			Endpoint:   consenterEndpoint,
 			PublicKey:  generateRandomBytes(t, 16),
 			TLSCACerts: []config.RawBytes{generateRandomBytes(t, 16)},
-		},
+		}},
 		UseTLS:             false,
 		ClientAuthRequired: false,
 		Bundle:             testutil.CreateAssemblerBundleForTest(0),

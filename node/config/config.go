@@ -137,7 +137,7 @@ type AssemblerNodeConfig struct {
 	BatchRequestsChannelSize  int
 	// Shared config
 	Shards             []ShardInfo
-	Consenter          ConsenterInfo
+	Consenters         []ConsenterInfo
 	UseTLS             bool
 	ClientAuthRequired bool
 	ClientRootCAs      [][]byte
