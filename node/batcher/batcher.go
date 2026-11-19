@@ -184,6 +184,7 @@ func (b *Batcher) Stop() {
 		b.primaryAckConnector.Stop()
 		b.primaryReqConnector.Stop()
 		b.running.Wait()
+		b.controlEventBroadcaster.Close()
 		b.metrics.StopMetricsTracker()
 		b.opsSystem.Stop()
 	}
@@ -216,6 +217,7 @@ func (b *Batcher) SoftStop() {
 	b.primaryAckConnector.Stop()
 	b.primaryReqConnector.Stop()
 	b.running.Wait()
+	b.controlEventBroadcaster.Close()
 	b.metrics.StopMetricsTracker()
 	b.opsSystem.Stop()
 }

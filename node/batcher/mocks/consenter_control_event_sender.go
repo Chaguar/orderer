@@ -9,6 +9,10 @@ import (
 )
 
 type FakeConsenterControlEventSender struct {
+	CloseStub        func()
+	closeMutex       sync.RWMutex
+	closeArgsForCall []struct {
+	}
 	SendControlEventStub        func(state.ControlEvent) error
 	sendControlEventMutex       sync.RWMutex
 	sendControlEventArgsForCall []struct {
@@ -22,6 +26,30 @@ type FakeConsenterControlEventSender struct {
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
+}
+
+func (fake *FakeConsenterControlEventSender) Close() {
+	fake.closeMutex.Lock()
+	fake.closeArgsForCall = append(fake.closeArgsForCall, struct {
+	}{})
+	stub := fake.CloseStub
+	fake.recordInvocation("Close", []interface{}{})
+	fake.closeMutex.Unlock()
+	if stub != nil {
+		fake.CloseStub()
+	}
+}
+
+func (fake *FakeConsenterControlEventSender) CloseCallCount() int {
+	fake.closeMutex.RLock()
+	defer fake.closeMutex.RUnlock()
+	return len(fake.closeArgsForCall)
+}
+
+func (fake *FakeConsenterControlEventSender) CloseCalls(stub func()) {
+	fake.closeMutex.Lock()
+	defer fake.closeMutex.Unlock()
+	fake.CloseStub = stub
 }
 
 func (fake *FakeConsenterControlEventSender) SendControlEvent(arg1 state.ControlEvent) error {
@@ -88,6 +116,8 @@ func (fake *FakeConsenterControlEventSender) SendControlEventReturnsOnCall(i int
 func (fake *FakeConsenterControlEventSender) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
+	fake.closeMutex.RLock()
+	defer fake.closeMutex.RUnlock()
 	fake.sendControlEventMutex.RLock()
 	defer fake.sendControlEventMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}
