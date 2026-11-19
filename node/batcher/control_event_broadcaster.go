@@ -112,3 +112,10 @@ func NewControlEventBroadcaster(senders []ConsenterControlEventSender, n int, f 
 func (b *ControlEventBroadcaster) Stop() {
 	b.cancelFunc()
 }
+
+// Close closes the connections of the senders. Call it after Stop, once nothing produces control events.
+func (b *ControlEventBroadcaster) Close() {
+	for _, s := range b.senders {
+		s.Close()
+	}
+}
