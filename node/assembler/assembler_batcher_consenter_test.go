@@ -325,7 +325,7 @@ func newAssemblerTestWithBundle(t *testing.T, partyID types.PartyID, ca tlsgen.C
 		ReplicationChannelSize:    100,
 		BatchRequestsChannelSize:  1000,
 		Shards:                    shards,
-		Consenter:                 consenterInfo,
+		Consenters:                []config.ConsenterInfo{consenterInfo},
 		UseTLS:                    true,
 		ClientAuthRequired:        ClientAuthRequired,
 		Operations: &operations.Operations{

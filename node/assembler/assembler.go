@@ -217,14 +217,19 @@ func (a *Assembler) initFromConfig(
 	a.assemblerNodeConfig = nodeConfig
 	a.configuration = configuration
 
+	consenter, err := nodeConfig.OwnConsenter()
+	if err != nil {
+		a.logger.Panicf("Failed finding the consenter of the assembler's party: %v", err)
+	}
+
 	var tlsCAsOfConsenter [][]byte
-	for _, rawTLSCert := range a.assemblerNodeConfig.Consenter.TLSCACerts {
+	for _, rawTLSCert := range consenter.TLSCACerts {
 		tlsCAsOfConsenter = append(tlsCAsOfConsenter, rawTLSCert)
 	}
 	connInfo := &configack.ConnectionInfo{
 		TLSCert:           a.assemblerNodeConfig.TLSCertificateFile,
 		TLSKey:            a.assemblerNodeConfig.TLSPrivateKeyFile,
-		ConsensusEndpoint: a.assemblerNodeConfig.Consenter.Endpoint,
+		ConsensusEndpoint: consenter.Endpoint,
 		ConsensusRootCAs:  tlsCAsOfConsenter,
 		PartyID:           a.assemblerNodeConfig.PartyId,
 		NodeType:          protos.NodeType_ASSEMBLER,
@@ -246,7 +251,7 @@ func (a *Assembler) initFromConfig(
 	a.prefetcher = prefetcherFactory.Create(shardIds, partyIds, index, br, a.metrics, a.logger)
 
 	channelID := nodeConfig.Bundle.ConfigtxValidator().ChannelID()
-	baReplicator := consensusBringerFactory.Create(channelID, nodeConfig.Consenter.TLSCACerts, nodeConfig.TLSPrivateKeyFile, nodeConfig.TLSCertificateFile, nodeConfig.Consenter.Endpoint, a.ledger, a.signer, a.logger)
+	baReplicator := consensusBringerFactory.Create(channelID, consenter.TLSCACerts, nodeConfig.TLSPrivateKeyFile, nodeConfig.TLSCertificateFile, consenter.Endpoint, a.ledger, a.signer, a.logger)
 	a.collator = Collator{
 		Shards:                            shardIds,
 		OrderedBatchAttestationReplicator: baReplicator,

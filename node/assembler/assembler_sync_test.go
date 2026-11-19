@@ -573,7 +573,7 @@ func createSourceAssemblerWithStubs(
 
 	// Replace batcher/consenter endpoints with in-test stubs.
 	assemblerNodeConfig.Shards = shards
-	assemblerNodeConfig.Consenter = consenterInfo
+	assemblerNodeConfig.Consenters = withConsenter(assemblerNodeConfig.Consenters, consenterInfo)
 
 	_, signer, err := testutil.BuildTestLocalMSP(
 		configuration.LocalConfig.NodeLocalConfig.GeneralConfig.LocalMSPDir,
@@ -638,7 +638,7 @@ func createJoiningAssembler(
 
 	// Use in-test stubs for batch/consenter after sync.
 	assemblerNodeConfig.Shards = shards
-	assemblerNodeConfig.Consenter = consenterInfo
+	assemblerNodeConfig.Consenters = withConsenter(assemblerNodeConfig.Consenters, consenterInfo)
 
 	_, signer, err := testutil.BuildTestLocalMSP(
 		configuration.LocalConfig.NodeLocalConfig.GeneralConfig.LocalMSPDir,
@@ -705,4 +705,16 @@ func tlsCACertsOfNetwork(t *testing.T, dir string) [][]byte {
 	}
 
 	return certs
+}
+
+// withConsenter returns consenters with consenterInfo as the consenter of its party: it replaces that party's
+// entry, or appends consenterInfo when the party has none, as for a party that joins after the config was read.
+func withConsenter(consenters []config.ConsenterInfo, consenterInfo config.ConsenterInfo) []config.ConsenterInfo {
+	for i := range consenters {
+		if consenters[i].PartyID == consenterInfo.PartyID {
+			consenters[i] = consenterInfo
+			return consenters
+		}
+	}
+	return append(consenters, consenterInfo)
 }

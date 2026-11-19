@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package config
 
 import (
+	"fmt"
 	"sort"
 
 	"github.com/Chaguar/common/common/policies"
@@ -74,4 +75,15 @@ func (rfc *RouterNodeConfig) GetPolicyManager() policies.Manager {
 
 func (c *AssemblerNodeConfig) GetChannelID() string {
 	return c.Bundle.ConfigtxValidator().ChannelID()
+}
+
+// OwnConsenter returns the consenter of the assembler's own party, which the assembler pulls decisions from and
+// acks configs to.
+func (c *AssemblerNodeConfig) OwnConsenter() (ConsenterInfo, error) {
+	for _, consenter := range c.Consenters {
+		if consenter.PartyID == c.PartyId {
+			return consenter, nil
+		}
+	}
+	return ConsenterInfo{}, fmt.Errorf("no consenter of party %d among the %d consenters", c.PartyId, len(c.Consenters))
 }
