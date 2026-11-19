@@ -9,8 +9,10 @@ package config
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
+	"strings"
 	"testing"
 
 	"github.com/Chaguar/orderer/testutil/tlsgen"
@@ -52,9 +54,40 @@ func TestCertificatesForLog(t *testing.T) {
 		{"not PEM", []byte("plain text"), redacted},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := certificatesForLog(tc.data)
+			certs := make(map[string]*x509.Certificate)
+			got := certificatesForLog(tc.data, certs)
 			require.Equal(t, tc.want, got)
 			require.NotContains(t, got, "-----BEGIN")
+
+			var collected []string
+			for name := range certs {
+				collected = append(collected, name)
+			}
+			if strings.HasPrefix(tc.want, "sha256:") {
+				require.ElementsMatch(t, strings.Split(tc.want, ","), collected)
+			} else {
+				require.Empty(t, collected)
+			}
 		})
 	}
+}
+
+func TestCertificateDetailsForLog(t *testing.T) {
+	ca, err := tlsgen.NewCA()
+	require.NoError(t, err)
+	pair, err := ca.NewClientCertKeyPair()
+	require.NoError(t, err)
+
+	certs := make(map[string]*x509.Certificate)
+	name := certificatesForLog(pair.Cert, certs)
+
+	details := certificateDetailsForLog(certs)
+	require.Len(t, details, 1)
+	cert := pair.TLSCert
+	require.Equal(t, certificateDetails{
+		Subject:   cert.Subject.String(),
+		Issuer:    cert.Issuer.String(),
+		NotBefore: cert.NotBefore.UTC(),
+		NotAfter:  cert.NotAfter.UTC(),
+	}, details[name])
 }
