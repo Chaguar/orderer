@@ -200,7 +200,7 @@ func CreateAssemblers(t *testing.T, num int, ca tlsgen.CA, shards []node_config.
 			ReplicationChannelSize:    100,
 			BatchRequestsChannelSize:  1000,
 			Shards:                    shards,
-			Consenter:                 consenterInfos[i],
+			Consenters:                consenterInfos,
 			UseTLS:                    true,
 			ClientAuthRequired:        false,
 			Operations: &operations.Operations{

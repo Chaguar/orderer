@@ -490,15 +490,6 @@ func (config *Configuration) ExtractAssemblerConfig(configBlock *common.Block) *
 		panic(fmt.Sprintf("failed extracting assembler config bccsp: %s", err))
 	}
 
-	consenters := config.ExtractConsenters()
-	var consenterFromMyParty nodeconfig.ConsenterInfo
-	for _, consenter := range consenters {
-		if consenter.PartyID == config.LocalConfig.NodeLocalConfig.PartyID {
-			consenterFromMyParty = consenter
-			break
-		}
-	}
-
 	// use shards to get every party's RootCAs
 	shards := config.ExtractShards()
 	orderingServiceTrustedRootCAs := node_utils.TLSCAcertsFromShards(shards)
@@ -523,7 +514,7 @@ func (config *Configuration) ExtractAssemblerConfig(configBlock *common.Block) *
 		ReplicationChannelSize:    config.LocalConfig.NodeLocalConfig.AssemblerParams.ReplicationChannelSize,
 		BatchRequestsChannelSize:  config.LocalConfig.NodeLocalConfig.AssemblerParams.BatchRequestsChannelSize,
 		Shards:                    shards,
-		Consenter:                 consenterFromMyParty,
+		Consenters:                config.ExtractConsenters(),
 		UseTLS:                    config.LocalConfig.TLSConfig.Enabled,
 		ClientAuthRequired:        config.LocalConfig.TLSConfig.ClientAuthRequired,
 		ClientRootCAs:             trustedRoots,

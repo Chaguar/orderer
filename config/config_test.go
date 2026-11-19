@@ -906,6 +906,51 @@ func TestExtractedBundleAuthorizesInternalDeliver(t *testing.T) {
 	}
 }
 
+// Scenario:
+//  1. Generate a network of four parties and two shards with armageddon.
+//  2. Read the local config of the assembler of party 2 and extract its node config.
+//  3. Expect Consenters to have one entry per party of the shared config, each with the endpoint and the TLS CA
+//     certificates of that party's consenter.
+//  4. Expect OwnConsenter to return the consenter of party 2.
+func TestExtractAssemblerConfigListsEveryConsenter(t *testing.T) {
+	dir := t.TempDir()
+	configPath := filepath.Join(dir, "config.yaml")
+	netInfo := testutil.CreateNetwork(t, configPath, 4, 2, "mTLS", "mTLS")
+	defer netInfo.CleanUp()
+	armageddon.NewCLI().Run([]string{"generate", "--config", configPath, "--output", dir})
+
+	testLogger := testutil.CreateLoggerForModule(t, "TestExtractAssemblerConfigListsEveryConsenter", zap.DebugLevel)
+	assemblerConfigPath := filepath.Join(dir, "config", "party2", "local_config_assembler.yaml")
+	testutil.EditDirectoryInNodeConfigYAML(t, assemblerConfigPath, filepath.Join(dir, "storage", "assembler"), "", 0)
+	fullConfig, genesisBlock, err := config.ReadConfig(assemblerConfigPath, testLogger)
+	require.NoError(t, err)
+	assemblerConfig := fullConfig.ExtractAssemblerConfig(genesisBlock)
+
+	parties := fullConfig.SharedConfig.PartiesConfig
+	require.Len(t, parties, 4)
+	require.Len(t, assemblerConfig.Consenters, len(parties))
+	for _, party := range parties {
+		nodeConfig := party.GetConsenterConfig().GetNodeConfig()
+		found := false
+		for _, consenter := range assemblerConfig.Consenters {
+			if consenter.PartyID != types.PartyID(party.PartyID) {
+				continue
+			}
+			found = true
+			require.Equal(t, net.JoinHostPort(nodeConfig.GetHost(), strconv.Itoa(int(nodeConfig.GetPort()))), consenter.Endpoint)
+			require.Len(t, consenter.TLSCACerts, len(party.TLSCACerts))
+			for i, ca := range party.TLSCACerts {
+				require.Equal(t, ca, []byte(consenter.TLSCACerts[i]))
+			}
+		}
+		require.True(t, found, "no consenter of party %d", party.PartyID)
+	}
+
+	consenter, err := assemblerConfig.OwnConsenter()
+	require.NoError(t, err)
+	require.Equal(t, types.PartyID(2), consenter.PartyID)
+}
+
 // requireExpiresWithItsCertificate checks that the access control expires the identity of the signer
 // with the certificate the identity carries.
 func requireExpiresWithItsCertificate(t *testing.T, accessControl *deliver.AccessControl, signer *signutil.TestSigner, name string) {
