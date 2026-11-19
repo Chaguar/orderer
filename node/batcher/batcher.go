@@ -747,19 +747,19 @@ func (b *Batcher) CurrentPrimaryAndTerm() (types.PartyID, uint64) {
 	return b.primaryID, b.term
 }
 
-func (b *Batcher) getPrimaryIDAndTerm(state *state.State) (types.PartyID, uint64) {
+func (b *Batcher) getPrimaryIDAndTerm(st *state.State) (types.PartyID, uint64) {
 	term := uint64(math.MaxUint64)
-	for _, shard := range state.Shards {
+	for _, shard := range st.Shards {
 		if shard.Shard == b.config.ShardId {
 			term = shard.Term
 		}
 	}
 
 	if term == math.MaxUint64 {
-		b.logger.Panicf("Could not find our shard (%d) within the shards: %v", b.config.ShardId, state.Shards)
+		b.logger.Panicf("Could not find our shard (%d) within the shards: %v", b.config.ShardId, st.Shards)
 	}
 
-	primaryIndex := (uint64(b.config.ShardId) + term) % uint64(len(b.config.Consenters))
+	primaryIndex := state.PrimaryIndex(b.config.ShardId, term, len(b.config.Consenters))
 
 	primaryID := b.batchers[primaryIndex].PartyID
 

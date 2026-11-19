@@ -297,6 +297,12 @@ type ShardTerm struct {
 	Term  uint64
 }
 
+// PrimaryIndex returns the index of a shard's primary in the given term among the n parties sorted by
+// party ID. Batchers and consenters both pick a shard's primary with it.
+func PrimaryIndex(shard types.ShardID, term uint64, n int) int {
+	return int((uint64(shard) + term) % uint64(n))
+}
+
 // Process applies the control events of a decision to the state and returns the next state, the batch
 // attestation fragments that reached the threshold, and the config requests. parties are the party IDs
 // of the config in force, sorted by party ID; the thresholds are derived from their number.
@@ -311,7 +317,7 @@ func (s *State) Process(l *flogging.FabricLogger, configSeq types.ConfigSequence
 	nextState.FilterPendingEventsWithDiffConfigSeq(configSeq, l)
 	nextState.CollectAndDeduplicateEvents(l, filteredCEs...)
 	nextState.CollectAssemblerReports(l, filteredCEs...)
-	nextState.DetectEquivocation(l)
+	nextState.DetectEquivocation(l, parties)
 	nextState.PrimaryRotateDueToComplaints(l, threshold)
 	nextState.CleanupOldComplaints(l)
 
@@ -669,7 +675,7 @@ func (s *State) FilterPendingEventsWithDiffConfigSeq(configSeq types.ConfigSeque
 // signs every BAF it produces, so two distinct digests carrying its signature under one batchKey are
 // proof it equivocated.
 //
-// It runs purely over s.Pending, which CollectAndDeduplicateEvents (the preceding step) has already
+// It runs over s.Pending, which CollectAndDeduplicateEvents (the preceding step) has already
 // populated with this round's incoming BAFs. It therefore only sees BAFs still pending — not ones
 // from prior rounds that already reached the f+1 threshold and were committed to the
 // BatchAttestationDB.
@@ -678,13 +684,18 @@ func (s *State) FilterPendingEventsWithDiffConfigSeq(configSeq types.ConfigSeque
 //   - s.Pending: the BAFs to inspect, grouped by batchKey and digest. Only BAFs with Signer != Primary
 //     count (self-signed BAFs are excluded, so a non-primary cannot forge equivocation evidence by
 //     broadcasting two self-signed BAFs with different digests).
-//   - s.Shards: scanned to find the shard whose term must be bumped.
+//   - s.Shards and parties: the shard's current term, and the party IDs of the config in force sorted by
+//     party ID, which together give the shard's current primary. Evidence rotates the shard only while
+//     the party it convicts is that primary. The evidence stays in Pending until the batch is decided or
+//     the config changes, so once the shard has rotated away from the party it does not rotate the shard
+//     again, until the shard's turn comes back to the party. Nor can a party that is not the primary
+//     rotate the shard by signing conflicting batches with a colluding secondary.
 //
 // Mutation (the only thing it changes):
-//   - s.Shards[i].Term: incremented by one for each shard found to have an equivocating batch. To keep
+//   - s.Shards[i].Term: incremented by one for each shard whose current primary equivocated. To keep
 //     the rotation bounded and deterministic, at most one rotation happens per shard per call, and
 //     batches are processed in a fixed order (shard, then primary, then seq). No BAFs are removed here.
-func (s *State) DetectEquivocation(l *flogging.FabricLogger) {
+func (s *State) DetectEquivocation(l *flogging.FabricLogger, parties []types.PartyID) {
 	// Since the primary signs the BAF, if we see multiple different digests
 	// for the same <seq, shard, primary> tuple, the primary has equivocated.
 	// In this case, we rotate the primary by incrementing the term.
@@ -716,6 +727,17 @@ func (s *State) DetectEquivocation(l *flogging.FabricLogger) {
 		// If there are multiple different digests for the same <seq, shard, primary>,
 		// the primary has equivocated
 		if len(digest2signers) > 1 {
+			shardIndex, exists := shardExists(bk.shard, s.Shards)
+			if !exists {
+				continue
+			}
+			term := s.Shards[shardIndex].Term
+			if primary := parties[PrimaryIndex(bk.shard, term, len(parties))]; bk.primary != primary {
+				l.Debugf("Ignoring equivocation at sequence %d in shard %d by party %d, which is not the primary (%d) of term %d",
+					bk.seq, bk.shard, bk.primary, primary, term)
+				continue
+			}
+
 			l.Warnf("Detected equivocation: batch attestation sequence %d in shard %d from primary %d "+
 				"has %d different digests (%v). Primary has sent conflicting batches.",
 				bk.seq, bk.shard, bk.primary,

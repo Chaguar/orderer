@@ -715,18 +715,18 @@ func TestAssembleProposalAndVerify(t *testing.T) {
 			// This triggers equivocation detection and primary rotation. Both digests reach the
 			// signature threshold (123: signers 1,2; 126: signers 3,4), so each is extracted and
 			// becomes its own available block (one block per threshold digest, in pending order).
-			// Initial term is 1 (so primary 1 is current), after equivocation it becomes 2
+			// Initial term is 3 (so primary 1 is current), after equivocation it becomes 4
 			ces:                    []state.ControlEvent{{BAF: baf123id1p1s1}, {BAF: baf123id2p1s1}, {BAF: baf126id3p1s1}, {BAF: baf126id4p1s1}},
 			bafsOfAvailableBatches: []arma_types.BatchAttestationFragment{baf123id1p1s1, baf126id3p1s1}, // both digests reach threshold -> one block each
 			numPending:             0,                                                                   // No pending after extraction
-			newTermForShard1:       2,                                                                   // Term incremented from 1 to 2 due to equivocation
+			newTermForShard1:       4,                                                                   // Term incremented from 3 to 4 due to equivocation
 		},
 	} {
 		t.Run(tst.name, func(t *testing.T) {
 			// For equivocation test, we need to set the initial term so that primary 1 is the current primary
 			shards := []state.ShardTerm{{Shard: 1}, {Shard: 2}}
 			if tst.name == "equivocation detection - primary sends conflicting digests" {
-				shards = []state.ShardTerm{{Shard: 1, Term: 1}, {Shard: 2}} // Term 1 % 4 = 1 (primary 1)
+				shards = []state.ShardTerm{{Shard: 1, Term: 3}, {Shard: 2}} // (shard 1 + term 3) % 4 = 0 (primary 1)
 			}
 
 			initialState := &state.State{
