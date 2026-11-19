@@ -8,8 +8,9 @@ package config
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"crypto/x509"
-	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"strings"
@@ -54,7 +55,7 @@ func localConfigForLog(source *NodeLocalConfig) *NodeLocalConfig {
 	return &node
 }
 
-// protoTree converts protobuf fields for logging, formatting certificates as Base64.
+// protoTree converts protobuf fields for logging, replacing certificates with their SHA-256 hashes.
 func protoTree(msg protoreflect.Message) map[string]any {
 	out := make(map[string]any)
 	fields := msg.Descriptor().Fields()
@@ -90,7 +91,7 @@ func protoValue(field protoreflect.FieldDescriptor, value protoreflect.Value) an
 	}
 }
 
-// certificatesForLog returns Base64-encoded DER certificates or redacts invalid input.
+// certificatesForLog returns the hex SHA-256 hash of each DER certificate or redacts invalid input.
 func certificatesForLog(data []byte) string {
 	if len(data) == 0 {
 		return "<empty>"
@@ -102,7 +103,8 @@ func certificatesForLog(data []byte) string {
 		if _, err := x509.ParseCertificate(block.Bytes); err != nil || block.Type != "CERTIFICATE" || len(block.Headers) > 0 {
 			break
 		}
-		certs = append(certs, base64.StdEncoding.EncodeToString(block.Bytes))
+		hash := sha256.Sum256(block.Bytes)
+		certs = append(certs, hex.EncodeToString(hash[:]))
 		decoded = append(decoded, pem.EncodeToMemory(block)...)
 	}
 	if len(certs) == 0 || !bytes.Equal(bytes.Join(bytes.Fields(decoded), nil), bytes.Join(bytes.Fields(data), nil)) {
