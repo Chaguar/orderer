@@ -7,7 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package config_test
 
 import (
+	"crypto/sha256"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/pem"
 	"fmt"
 	"io"
@@ -69,19 +71,23 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 			require.Contains(t, localYAML, "LocalMSPID: "+general.LocalMSPID)
 			require.Contains(t, sharedYAML, fmt.Sprintf("MaxPartyID: %d", conf.SharedConfig.MaxPartyID))
 
-			base64DER := func(pemFile string) string {
+			readDER := func(pemFile string) []byte {
 				data, err := os.ReadFile(pemFile)
 				require.NoError(t, err)
 				der, _ := pem.Decode(data)
 				require.NotNil(t, der)
-				return base64.StdEncoding.EncodeToString(der.Bytes)
+				return der.Bytes
 			}
-			require.Contains(t, sharedYAML, base64DER(general.TLSConfig.Certificate))
+			tlsCert := readDER(general.TLSConfig.Certificate)
+			tlsCertHash := sha256.Sum256(tlsCert)
+			require.Contains(t, sharedYAML, "sha256:"+hex.EncodeToString(tlsCertHash[:]))
 
-			privateKey := base64DER(general.TLSConfig.PrivateKey)
+			tlsCertBase64 := base64.StdEncoding.EncodeToString(tlsCert)
+			privateKey := base64.StdEncoding.EncodeToString(readDER(general.TLSConfig.PrivateKey))
 			for _, entry := range entries {
 				require.NotContains(t, entry.Message, hsmPIN)
 				require.NotContains(t, entry.Message, "-----BEGIN")
+				require.NotContains(t, entry.Message, tlsCertBase64)
 				require.NotContains(t, entry.Message, privateKey)
 			}
 		})
