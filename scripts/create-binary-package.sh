@@ -6,7 +6,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-# Cross-compiles the Fabric-X Orderer binaries (arma and armageddon) for a
+# Cross-compiles the Chaguar Orderer binaries (arma and armageddon) for a
 # single OS/arch and packages them into a versioned tarball under
 # release/<TARGET>/.
 #
@@ -57,7 +57,7 @@ echo "Generating third-party notices..."
 cp LICENSE "${RELEASE_DIR}/"
 
 # -C changes into RELEASE_DIR first, so the archive holds relative paths (bin/, LICENSE, THIRD-PARTY-NOTICES).
-ARCHIVE="fabric-x-orderer-${TARGET}-${VERSION}.tar.gz"
+ARCHIVE="orderer-${TARGET}-${VERSION}.tar.gz"
 tar -czf "${RELEASE_DIR}/${ARCHIVE}" -C "${RELEASE_DIR}" bin LICENSE THIRD-PARTY-NOTICES
 
 echo "${RELEASE_DIR}/${ARCHIVE}"

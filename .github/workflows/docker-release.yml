@@ -57,7 +57,7 @@ jobs:
           echo "CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
           echo "REVISION=$(git rev-parse HEAD)" >> $GITHUB_ENV        
           if [ "$GITHUB_REPOSITORY_OWNER" == "Chaguar" ]; then
-           echo "IMAGE_PREFIX=hyperledger" >> $GITHUB_ENV
+           echo "IMAGE_PREFIX=chaguar" >> $GITHUB_ENV
           else
            echo "IMAGE_PREFIX=${{ secrets.DOCKERHUB_USERNAME }}" >> $GITHUB_ENV
           fi
@@ -74,10 +74,10 @@ jobs:
             REVISION=${{ env.REVISION }}
           push: true
           tags: |
-            docker.io/${{ env.IMAGE_PREFIX }}/fabric-x-orderer:${{ env.VERSION }}
-            docker.io/${{ env.IMAGE_PREFIX }}/fabric-x-orderer:latest
-            ghcr.io/${{ env.IMAGE_PREFIX }}/fabric-x-orderer:${{ env.VERSION }}
-            ghcr.io/${{ env.IMAGE_PREFIX }}/fabric-x-orderer:latest
+            docker.io/${{ env.IMAGE_PREFIX }}/orderer:${{ env.VERSION }}
+            docker.io/${{ env.IMAGE_PREFIX }}/orderer:latest
+            ghcr.io/${{ env.IMAGE_PREFIX }}/orderer:${{ env.VERSION }}
+            ghcr.io/${{ env.IMAGE_PREFIX }}/orderer:latest
 
       - name: Build and Push Multi-Platform All-In-One Test Node Image
         uses: docker/build-push-action@v6
@@ -91,7 +91,7 @@ jobs:
             REVISION=${{ env.REVISION }}
           push: true
           tags: |
-            docker.io/${{ env.IMAGE_PREFIX }}/fabric-x-orderer-test-node:${{ env.VERSION }}
-            docker.io/${{ env.IMAGE_PREFIX }}/fabric-x-orderer-test-node:latest
-            ghcr.io/${{ env.IMAGE_PREFIX }}/fabric-x-orderer-test-node:${{ env.VERSION }}
-            ghcr.io/${{ env.IMAGE_PREFIX }}/fabric-x-orderer-test-node:latest
+            docker.io/${{ env.IMAGE_PREFIX }}/orderer-test-node:${{ env.VERSION }}
+            docker.io/${{ env.IMAGE_PREFIX }}/orderer-test-node:latest
+            ghcr.io/${{ env.IMAGE_PREFIX }}/orderer-test-node:${{ env.VERSION }}
+            ghcr.io/${{ env.IMAGE_PREFIX }}/orderer-test-node:latest

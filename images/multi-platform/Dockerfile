@@ -42,7 +42,7 @@ ARG CREATED
 ARG REVISION
 
 # Add non-root user (10001) without installing extra packages
-RUN /usr/sbin/useradd -u 10001 -r -g root -s /sbin/nologin -c "Hyperledger Fabric-X Orderer user" orderer && \
+RUN /usr/sbin/useradd -u 10001 -r -g root -s /sbin/nologin -c "Chaguar Orderer user" orderer && \
     mkdir -p /home/orderer && \
     chown -R 10001:0 /home/orderer && \
     chmod 0755 /home/orderer
@@ -53,12 +53,12 @@ COPY --from=builder /src/bin/armageddon /usr/local/bin/armageddon
 
 # OCI metadata labels
 LABEL org.opencontainers.image.created="${CREATED}" \
-    org.opencontainers.image.description="Hyperledger Fabric-X Orderer service packaged in a UBI image." \
+    org.opencontainers.image.description="Chaguar Orderer service packaged in a UBI image." \
     org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.ref.name="ubi9/ubi-minimal" \
     org.opencontainers.image.revision="${REVISION:-unknown}" \
     org.opencontainers.image.source="https://github.com/Chaguar/orderer" \
-    org.opencontainers.image.title="fabric-x-orderer" \
+    org.opencontainers.image.title="orderer" \
     org.opencontainers.image.url="https://github.com/Chaguar/orderer" \
     org.opencontainers.image.version="${VERSION:-latest}"
 

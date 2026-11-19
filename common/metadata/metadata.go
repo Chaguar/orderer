@@ -10,6 +10,6 @@ package metadata
 var (
 	Version         = "latest"
 	CommitSHA       = "unknown"
-	BaseDockerLabel = "org.hyperledger.fabric-x-orderer"
-	DockerNamespace = "hyperledger"
+	BaseDockerLabel = "org.chaguar.orderer"
+	DockerNamespace = "chaguar"
 )
