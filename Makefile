@@ -26,9 +26,9 @@
 # Docker image vars
 DOCKERFILE ?= images/multi-platform/Dockerfile
 TEST_NODE_DOCKERFILE ?= examples/all-in-one/Dockerfile
-IMAGE_NAMESPACE = docker.io/hyperledger
-IMAGE_NAME = fabric-x-orderer
-TEST_NODE_IMAGE_NAME = fabric-x-orderer-test-node
+IMAGE_NAMESPACE = docker.io/chaguar
+IMAGE_NAME = orderer
+TEST_NODE_IMAGE_NAME = orderer-test-node
 VERSION = latest
 ORDERER_REVISION := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 ORDERER_CREATED := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)
@@ -279,13 +279,13 @@ sample-tests:
 	(bash ./examples/scripts/run_sample.sh)
 	(bash ./examples/scripts/clean_sample.sh)
 
-# Build the HLFX Orderer image
+# Build the Chaguar Orderer image
 .PHONY: build-image
 build-image:
 	@echo "Building the image ${IMAGE_NAMESPACE}/${IMAGE_NAME}:${VERSION}..."
 	@./scripts/build_image.sh -t ${IMAGE_NAMESPACE}/${IMAGE_NAME}:${VERSION} -f ${DOCKERFILE} --build-arg VERSION=${VERSION} --build-arg REVISION=$(ORDERER_REVISION) --build-arg CREATED=$(ORDERER_CREATED)
 
-# Build the HLFX Orderer multiplatform image
+# Build the Chaguar Orderer multiplatform image
 .PHONY: build-multiplatform-image
 build-multiplatform-image:
 	@echo "Building the multiplatform image ${IMAGE_NAMESPACE}/${IMAGE_NAME}:${VERSION}..."

@@ -60,12 +60,12 @@ COPY examples/all-in-one/config /config
 
 # OCI metadata labels
 LABEL org.opencontainers.image.created="${CREATED}" \
-    org.opencontainers.image.description="Hyperledger Fabric-X Orderer all-in-one test node: a 4-party, 1-shard Arma network plus the armageddon test client in a single container." \
+    org.opencontainers.image.description="Chaguar Orderer all-in-one test node: a 4-party, 1-shard Arma network plus the armageddon test client in a single container." \
     org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.ref.name="library/golang" \
     org.opencontainers.image.revision="${REVISION:-unknown}" \
     org.opencontainers.image.source="https://github.com/Chaguar/orderer" \
-    org.opencontainers.image.title="fabric-x-orderer-test-node" \
+    org.opencontainers.image.title="orderer-test-node" \
     org.opencontainers.image.url="https://github.com/Chaguar/orderer" \
     org.opencontainers.image.version="${VERSION:-latest}"
 

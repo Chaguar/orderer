@@ -119,8 +119,8 @@ jobs:
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fabric-x-orderer-${{ matrix.os }}-${{ matrix.arch }}
-          path: release/${{ matrix.os }}-${{ matrix.arch }}/fabric-x-orderer-*.tar.gz
+          name: orderer-${{ matrix.os }}-${{ matrix.arch }}
+          path: release/${{ matrix.os }}-${{ matrix.arch }}/orderer-*.tar.gz
           if-no-files-found: error
 
   release:
