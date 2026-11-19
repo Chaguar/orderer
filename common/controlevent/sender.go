@@ -13,10 +13,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/config"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"google.golang.org/grpc"
 )
 

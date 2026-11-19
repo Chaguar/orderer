@@ -12,10 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/utils"
+	"github.com/Chaguar/orderer/testutil/stub"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/utils"
-	"github.com/hyperledger/fabric-x-orderer/testutil/stub"
 	"github.com/stretchr/testify/require"
 )
 

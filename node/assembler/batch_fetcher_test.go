@@ -10,14 +10,14 @@ import (
 	"testing"
 	"time"
 
-	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/assembler"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	configMocks "github.com/hyperledger/fabric-x-orderer/test/mocks"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/signutil"
+	policyMocks "github.com/Chaguar/orderer/common/policy/mocks"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/assembler"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
+	"github.com/Chaguar/orderer/node/config"
+	configMocks "github.com/Chaguar/orderer/test/mocks"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/signutil"
 	"github.com/stretchr/testify/require"
 )
 

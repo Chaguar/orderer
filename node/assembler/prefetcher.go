@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Chaguar/orderer/common/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
 )
 
 //go:generate counterfeiter -o ./mocks/prefetcher_controller.go . PrefetcherController

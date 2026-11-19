@@ -5,7 +5,7 @@ import (
 	"context"
 	"sync"
 
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 
 	"google.golang.org/grpc"
 )

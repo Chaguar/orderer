@@ -9,8 +9,8 @@ package blocksprovider_test
 import (
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider"
+	"github.com/Chaguar/orderer/common/utils"
 	"github.com/stretchr/testify/require"
 )
 

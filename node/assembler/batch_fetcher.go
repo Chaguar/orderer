@@ -16,13 +16,13 @@ import (
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/protoutil/identity"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/config"
+	"github.com/Chaguar/orderer/node/delivery"
+	"github.com/Chaguar/orderer/node/ledger"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	"github.com/hyperledger/fabric-x-orderer/node/delivery"
-	"github.com/hyperledger/fabric-x-orderer/node/ledger"
 )
 
 //go:generate counterfeiter -o ./mocks/batch_fetcher.go . BatchBringer

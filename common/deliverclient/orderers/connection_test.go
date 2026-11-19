@@ -12,9 +12,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 )

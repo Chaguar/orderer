@@ -12,7 +12,7 @@ import (
 	"math"
 	"math/big"
 
-	stateprotos "github.com/hyperledger/fabric-x-orderer/node/protos/state"
+	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	"google.golang.org/protobuf/proto"
 )
 

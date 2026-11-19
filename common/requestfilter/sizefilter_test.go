@@ -10,9 +10,9 @@ import (
 	"encoding/binary"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/requestfilter"
-	"github.com/hyperledger/fabric-x-orderer/common/requestfilter/mocks"
-	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/common/requestfilter"
+	"github.com/Chaguar/orderer/common/requestfilter/mocks"
+	"github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/stretchr/testify/require"
 )
 

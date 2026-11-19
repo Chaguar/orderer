@@ -6,7 +6,7 @@ import (
 
 	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/msp"
-	"github.com/hyperledger/fabric-x-orderer/common/msputils"
+	"github.com/Chaguar/orderer/common/msputils"
 )
 
 type MSPManager struct {

@@ -19,8 +19,8 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
 
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/utils"
 )
 
 // BlockProgressReporter provides information on the last block fetched from an orderer.

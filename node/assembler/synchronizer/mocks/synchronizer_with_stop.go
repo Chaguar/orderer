@@ -4,7 +4,7 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/node/assembler/synchronizer"
+	"github.com/Chaguar/orderer/node/assembler/synchronizer"
 )
 
 type FakeSynchronizerWithStop struct {

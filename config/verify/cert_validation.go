@@ -12,7 +12,7 @@ import (
 	"time"
 
 	"github.com/Chaguar/common/api/ordererpb"
-	arma_types "github.com/hyperledger/fabric-x-orderer/common/types"
+	arma_types "github.com/Chaguar/orderer/common/types"
 	"github.com/pkg/errors"
 )
 

@@ -12,7 +12,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
+	"github.com/Chaguar/orderer/node/comm"
 )
 
 // fakeCommunicator is a no-op comm.Communicator used to exercise RPC.Reconfigure

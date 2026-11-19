@@ -5,10 +5,10 @@ import (
 	"sync"
 
 	"github.com/Chaguar/common/common/channelconfig"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/config/verify"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/config/verify"
 )
 
 type FakeOrdererRules struct {

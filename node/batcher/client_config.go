@@ -9,8 +9,8 @@ package batcher
 import (
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/config"
 )
 
 func clientConfig(TLSPrivateKeyFile config.RawBytes, TLSCertificateFile config.RawBytes, TlsCACert []config.RawBytes) comm.ClientConfig {

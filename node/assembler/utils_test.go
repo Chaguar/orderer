@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 )
 
 func createTestBatch(shard types.ShardID, primary types.PartyID, seq types.BatchSequence, req []byte) types.Batch {

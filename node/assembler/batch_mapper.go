@@ -10,7 +10,7 @@ import (
 	"bytes"
 	"fmt"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 )
 
 type batchWithValue[K types.BatchID, V any] struct {

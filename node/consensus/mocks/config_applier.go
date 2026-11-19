@@ -4,11 +4,11 @@ package mocks
 import (
 	"sync"
 
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/consensus"
+	"github.com/Chaguar/orderer/node/consensus/state"
 	typesa "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 )
 
 type FakeConfigApplier struct {

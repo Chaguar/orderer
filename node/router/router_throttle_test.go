@@ -14,13 +14,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	fabricx_config "github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	node_utils "github.com/hyperledger/fabric-x-orderer/node/utils"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
+	"github.com/Chaguar/orderer/common/types"
+	fabricx_config "github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/config"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
+	node_utils "github.com/Chaguar/orderer/node/utils"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/tx"
 
 	"github.com/stretchr/testify/require"
 )

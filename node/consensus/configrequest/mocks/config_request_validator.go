@@ -4,8 +4,8 @@ package mocks
 import (
 	"sync"
 
+	"github.com/Chaguar/orderer/node/consensus/configrequest"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/configrequest"
 )
 
 type FakeConfigRequestValidator struct {

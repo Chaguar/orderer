@@ -12,7 +12,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 
 	"github.com/Chaguar/common/common/configtx"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"

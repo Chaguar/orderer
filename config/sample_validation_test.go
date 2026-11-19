@@ -12,7 +12,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/config"
+	"github.com/Chaguar/orderer/config"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
 )

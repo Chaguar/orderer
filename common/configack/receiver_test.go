@@ -12,9 +12,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
+	"github.com/Chaguar/orderer/common/types"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/testutil"
 	"github.com/stretchr/testify/require"
 )
 

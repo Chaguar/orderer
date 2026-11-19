@@ -9,8 +9,8 @@ package assembler_test
 import (
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/assembler"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/assembler"
 	"github.com/stretchr/testify/require"
 )
 

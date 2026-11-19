@@ -31,11 +31,11 @@ import (
 	"google.golang.org/protobuf/proto"
 
 	"github.com/Chaguar/common/protoutil"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider/fake"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider"
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider/fake"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
 )
 
 type bftDelivererTestSetup struct {

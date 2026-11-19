@@ -11,7 +11,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
+	"github.com/Chaguar/orderer/node/consensus/state"
 
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/stretchr/testify/assert"

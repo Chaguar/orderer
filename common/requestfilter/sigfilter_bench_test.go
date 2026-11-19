@@ -12,11 +12,11 @@ import (
 	"github.com/Chaguar/common/common/policies"
 	"github.com/Chaguar/common/msp"
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/requestfilter"
+	"github.com/Chaguar/orderer/common/requestfilter/mocks"
+	"github.com/Chaguar/orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/testutil/tlsgen"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/requestfilter"
-	"github.com/hyperledger/fabric-x-orderer/common/requestfilter/mocks"
-	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tlsgen"
 	"github.com/stretchr/testify/require"
 )
 

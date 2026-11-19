@@ -22,12 +22,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/internal/cryptogen/ca"
-	nodeconfig "github.com/hyperledger/fabric-x-orderer/node/config"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/fabric"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/internal/cryptogen/ca"
+	nodeconfig "github.com/Chaguar/orderer/node/config"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/fabric"
 	"github.com/onsi/gomega/gexec"
 	"github.com/stretchr/testify/require"
 	"gopkg.in/yaml.v3"
@@ -55,7 +55,7 @@ func TestArmageddonWithTLS(t *testing.T) {
 
 	// 3.
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -96,7 +96,7 @@ func TestArmageddonWithTLSWithNoSampleConfigPathFlag(t *testing.T) {
 
 	// 3.
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -139,7 +139,7 @@ func TestLoadStepsAndReceive(t *testing.T) {
 
 	// 3.
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -193,7 +193,7 @@ func TestLoadStepsFails(t *testing.T) {
 
 	// 3.
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -210,7 +210,7 @@ func TestLoadStepsFails(t *testing.T) {
 	txsSent := "10000"
 	txSize := "128"
 
-	armageddonBinary, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/armageddon", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armageddonBinary, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/armageddon", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armageddonBinary)
 	cmd := exec.Command(armageddonBinary, "load", "--config", userConfigPath, "--transactions", txsSent, "--rate", rates, "--txSize", txSize)
@@ -244,7 +244,7 @@ func TestLoadAndReceive(t *testing.T) {
 
 	// 3.
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -300,7 +300,7 @@ func TestLoadAndReceiveSignedModeAsShort(t *testing.T) {
 	armageddonCLI.Run([]string{"generate", "--config", configPath, "--output", dir, "--clientSignatureVerificationRequired"})
 
 	// 3. Build and run arma nodes
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -357,7 +357,7 @@ func TestLoadAndReceiveSignedModeAsFull(t *testing.T) {
 	armageddonCLI.Run([]string{"generate", "--config", configPath, "--output", dir})
 
 	// 3. Build and run arma nodes
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -413,7 +413,7 @@ func TestLoadAndReceive_RouterFailsAndRecover(t *testing.T) {
 	armageddon.Run([]string{"generate", "--config", configPath, "--output", dir, "--sampleConfigPath", sampleConfigPath})
 
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -483,7 +483,7 @@ func TestArmageddonNonTLS(t *testing.T) {
 
 	// 3.
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -581,7 +581,7 @@ func TestArmageddonMutualTLS_SendFromClientSpecifiedInLocalConfig(t *testing.T) 
 
 	// 4.
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 
@@ -946,7 +946,7 @@ func TestLoadAndReceive_AssemblerFailsAndRecovers(t *testing.T) {
 	armageddon.Run([]string{"generate", "--config", configPath, "--output", dir, "--sampleConfigPath", sampleConfigPath})
 
 	// 3. Compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
 

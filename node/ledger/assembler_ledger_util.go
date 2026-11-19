@@ -13,11 +13,11 @@ import (
 	"strings"
 
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	stateprotos "github.com/hyperledger/fabric-x-orderer/node/protos/state"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )

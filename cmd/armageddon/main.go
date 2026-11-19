@@ -9,7 +9,7 @@ package main
 import (
 	"os"
 
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
 )
 
 func main() {

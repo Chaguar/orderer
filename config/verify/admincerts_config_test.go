@@ -15,12 +15,12 @@ import (
 	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/testutil/configutil"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	"github.com/hyperledger/fabric-x-orderer/testutil/configutil"
 	"github.com/stretchr/testify/require"
 )
 

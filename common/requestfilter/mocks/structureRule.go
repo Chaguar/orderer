@@ -4,9 +4,9 @@ package mocks
 import (
 	"sync"
 
+	"github.com/Chaguar/orderer/common/requestfilter"
+	"github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/requestfilter"
-	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 )
 
 type FakeStructureRule struct {

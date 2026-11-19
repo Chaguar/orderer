@@ -9,7 +9,7 @@ package requestfilter
 import (
 	"fmt"
 
-	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/node/protos/comm"
 )
 
 type MaxSizeFilter struct {

@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Chaguar/orderer/common/types"
+	node_config "github.com/Chaguar/orderer/node/config"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	node_config "github.com/hyperledger/fabric-x-orderer/node/config"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 	"google.golang.org/grpc"
 )
 

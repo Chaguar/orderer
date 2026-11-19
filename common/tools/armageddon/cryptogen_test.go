@@ -17,10 +17,10 @@ import (
 	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/msp"
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/testutil"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
 	mspa "github.com/hyperledger/fabric-protos-go-apiv2/msp"
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
 	"github.com/stretchr/testify/require"
 )
 

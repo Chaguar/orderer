@@ -10,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/Chaguar/common/api/ordererpb"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/config"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/config"
 	"github.com/stretchr/testify/require"
 )
 

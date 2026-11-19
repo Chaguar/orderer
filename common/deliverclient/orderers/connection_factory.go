@@ -7,8 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package orderers
 
 import (
+	"github.com/Chaguar/orderer/common/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
 )
 
 type ConnectionSourcer interface {

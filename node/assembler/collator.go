@@ -11,11 +11,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 )
 
 //go:generate counterfeiter -o ./mocks/config_processor.go . ConfigProcessor

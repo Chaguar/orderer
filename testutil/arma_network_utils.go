@@ -13,9 +13,9 @@ import (
 	"path"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/config/generate"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/config/generate"
 	"github.com/stretchr/testify/require"
 )
 

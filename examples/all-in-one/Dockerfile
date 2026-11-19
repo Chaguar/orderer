@@ -64,9 +64,9 @@ LABEL org.opencontainers.image.created="${CREATED}" \
     org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.ref.name="library/golang" \
     org.opencontainers.image.revision="${REVISION:-unknown}" \
-    org.opencontainers.image.source="https://github.com/hyperledger/fabric-x-orderer" \
+    org.opencontainers.image.source="https://github.com/Chaguar/orderer" \
     org.opencontainers.image.title="fabric-x-orderer-test-node" \
-    org.opencontainers.image.url="https://github.com/hyperledger/fabric-x-orderer" \
+    org.opencontainers.image.url="https://github.com/Chaguar/orderer" \
     org.opencontainers.image.version="${VERSION:-latest}"
 
 HEALTHCHECK --interval=5s --timeout=3s --retries=20 --start-period=10s \

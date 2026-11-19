@@ -7,10 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package assembler_test
 
 import (
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	"github.com/hyperledger/fabric-x-orderer/node/ledger"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	"github.com/Chaguar/orderer/node/ledger"
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"

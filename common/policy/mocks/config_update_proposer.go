@@ -6,11 +6,11 @@ import (
 
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil/identity"
+	"github.com/Chaguar/orderer/common/policy"
+	"github.com/Chaguar/orderer/common/requestfilter"
+	"github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/policy"
-	"github.com/hyperledger/fabric-x-orderer/common/requestfilter"
-	"github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 )
 
 type FakeConfigUpdateProposer struct {

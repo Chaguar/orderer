@@ -13,12 +13,12 @@ import (
 
 	"github.com/Chaguar/common/common/configtx"
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/deliverclient"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	"github.com/Chaguar/orderer/node/ledger"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	"github.com/hyperledger/fabric-x-orderer/node/ledger"
 	"github.com/pkg/errors"
 )
 

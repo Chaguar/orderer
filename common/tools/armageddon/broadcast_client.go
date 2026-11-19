@@ -16,9 +16,9 @@ import (
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 
+	"github.com/Chaguar/orderer/node/comm"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
 	"google.golang.org/grpc"
 )
 

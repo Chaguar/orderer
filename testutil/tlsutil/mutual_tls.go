@@ -11,8 +11,8 @@ import (
 	"time"
 
 	"github.com/Chaguar/common/protoutil"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 )

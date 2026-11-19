@@ -7,13 +7,13 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	commonsync "github.com/Chaguar/orderer/common/synchronizer"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/comm"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	commonsync "github.com/hyperledger/fabric-x-orderer/common/synchronizer"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
 )
 
 //go:generate counterfeiter -o mocks/genesis_fetcher.go . GenesisFetcher

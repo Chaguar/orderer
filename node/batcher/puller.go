@@ -12,13 +12,13 @@ import (
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/protoutil/identity"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/config"
+	"github.com/Chaguar/orderer/node/delivery"
+	node_ledger "github.com/Chaguar/orderer/node/ledger"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	"github.com/hyperledger/fabric-x-orderer/node/delivery"
-	node_ledger "github.com/hyperledger/fabric-x-orderer/node/ledger"
 )
 
 // TODO The deliver service and client (puller) were copied almost as is from Fabric.

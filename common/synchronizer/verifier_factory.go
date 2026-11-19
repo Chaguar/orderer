@@ -7,10 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"github.com/Chaguar/orderer/common/deliverclient"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient"
 )
 
 //go:generate counterfeiter -o mocks/verifier_factory.go --fake-name VerifierFactory . VerifierFactory

@@ -9,9 +9,9 @@ package router
 import (
 	"github.com/pkg/errors"
 
-	"github.com/hyperledger/fabric-x-orderer/common/ratelimit"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	nodeconfig "github.com/hyperledger/fabric-x-orderer/node/config"
+	"github.com/Chaguar/orderer/common/ratelimit"
+	"github.com/Chaguar/orderer/config"
+	nodeconfig "github.com/Chaguar/orderer/node/config"
 )
 
 // RateLimiter admits or rejects a single request. Implementations must be safe

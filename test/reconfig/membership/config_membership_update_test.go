@@ -21,19 +21,19 @@ import (
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/tools/configtxgen"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/config/generate"
+	test_utils "github.com/Chaguar/orderer/test/utils"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/client"
+	"github.com/Chaguar/orderer/testutil/configutil"
+	"github.com/Chaguar/orderer/testutil/signutil"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/config/generate"
-	test_utils "github.com/hyperledger/fabric-x-orderer/test/utils"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/client"
-	"github.com/hyperledger/fabric-x-orderer/testutil/configutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/signutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
 	"github.com/onsi/gomega/gexec"
 	"github.com/stretchr/testify/assert/yaml"
 	"github.com/stretchr/testify/require"
@@ -65,7 +65,7 @@ func TestRemovePartyRunAll(t *testing.T) {
 	armageddon.NewCLI().Run([]string{"generate", "--config", configPath, "--output", dir})
 
 	// Build Arma binary
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -166,7 +166,7 @@ func TestRemoveStoppedPartyThenRestart(t *testing.T) {
 	armageddon.NewCLI().Run([]string{"generate", "--config", configPath, "--output", dir})
 
 	// Build Arma binary
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -326,7 +326,7 @@ func TestRemoveParty(t *testing.T) {
 
 	armageddon.NewCLI().Run([]string{"generate", "--config", configPath, "--output", dir})
 
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -470,7 +470,7 @@ func TestAddNewParty(t *testing.T) {
 
 	armageddon.NewCLI().Run([]string{"generate", "--config", configPath, "--output", dir, "--clientSignatureVerificationRequired"})
 
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -709,7 +709,7 @@ func TestPartiesFullReplacement(t *testing.T) {
 	err = utils.WriteToYAML(conf.NodeLocalConfig, configFilePath)
 	require.NoError(t, err)
 
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() { gexec.CleanupBuildArtifacts() })
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -1040,7 +1040,7 @@ func TestRemoveMultipleParties(t *testing.T) {
 	err = utils.WriteToYAML(conf.NodeLocalConfig, configFilePath)
 	require.NoError(t, err)
 
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -1207,7 +1207,7 @@ func TestJoinMultipleParties(t *testing.T) {
 	err = utils.WriteToYAML(conf.NodeLocalConfig, configFilePath)
 	require.NoError(t, err)
 
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -1389,7 +1389,7 @@ func TestReJoinSingleParty(t *testing.T) {
 	err = utils.WriteToYAML(conf.NodeLocalConfig, configFilePath)
 	require.NoError(t, err)
 
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)
@@ -1671,7 +1671,7 @@ func (ec *exportConfigBlockToFile) HandleBlock(t *testing.T, block *common.Block
 // removed through configuration updates, and that the network continues to operate correctly with the updated configuration.
 func TestAddRemoveApplicationClient(t *testing.T) {
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() {
 		gexec.CleanupBuildArtifacts()
 	})
@@ -1887,7 +1887,7 @@ func TestAddRemoveApplicationClient(t *testing.T) {
 // and that the network continues to operate correctly with the updated configuration.
 func TestAddRemoveKnownCertsFromApp(t *testing.T) {
 	// compile arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	t.Cleanup(func() {
 		gexec.CleanupBuildArtifacts()
 	})

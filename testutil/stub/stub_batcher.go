@@ -14,18 +14,18 @@ import (
 	"sync/atomic"
 	"testing"
 
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/config"
+	nodeconfig "github.com/Chaguar/orderer/node/config"
+	node_utils "github.com/Chaguar/orderer/node/utils"
+	"github.com/Chaguar/orderer/testutil"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	nodeconfig "github.com/hyperledger/fabric-x-orderer/node/config"
-	node_utils "github.com/hyperledger/fabric-x-orderer/node/utils"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
 	"go.uber.org/zap"
 
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 
 	"github.com/stretchr/testify/require"
 )

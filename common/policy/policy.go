@@ -13,10 +13,10 @@ import (
 	"github.com/Chaguar/common/common/configtx"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/protoutil/identity"
+	"github.com/Chaguar/orderer/common/requestfilter"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/requestfilter"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 	"github.com/pkg/errors"
 )
 

@@ -4,7 +4,7 @@ package fakes
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/common/operations"
+	"github.com/Chaguar/orderer/common/operations"
 )
 
 type Logger struct {

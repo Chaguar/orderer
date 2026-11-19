@@ -9,7 +9,7 @@ package main
 import (
 	"os"
 
-	arma "github.com/hyperledger/fabric-x-orderer/node/server"
+	arma "github.com/Chaguar/orderer/node/server"
 )
 
 func main() {

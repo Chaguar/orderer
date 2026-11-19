@@ -12,19 +12,19 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/client"
-	cfgutil "github.com/hyperledger/fabric-x-orderer/testutil/configutil"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/client"
+	cfgutil "github.com/Chaguar/orderer/testutil/configutil"
 	"github.com/onsi/gomega/gexec"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 	"github.com/stretchr/testify/require"
 )
 
 func TestConfigTXDisseminationVerificationFailure(t *testing.T) {
 	// Compile Arma
-	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/hyperledger/fabric-x-orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
+	armaBinaryPath, err := gexec.BuildWithEnvironment("github.com/Chaguar/orderer/cmd/arma", []string{"GOPRIVATE=" + os.Getenv("GOPRIVATE")})
 	defer gexec.CleanupBuildArtifacts()
 	require.NoError(t, err)
 	require.NotNil(t, armaBinaryPath)

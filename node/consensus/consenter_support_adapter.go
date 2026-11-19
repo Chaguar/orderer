@@ -9,10 +9,10 @@ package consensus
 import (
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	"github.com/Chaguar/orderer/node/delivery"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	"github.com/hyperledger/fabric-x-orderer/node/delivery"
 	"github.com/pkg/errors"
 )
 

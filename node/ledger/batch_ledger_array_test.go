@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/stretchr/testify/require"

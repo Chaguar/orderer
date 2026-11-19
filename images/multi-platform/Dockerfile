@@ -57,9 +57,9 @@ LABEL org.opencontainers.image.created="${CREATED}" \
     org.opencontainers.image.licenses="Apache-2.0" \
     org.opencontainers.image.ref.name="ubi9/ubi-minimal" \
     org.opencontainers.image.revision="${REVISION:-unknown}" \
-    org.opencontainers.image.source="https://github.com/hyperledger/fabric-x-orderer" \
+    org.opencontainers.image.source="https://github.com/Chaguar/orderer" \
     org.opencontainers.image.title="fabric-x-orderer" \
-    org.opencontainers.image.url="https://github.com/hyperledger/fabric-x-orderer" \
+    org.opencontainers.image.url="https://github.com/Chaguar/orderer" \
     org.opencontainers.image.version="${VERSION:-latest}"
 
 # Use non-root user and set workdir using BIN argument

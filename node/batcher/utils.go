@@ -7,8 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package batcher
 
 import (
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/config"
 )
 
 type EndpointAndCerts struct {

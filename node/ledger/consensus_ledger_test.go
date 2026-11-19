@@ -11,12 +11,12 @@ import (
 	"testing"
 
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	"github.com/Chaguar/orderer/node/ledger"
+	"github.com/Chaguar/orderer/node/ledger/mocks"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	"github.com/hyperledger/fabric-x-orderer/node/ledger"
-	"github.com/hyperledger/fabric-x-orderer/node/ledger/mocks"
 	"github.com/stretchr/testify/require"
 )
 

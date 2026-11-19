@@ -12,12 +12,12 @@ import (
 	"github.com/Chaguar/common/common/configtx"
 	"github.com/Chaguar/common/common/policies"
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/policy"
+	"github.com/Chaguar/orderer/common/policy/mocks"
+	"github.com/Chaguar/orderer/config/generate"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/fabric"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
-	"github.com/hyperledger/fabric-x-orderer/common/policy"
-	"github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
-	"github.com/hyperledger/fabric-x-orderer/config/generate"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/fabric"
 	"github.com/stretchr/testify/require"
 )
 

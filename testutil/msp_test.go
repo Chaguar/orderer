@@ -13,10 +13,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/testutil/fabric"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/testutil/fabric"
 	"github.com/stretchr/testify/require"
 )
 

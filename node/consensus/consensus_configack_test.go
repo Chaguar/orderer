@@ -16,14 +16,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/tools/armageddon"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	consensus_node "github.com/hyperledger/fabric-x-orderer/node/consensus"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	node_utils "github.com/hyperledger/fabric-x-orderer/node/utils"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/configutil"
+	"github.com/Chaguar/orderer/common/tools/armageddon"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/comm"
+	consensus_node "github.com/Chaguar/orderer/node/consensus"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
+	node_utils "github.com/Chaguar/orderer/node/utils"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/configutil"
 	"github.com/stretchr/testify/require"
 )
 

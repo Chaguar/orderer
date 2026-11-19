@@ -11,8 +11,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/hyperledger/fabric-x-orderer/config"
-	nodeconfig "github.com/hyperledger/fabric-x-orderer/node/config"
+	"github.com/Chaguar/orderer/config"
+	nodeconfig "github.com/Chaguar/orderer/node/config"
 )
 
 func TestNewThrottler_DisabledPolicies(t *testing.T) {

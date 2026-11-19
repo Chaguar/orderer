@@ -18,10 +18,10 @@ import (
 	"github.com/pkg/errors"
 
 	"github.com/Chaguar/common/protoutil/identity"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
+	"github.com/Chaguar/orderer/common/deliverclient"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/common/utils"
 )
 
 //go:generate counterfeiter -o fake/censorship_detector.go --fake-name CensorshipDetector . CensorshipDetector

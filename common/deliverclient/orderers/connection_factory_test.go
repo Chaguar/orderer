@@ -12,8 +12,8 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/stretchr/testify/require"
 
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/orderers"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
+	"github.com/Chaguar/orderer/common/types"
 )
 
 func TestCreateConnectionSource(t *testing.T) {

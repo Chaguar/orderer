@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package assembler
 
 import (
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 )
 
 type BatchCache struct {

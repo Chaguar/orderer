@@ -4,8 +4,8 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	"github.com/hyperledger/fabric-x-orderer/node/delivery"
+	"github.com/Chaguar/orderer/node/consensus/state"
+	"github.com/Chaguar/orderer/node/delivery"
 )
 
 type FakeConsensusBringer struct {

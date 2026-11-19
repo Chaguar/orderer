@@ -15,10 +15,10 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
 
 	"github.com/Chaguar/common/api/ordererpb"
-	"github.com/hyperledger/fabric-x-orderer/config"
-	"github.com/hyperledger/fabric-x-orderer/config/generate"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/fabric"
+	"github.com/Chaguar/orderer/config"
+	"github.com/Chaguar/orderer/config/generate"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/fabric"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )

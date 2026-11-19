@@ -5,8 +5,8 @@ import (
 	"context"
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/batcher"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/batcher"
 )
 
 type FakeBAFSender struct {

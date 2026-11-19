@@ -20,11 +20,11 @@ import (
 
 	"github.com/Chaguar/common/tools/configtxgen"
 	"github.com/Chaguar/common/tools/cryptogen"
+	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/config/generate"
+	"github.com/Chaguar/orderer/internal/cryptogen/ca"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/cockroachdb/errors"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
-	"github.com/hyperledger/fabric-x-orderer/config/generate"
-	"github.com/hyperledger/fabric-x-orderer/internal/cryptogen/ca"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
 )
 
 // GenerateCryptoConfigWithProfile provides all crypto material of Arma network, divided into parties and written to files in a folder structure.

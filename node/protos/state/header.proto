@@ -8,7 +8,7 @@ syntax = "proto3";
 
 package state;
 
-option go_package = "github.com/hyperledger/fabric-x-orderer/node/protos/state";
+option go_package = "github.com/Chaguar/orderer/node/protos/state";
 
 // Header represents the header of a proposal as part of a consensus decision
 message Header {

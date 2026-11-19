@@ -10,7 +10,7 @@ import (
 	"math"
 	"testing"
 
-	stateprotos "github.com/hyperledger/fabric-x-orderer/node/protos/state"
+	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

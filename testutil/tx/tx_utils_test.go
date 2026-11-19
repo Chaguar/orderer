@@ -16,9 +16,9 @@ import (
 
 	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/node/crypto"
+	"github.com/Chaguar/orderer/testutil/tlsgen"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/node/crypto"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tlsgen"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )

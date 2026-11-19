@@ -18,8 +18,8 @@ import (
 
 	"github.com/Chaguar/common/common/crypto/tlsgen"
 	"github.com/Chaguar/common/tools/configtxgen"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient"
-	arma_testutil "github.com/hyperledger/fabric-x-orderer/testutil/fabric"
+	"github.com/Chaguar/orderer/common/deliverclient"
+	arma_testutil "github.com/Chaguar/orderer/testutil/fabric"
 )
 
 func TestBlockVerifierAssembler(t *testing.T) {

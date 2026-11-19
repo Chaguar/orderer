@@ -11,9 +11,9 @@ import (
 	"encoding/hex"
 	"fmt"
 
+	"github.com/Chaguar/orderer/common/utils"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
 	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )

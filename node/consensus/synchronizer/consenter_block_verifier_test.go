@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/testutil/block"
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/testutil/block"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

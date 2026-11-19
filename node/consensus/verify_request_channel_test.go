@@ -9,13 +9,13 @@ package consensus
 import (
 	"testing"
 
+	policyMocks "github.com/Chaguar/orderer/common/policy/mocks"
+	nodeconfig "github.com/Chaguar/orderer/node/config"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
+	configMocks "github.com/Chaguar/orderer/test/mocks"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
-	nodeconfig "github.com/hyperledger/fabric-x-orderer/node/config"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	configMocks "github.com/hyperledger/fabric-x-orderer/test/mocks"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/tx"
 	"github.com/stretchr/testify/require"
 )
 

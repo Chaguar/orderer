@@ -10,10 +10,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/testutil"
 
-	"github.com/hyperledger/fabric-x-orderer/config/generate"
+	"github.com/Chaguar/orderer/config/generate"
 
 	"github.com/stretchr/testify/require"
 )

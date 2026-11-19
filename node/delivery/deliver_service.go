@@ -13,12 +13,12 @@ import (
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/common/policies"
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/deliver"
+	"github.com/Chaguar/orderer/common/ledger/blockledger"
+	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-orderer/common/deliver"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/pkg/errors"
 )
 

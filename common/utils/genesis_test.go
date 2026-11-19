@@ -9,7 +9,7 @@ package utils_test
 import (
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
+	"github.com/Chaguar/orderer/common/utils"
 
 	"github.com/Chaguar/common/protoutil"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"

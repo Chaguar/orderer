@@ -11,10 +11,10 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 )
 
 type ClientRole struct {

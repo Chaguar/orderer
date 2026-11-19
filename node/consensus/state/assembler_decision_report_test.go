@@ -10,9 +10,9 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	consensus_state "github.com/hyperledger/fabric-x-orderer/node/consensus/state"
-	stateprotos "github.com/hyperledger/fabric-x-orderer/node/protos/state"
+	"github.com/Chaguar/orderer/common/types"
+	consensus_state "github.com/Chaguar/orderer/node/consensus/state"
+	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"

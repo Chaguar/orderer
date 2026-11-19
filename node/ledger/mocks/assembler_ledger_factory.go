@@ -4,8 +4,8 @@ package mocks
 import (
 	"sync"
 
+	"github.com/Chaguar/orderer/node/ledger"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/node/ledger"
 )
 
 type FakeAssemblerLedgerFactory struct {

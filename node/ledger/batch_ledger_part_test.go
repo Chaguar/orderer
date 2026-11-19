@@ -12,9 +12,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/blkstorage"
-	"github.com/hyperledger/fabric-x-orderer/common/monitoring"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/ledger/blkstorage"
+	"github.com/Chaguar/orderer/common/monitoring"
+	"github.com/Chaguar/orderer/common/types"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"

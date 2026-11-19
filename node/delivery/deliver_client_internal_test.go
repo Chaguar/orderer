@@ -10,10 +10,10 @@ import (
 	"io"
 	"testing"
 
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider/fake"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider/fake"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"

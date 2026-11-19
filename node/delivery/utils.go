@@ -9,13 +9,13 @@ package delivery
 import (
 	"time"
 
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/node/config"
+	"github.com/Chaguar/orderer/node/consensus/state"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/comm"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
-	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/pkg/errors"
 )
 

@@ -12,11 +12,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/comm/tlsgen"
-	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
-	"github.com/hyperledger/fabric-x-orderer/testutil"
-	"github.com/hyperledger/fabric-x-orderer/testutil/stub"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/comm/tlsgen"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
+	"github.com/Chaguar/orderer/testutil"
+	"github.com/Chaguar/orderer/testutil/stub"
 	"github.com/stretchr/testify/require"
 )
 

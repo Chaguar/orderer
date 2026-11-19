@@ -10,17 +10,17 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/Chaguar/orderer/node/config"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/hyperledger/fabric-x-orderer/node/config"
 
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/common/policies"
 	"github.com/Chaguar/common/common/util"
+	"github.com/Chaguar/orderer/common/deliver"
+	"github.com/Chaguar/orderer/common/ledger/blockledger"
+	"github.com/Chaguar/orderer/common/utils"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/deliver"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger/blockledger"
-	"github.com/hyperledger/fabric-x-orderer/common/utils"
 
 	"github.com/Chaguar/common/protoutil"
 )

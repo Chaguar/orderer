@@ -18,9 +18,9 @@ import (
 	"github.com/Chaguar/common/common/policydsl"
 	fabmsp "github.com/Chaguar/common/msp"
 	"github.com/Chaguar/common/protoutil"
+	mspmock "github.com/Chaguar/orderer/common/msputils/mock"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
-	mspmock "github.com/hyperledger/fabric-x-orderer/common/msputils/mock"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )

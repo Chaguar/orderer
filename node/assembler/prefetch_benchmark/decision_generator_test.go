@@ -9,8 +9,8 @@ package prefetch_benchmark_test
 import (
 	"time"
 
+	"github.com/Chaguar/orderer/common/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/hyperledger/fabric-x-orderer/common/types"
 )
 
 func generateDecisions(logger *flogging.FabricLogger, batchesChan <-chan types.BatchID, decisionsPerSecond float64, maxBatchesPerDecision int, monitor *statsMonitor) <-chan []types.BatchID {

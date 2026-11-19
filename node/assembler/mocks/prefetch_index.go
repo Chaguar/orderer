@@ -4,8 +4,8 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
-	"github.com/hyperledger/fabric-x-orderer/node/assembler"
+	"github.com/Chaguar/orderer/common/types"
+	"github.com/Chaguar/orderer/node/assembler"
 )
 
 type FakePrefetchIndexer struct {

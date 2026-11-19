@@ -9,7 +9,7 @@ package consensus
 import (
 	"testing"
 
-	"github.com/hyperledger/fabric-x-orderer/common/types"
+	"github.com/Chaguar/orderer/common/types"
 	"github.com/stretchr/testify/require"
 )
 

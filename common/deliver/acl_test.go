@@ -11,9 +11,9 @@ import (
 
 	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/protoutil"
+	"github.com/Chaguar/orderer/common/deliver"
+	"github.com/Chaguar/orderer/common/deliver/mock"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/deliver"
-	"github.com/hyperledger/fabric-x-orderer/common/deliver/mock"
 
 	. "github.com/Chaguar/common/tools/test"
 	. "github.com/onsi/ginkgo/v2"

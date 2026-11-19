@@ -4,9 +4,9 @@ package fake
 import (
 	"sync"
 
+	"github.com/Chaguar/orderer/common/deliverclient"
+	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient"
-	"github.com/hyperledger/fabric-x-orderer/common/deliverclient/blocksprovider"
 )
 
 type UpdatableBlockVerifier struct {

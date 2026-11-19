@@ -4,8 +4,8 @@ package mock
 import (
 	"sync"
 
+	"github.com/Chaguar/orderer/common/ledger"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/hyperledger/fabric-x-orderer/common/ledger"
 )
 
 type FileLedgerBlockStore struct {
