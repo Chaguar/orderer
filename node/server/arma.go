@@ -11,6 +11,7 @@ import (
 	"os"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
 	msp "github.com/hyperledger/fabric-x-orderer/common/msputils"
 	"github.com/hyperledger/fabric-x-orderer/common/policy"
 	"github.com/hyperledger/fabric-x-orderer/config"
@@ -171,7 +172,7 @@ func launchBatcher(stop chan struct{}) func(configFile *os.File) {
 			batcherLogger = flogging.MustGetLogger(fmt.Sprintf("Batcher%dShard%d", nodeConfig.PartyId, nodeConfig.ShardId))
 		}
 
-		batcher := batcher.CreateBatcher(nodeConfig, config, batcherLogger, stop, &batcher.ConsensusDecisionReplicatorFactory{}, &batcher.ConsenterControlEventSenderFactory{}, signer)
+		batcher := batcher.CreateBatcher(nodeConfig, config, batcherLogger, stop, &batcher.ConsensusDecisionReplicatorFactory{}, &controlevent.SenderFactory{}, signer)
 		batcher.StartBatcherService()
 		batcher.Run()
 

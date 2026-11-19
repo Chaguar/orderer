@@ -21,6 +21,7 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/hyperledger/fabric-x-orderer/common/configstore"
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
 	"github.com/hyperledger/fabric-x-orderer/common/operations"
 	policyMocks "github.com/hyperledger/fabric-x-orderer/common/policy/mocks"
 	"github.com/hyperledger/fabric-x-orderer/common/types"
@@ -199,7 +200,7 @@ func createBatchersWithConfigNumber(t *testing.T, num int, shardID types.ShardID
 		configs = append(configs, conf)
 
 		fullConfig := pinning.ConfigurationWithRouters(parties[i], routerKeyPairs)
-		batcher := batcher.CreateBatcher(conf, fullConfig, logger, make(chan struct{}), stubConsenters[i], &batcher.ConsenterControlEventSenderFactory{}, signer)
+		batcher := batcher.CreateBatcher(conf, fullConfig, logger, make(chan struct{}), stubConsenters[i], &controlevent.SenderFactory{}, signer)
 		batcher.Net = batcherNodes[i]
 		batchers = append(batchers, batcher)
 		batcher.Run()
@@ -247,7 +248,7 @@ func recoverBatcher(t *testing.T, ca tlsgen.CA, logger *flogging.FabricLogger, c
 
 	signer := newBatcherNode.signer
 
-	batcher := batcher.CreateBatcher(conf, pinning.ConfigurationWithRouters(conf.PartyId, routerKeyPairs), logger, make(chan struct{}), sc, &batcher.ConsenterControlEventSenderFactory{}, signer)
+	batcher := batcher.CreateBatcher(conf, pinning.ConfigurationWithRouters(conf.PartyId, routerKeyPairs), logger, make(chan struct{}), sc, &controlevent.SenderFactory{}, signer)
 	batcher.Net = newBatcherNode
 	batcher.Run()
 

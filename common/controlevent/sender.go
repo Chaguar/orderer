@@ -4,38 +4,40 @@ Copyright IBM Corp. All Rights Reserved.
 SPDX-License-Identifier: Apache-2.0
 */
 
-package batcher
+// Package controlevent sends control events to consenters.
+package controlevent
 
 import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
+	"github.com/hyperledger/fabric-x-orderer/node/comm"
 	"github.com/hyperledger/fabric-x-orderer/node/config"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	protos "github.com/hyperledger/fabric-x-orderer/node/protos/comm"
 	"google.golang.org/grpc"
 )
 
-//go:generate counterfeiter -o mocks/consenter_control_event_sender_creator.go . ConsenterControlEventSenderCreator
-type ConsenterControlEventSenderCreator interface {
-	CreateConsenterControlEventSender(TLSPrivateKeyFile config.RawBytes, TLSCertificateFile config.RawBytes, consenterInfo config.ConsenterInfo) ConsenterControlEventSender
+type SenderCreator interface {
+	CreateSender(TLSPrivateKey config.RawBytes, TLSCertificate config.RawBytes, consenterInfo config.ConsenterInfo) Sender
 }
 
-type ConsenterControlEventSenderFactory struct{}
+type SenderFactory struct{}
 
-func (f *ConsenterControlEventSenderFactory) CreateConsenterControlEventSender(TLSPrivateKey config.RawBytes, TLSCertificate config.RawBytes, consenterInfo config.ConsenterInfo) ConsenterControlEventSender {
+func (f *SenderFactory) CreateSender(TLSPrivateKey config.RawBytes, TLSCertificate config.RawBytes, consenterInfo config.ConsenterInfo) Sender {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &ConsenterControlEventStream{ctx: ctx, cancel: cancel, ConsenterInfo: consenterInfo, TLSPrivateKey: TLSPrivateKey, TLSCertificate: TLSCertificate}
+	return &stream{ctx: ctx, cancel: cancel, ConsenterInfo: consenterInfo, TLSPrivateKey: TLSPrivateKey, TLSCertificate: TLSCertificate}
 }
 
-//go:generate counterfeiter -o mocks/consenter_control_event_sender.go . ConsenterControlEventSender
-type ConsenterControlEventSender interface {
+//go:generate counterfeiter -o mocks/sender.go . Sender
+type Sender interface {
 	SendControlEvent(ce state.ControlEvent) error
 	Close()
 }
 
-type ConsenterControlEventStream struct {
+type stream struct {
 	lock           sync.Mutex
 	ctx            context.Context // cancelled by Close: unblocks a Send in progress and fails later sends
 	cancel         context.CancelFunc
@@ -46,7 +48,7 @@ type ConsenterControlEventStream struct {
 	TLSCertificate config.RawBytes
 }
 
-func (s *ConsenterControlEventStream) createStream() error {
+func (s *stream) createStream() error {
 	cc := clientConfig(s.TLSPrivateKey, s.TLSCertificate, s.ConsenterInfo.TLSCACerts)
 	conn, err := cc.Dial(s.ConsenterInfo.Endpoint)
 	if err != nil {
@@ -62,7 +64,7 @@ func (s *ConsenterControlEventStream) createStream() error {
 	return nil
 }
 
-func (s *ConsenterControlEventStream) SendControlEvent(ce state.ControlEvent) error {
+func (s *stream) SendControlEvent(ce state.ControlEvent) error {
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	if s.ctx.Err() != nil {
@@ -83,17 +85,41 @@ func (s *ConsenterControlEventStream) SendControlEvent(ce state.ControlEvent) er
 	return nil
 }
 
-func (s *ConsenterControlEventStream) Close() {
+func (s *stream) Close() {
 	s.cancel()
 	s.lock.Lock()
 	defer s.lock.Unlock()
 	s.closeConn()
 }
 
-func (s *ConsenterControlEventStream) closeConn() {
+func (s *stream) closeConn() {
 	s.stream = nil
 	if s.conn != nil {
 		s.conn.Close()
 		s.conn = nil
 	}
+}
+
+func clientConfig(TLSPrivateKeyFile config.RawBytes, TLSCertificateFile config.RawBytes, TlsCACert []config.RawBytes) comm.ClientConfig {
+	var tlsCAs [][]byte
+	for _, cert := range TlsCACert {
+		tlsCAs = append(tlsCAs, cert)
+	}
+
+	cc := comm.ClientConfig{
+		AsyncConnect: true,
+		KaOpts: comm.KeepaliveOptions{
+			ClientInterval: time.Hour,
+			ClientTimeout:  time.Hour,
+		},
+		SecOpts: comm.SecureOptions{
+			Key:               TLSPrivateKeyFile,
+			Certificate:       TLSCertificateFile,
+			RequireClientCert: true,
+			UseTLS:            true,
+			ServerRootCAs:     tlsCAs,
+		},
+		DialTimeout: time.Second * 5,
+	}
+	return cc
 }

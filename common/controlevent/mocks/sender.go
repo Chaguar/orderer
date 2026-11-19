@@ -4,11 +4,11 @@ package mocks
 import (
 	"sync"
 
-	"github.com/hyperledger/fabric-x-orderer/node/batcher"
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 )
 
-type FakeConsenterControlEventSender struct {
+type FakeSender struct {
 	CloseStub        func()
 	closeMutex       sync.RWMutex
 	closeArgsForCall []struct {
@@ -28,7 +28,7 @@ type FakeConsenterControlEventSender struct {
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeConsenterControlEventSender) Close() {
+func (fake *FakeSender) Close() {
 	fake.closeMutex.Lock()
 	fake.closeArgsForCall = append(fake.closeArgsForCall, struct {
 	}{})
@@ -40,19 +40,19 @@ func (fake *FakeConsenterControlEventSender) Close() {
 	}
 }
 
-func (fake *FakeConsenterControlEventSender) CloseCallCount() int {
+func (fake *FakeSender) CloseCallCount() int {
 	fake.closeMutex.RLock()
 	defer fake.closeMutex.RUnlock()
 	return len(fake.closeArgsForCall)
 }
 
-func (fake *FakeConsenterControlEventSender) CloseCalls(stub func()) {
+func (fake *FakeSender) CloseCalls(stub func()) {
 	fake.closeMutex.Lock()
 	defer fake.closeMutex.Unlock()
 	fake.CloseStub = stub
 }
 
-func (fake *FakeConsenterControlEventSender) SendControlEvent(arg1 state.ControlEvent) error {
+func (fake *FakeSender) SendControlEvent(arg1 state.ControlEvent) error {
 	fake.sendControlEventMutex.Lock()
 	ret, specificReturn := fake.sendControlEventReturnsOnCall[len(fake.sendControlEventArgsForCall)]
 	fake.sendControlEventArgsForCall = append(fake.sendControlEventArgsForCall, struct {
@@ -71,26 +71,26 @@ func (fake *FakeConsenterControlEventSender) SendControlEvent(arg1 state.Control
 	return fakeReturns.result1
 }
 
-func (fake *FakeConsenterControlEventSender) SendControlEventCallCount() int {
+func (fake *FakeSender) SendControlEventCallCount() int {
 	fake.sendControlEventMutex.RLock()
 	defer fake.sendControlEventMutex.RUnlock()
 	return len(fake.sendControlEventArgsForCall)
 }
 
-func (fake *FakeConsenterControlEventSender) SendControlEventCalls(stub func(state.ControlEvent) error) {
+func (fake *FakeSender) SendControlEventCalls(stub func(state.ControlEvent) error) {
 	fake.sendControlEventMutex.Lock()
 	defer fake.sendControlEventMutex.Unlock()
 	fake.SendControlEventStub = stub
 }
 
-func (fake *FakeConsenterControlEventSender) SendControlEventArgsForCall(i int) state.ControlEvent {
+func (fake *FakeSender) SendControlEventArgsForCall(i int) state.ControlEvent {
 	fake.sendControlEventMutex.RLock()
 	defer fake.sendControlEventMutex.RUnlock()
 	argsForCall := fake.sendControlEventArgsForCall[i]
 	return argsForCall.arg1
 }
 
-func (fake *FakeConsenterControlEventSender) SendControlEventReturns(result1 error) {
+func (fake *FakeSender) SendControlEventReturns(result1 error) {
 	fake.sendControlEventMutex.Lock()
 	defer fake.sendControlEventMutex.Unlock()
 	fake.SendControlEventStub = nil
@@ -99,7 +99,7 @@ func (fake *FakeConsenterControlEventSender) SendControlEventReturns(result1 err
 	}{result1}
 }
 
-func (fake *FakeConsenterControlEventSender) SendControlEventReturnsOnCall(i int, result1 error) {
+func (fake *FakeSender) SendControlEventReturnsOnCall(i int, result1 error) {
 	fake.sendControlEventMutex.Lock()
 	defer fake.sendControlEventMutex.Unlock()
 	fake.SendControlEventStub = nil
@@ -113,7 +113,7 @@ func (fake *FakeConsenterControlEventSender) SendControlEventReturnsOnCall(i int
 	}{result1}
 }
 
-func (fake *FakeConsenterControlEventSender) Invocations() map[string][][]interface{} {
+func (fake *FakeSender) Invocations() map[string][][]interface{} {
 	fake.invocationsMutex.RLock()
 	defer fake.invocationsMutex.RUnlock()
 	fake.closeMutex.RLock()
@@ -127,7 +127,7 @@ func (fake *FakeConsenterControlEventSender) Invocations() map[string][][]interf
 	return copiedInvocations
 }
 
-func (fake *FakeConsenterControlEventSender) recordInvocation(key string, args []interface{}) {
+func (fake *FakeSender) recordInvocation(key string, args []interface{}) {
 	fake.invocationsMutex.Lock()
 	defer fake.invocationsMutex.Unlock()
 	if fake.invocations == nil {
@@ -139,4 +139,4 @@ func (fake *FakeConsenterControlEventSender) recordInvocation(key string, args [
 	fake.invocations[key] = append(fake.invocations[key], args)
 }
 
-var _ batcher.ConsenterControlEventSender = new(FakeConsenterControlEventSender)
+var _ controlevent.Sender = new(FakeSender)

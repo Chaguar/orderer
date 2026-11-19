@@ -12,12 +12,13 @@ import (
 	"time"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/pkg/errors"
 )
 
 type ControlEventBroadcaster struct {
-	senders          []ConsenterControlEventSender
+	senders          []controlevent.Sender
 	threshold        int
 	n                int
 	f                int
@@ -33,13 +34,13 @@ func (b *ControlEventBroadcaster) BroadcastControlEvent(ce state.ControlEvent, c
 	delay := b.minRetryInterval
 
 	for {
-		var failed []ConsenterControlEventSender
+		var failed []controlevent.Sender
 		var failedMu sync.Mutex
 		var wg sync.WaitGroup
 
 		for _, sender := range retrySenders {
 			wg.Add(1)
-			go func(s ConsenterControlEventSender) {
+			go func(s controlevent.Sender) {
 				defer wg.Done()
 				if err := b.sendControlEvent(ce, s); err != nil {
 					failedMu.Lock()
@@ -80,7 +81,7 @@ func (b *ControlEventBroadcaster) BroadcastControlEvent(ce state.ControlEvent, c
 	}
 }
 
-func (b *ControlEventBroadcaster) sendControlEvent(ce state.ControlEvent, sender ConsenterControlEventSender) error {
+func (b *ControlEventBroadcaster) sendControlEvent(ce state.ControlEvent, sender controlevent.Sender) error {
 	t1 := time.Now()
 
 	defer func() {
@@ -95,7 +96,7 @@ func (b *ControlEventBroadcaster) sendControlEvent(ce state.ControlEvent, sender
 	return nil
 }
 
-func NewControlEventBroadcaster(senders []ConsenterControlEventSender, n int, f int, minRetryInterval time.Duration, maxRetryDelay time.Duration, logger *flogging.FabricLogger, ctx context.Context, cancelFunc context.CancelFunc) *ControlEventBroadcaster {
+func NewControlEventBroadcaster(senders []controlevent.Sender, n int, f int, minRetryInterval time.Duration, maxRetryDelay time.Duration, logger *flogging.FabricLogger, ctx context.Context, cancelFunc context.CancelFunc) *ControlEventBroadcaster {
 	return &ControlEventBroadcaster{
 		senders:          senders,
 		n:                n,

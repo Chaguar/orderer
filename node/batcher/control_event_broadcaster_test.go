@@ -11,8 +11,9 @@ import (
 	"testing"
 	"time"
 
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent"
+	"github.com/hyperledger/fabric-x-orderer/common/controlevent/mocks"
 	"github.com/hyperledger/fabric-x-orderer/node/batcher"
-	"github.com/hyperledger/fabric-x-orderer/node/batcher/mocks"
 	"github.com/hyperledger/fabric-x-orderer/node/consensus/state"
 	"github.com/hyperledger/fabric-x-orderer/testutil"
 
@@ -44,15 +45,15 @@ func TestBroadcastControlEventQuorumScenarios(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			logger := testutil.CreateLogger(t, 1)
 
-			var senders []batcher.ConsenterControlEventSender
+			var senders []controlevent.Sender
 			for i := 0; i < tt.succ; i++ {
-				s := &mocks.FakeConsenterControlEventSender{}
+				s := &mocks.FakeSender{}
 				s.SendControlEventReturns(nil)
 				senders = append(senders, s)
 			}
 
 			for i := 0; i < tt.fail; i++ {
-				s := &mocks.FakeConsenterControlEventSender{}
+				s := &mocks.FakeSender{}
 				s.SendControlEventReturns(errors.New(""))
 				senders = append(senders, s)
 			}
@@ -78,23 +79,23 @@ func TestBroadcastControlEventQuorumScenarios(t *testing.T) {
 
 func TestControlEventBroadcasterSenderRetry(t *testing.T) {
 	logger := testutil.CreateLogger(t, 1)
-	var senders []batcher.ConsenterControlEventSender
+	var senders []controlevent.Sender
 
 	// two senders succeed
 	for i := 0; i < 2; i++ {
-		s := &mocks.FakeConsenterControlEventSender{}
+		s := &mocks.FakeSender{}
 		s.SendControlEventReturns(nil)
 		senders = append(senders, s)
 	}
 
 	// sender fails once, then succeeds
-	sRetry := &mocks.FakeConsenterControlEventSender{}
+	sRetry := &mocks.FakeSender{}
 	sRetry.SendControlEventReturnsOnCall(1, errors.New(""))
 	sRetry.SendControlEventReturnsOnCall(2, nil)
 	senders = append(senders, sRetry)
 
 	// sender always fail
-	sFail := &mocks.FakeConsenterControlEventSender{}
+	sFail := &mocks.FakeSender{}
 	sFail.SendControlEventReturns(errors.New(""))
 	senders = append(senders, sFail)
 
