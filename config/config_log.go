@@ -7,7 +7,6 @@ SPDX-License-Identifier: Apache-2.0
 package config
 
 import (
-	"bytes"
 	"crypto/sha256"
 	"crypto/x509"
 	"encoding/hex"
@@ -91,24 +90,26 @@ func protoValue(field protoreflect.FieldDescriptor, value protoreflect.Value) an
 	}
 }
 
-// certificatesForLog returns the hex SHA-256 hash of each DER certificate or redacts invalid input.
+// certificatesForLog returns the SHA-256 hash of the DER of each PEM certificate in data,
+// ignoring any other content, or redacts data that holds no valid certificate.
 func certificatesForLog(data []byte) string {
 	if len(data) == 0 {
 		return "<empty>"
 	}
 
-	var certs []string
-	var decoded []byte
+	var hashes []string
 	for block, rest := pem.Decode(data); block != nil; block, rest = pem.Decode(rest) {
-		if _, err := x509.ParseCertificate(block.Bytes); err != nil || block.Type != "CERTIFICATE" || len(block.Headers) > 0 {
-			break
+		if block.Type != "CERTIFICATE" {
+			continue
+		}
+		if _, err := x509.ParseCertificate(block.Bytes); err != nil {
+			continue
 		}
 		hash := sha256.Sum256(block.Bytes)
-		certs = append(certs, hex.EncodeToString(hash[:]))
-		decoded = append(decoded, pem.EncodeToMemory(block)...)
+		hashes = append(hashes, "sha256:"+hex.EncodeToString(hash[:]))
 	}
-	if len(certs) == 0 || !bytes.Equal(bytes.Join(bytes.Fields(decoded), nil), bytes.Join(bytes.Fields(data), nil)) {
+	if len(hashes) == 0 {
 		return "<redacted, not a valid certificate>"
 	}
-	return strings.Join(certs, ",")
+	return strings.Join(hashes, ",")
 }

@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package config_test
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
@@ -24,6 +25,7 @@ import (
 	"github.com/hyperledger/fabric-x-orderer/common/utils"
 	"github.com/hyperledger/fabric-x-orderer/config"
 	"github.com/hyperledger/fabric-x-orderer/testutil"
+	"github.com/hyperledger/fabric-x-orderer/testutil/tlsgen"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -80,15 +82,58 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 			}
 			tlsCert := readDER(general.TLSConfig.Certificate)
 			tlsCertHash := sha256.Sum256(tlsCert)
-			require.Contains(t, sharedYAML, hex.EncodeToString(tlsCertHash[:]))
+			require.Contains(t, sharedYAML, "sha256:"+hex.EncodeToString(tlsCertHash[:]))
 
+			tlsCertBase64 := base64.StdEncoding.EncodeToString(tlsCert)
 			privateKey := base64.StdEncoding.EncodeToString(readDER(general.TLSConfig.PrivateKey))
 			for _, entry := range entries {
 				require.NotContains(t, entry.Message, hsmPIN)
 				require.NotContains(t, entry.Message, "-----BEGIN")
-				require.NotContains(t, entry.Message, base64.StdEncoding.EncodeToString(tlsCert))
+				require.NotContains(t, entry.Message, tlsCertBase64)
 				require.NotContains(t, entry.Message, privateKey)
 			}
+		})
+	}
+}
+
+func TestCertificatesForLog(t *testing.T) {
+	ca, err := tlsgen.NewCA()
+	require.NoError(t, err)
+	first, err := ca.NewClientCertKeyPair()
+	require.NoError(t, err)
+	second, err := ca.NewClientCertKeyPair()
+	require.NoError(t, err)
+
+	hashOf := func(certPEM []byte) string {
+		block, _ := pem.Decode(certPEM)
+		require.NotNil(t, block)
+		hash := sha256.Sum256(block.Bytes)
+		return "sha256:" + hex.EncodeToString(hash[:])
+	}
+	join := func(parts ...[]byte) []byte {
+		return bytes.Join(parts, []byte("\n"))
+	}
+	notCert := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: []byte("not a certificate")})
+	const redacted = "<redacted, not a valid certificate>"
+
+	for _, tc := range []struct {
+		name string
+		data []byte
+		want string
+	}{
+		{"empty", nil, "<empty>"},
+		{"single certificate", first.Cert, hashOf(first.Cert)},
+		{"certificate bundle", join(first.Cert, second.Cert), hashOf(first.Cert) + "," + hashOf(second.Cert)},
+		{"text around certificates", join([]byte("Bag Attributes\nsubject=CN=x"), first.Cert, []byte("issuer=CN=y"), second.Cert), hashOf(first.Cert) + "," + hashOf(second.Cert)},
+		{"certificate with private key", join(first.Cert, first.Key), hashOf(first.Cert)},
+		{"private key only", first.Key, redacted},
+		{"invalid certificate block", notCert, redacted},
+		{"not PEM", []byte("plain text"), redacted},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			got := config.CertificatesForLog(tc.data)
+			require.Equal(t, tc.want, got)
+			require.NotContains(t, got, "-----BEGIN")
 		})
 	}
 }
