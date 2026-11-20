@@ -108,10 +108,7 @@ func clientConfig(TLSPrivateKeyFile config.RawBytes, TLSCertificateFile config.R
 
 	cc := comm.ClientConfig{
 		AsyncConnect: true,
-		KaOpts: comm.KeepaliveOptions{
-			ClientInterval: time.Hour,
-			ClientTimeout:  time.Hour,
-		},
+		KaOpts:       comm.DefaultKeepaliveOptions,
 		SecOpts: comm.SecureOptions{
 			Key:               TLSPrivateKeyFile,
 			Certificate:       TLSCertificateFile,
