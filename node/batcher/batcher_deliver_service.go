@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package batcher
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -38,7 +39,7 @@ func (d *BatcherDeliverService) Broadcast(_ orderer.AtomicBroadcast_BroadcastSer
 
 func (d *BatcherDeliverService) Deliver(stream orderer.AtomicBroadcast_DeliverServer) error {
 	handler := deliver.NewHandler(
-		&chainManager{ledgerArray: d.LedgerArray, logger: d.Logger},
+		&chainManager{ledgerArray: d.LedgerArray, logger: d.Logger, ctx: stream.Context()},
 		time.Hour,
 		true, // mutualTLS
 		deliver.NewMetrics(&disabled.Provider{}),
@@ -80,6 +81,7 @@ func (r *responseSender) DataType() string {
 type chainManager struct {
 	ledgerArray *ledger.BatchLedgerArray
 	logger      *flogging.FabricLogger
+	ctx         context.Context // the request's stream context
 }
 
 func (c *chainManager) GetChain(chainID string) deliver.Chain {
@@ -100,12 +102,13 @@ func (c *chainManager) GetChain(chainID string) deliver.Chain {
 		c.logger.Errorf("Requested party ID %d does not exist in batch ledger array", partyID)
 		return nil
 	} else {
-		return &chainReader{ledger: ledger.Ledger()}
+		return &chainReader{ledger: ledger.Ledger(), ctx: c.ctx}
 	}
 }
 
 type chainReader struct {
 	ledger blockledger.Reader
+	ctx    context.Context
 }
 
 func (c *chainReader) Sequence() uint64 {
@@ -117,7 +120,7 @@ func (c *chainReader) PolicyManager() policies.Manager {
 }
 
 func (c *chainReader) Reader() blockledger.Reader {
-	return &delayedReader{Reader: c.ledger}
+	return &delayedReader{Reader: c.ledger, ctx: c.ctx}
 }
 
 func (c *chainReader) Errored() <-chan struct{} {
@@ -126,11 +129,19 @@ func (c *chainReader) Errored() <-chan struct{} {
 
 type delayedReader struct {
 	blockledger.Reader
+	ctx context.Context // the request's stream context; blockledger.Reader.Iterator takes none
 }
 
+// Iterator waits for an empty part's first batch, until the request's stream ends.
 func (d *delayedReader) Iterator(startType *orderer.SeekPosition) (blockledger.Iterator, uint64) {
+	ticker := time.NewTicker(100 * time.Millisecond)
+	defer ticker.Stop()
 	for d.Height() == 0 {
-		time.Sleep(time.Millisecond)
+		select {
+		case <-d.ctx.Done():
+			return &blockledger.NotFoundErrorIterator{}, 0
+		case <-ticker.C:
+		}
 	}
 	return d.Reader.Iterator(startType)
 }
