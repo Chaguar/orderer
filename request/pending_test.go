@@ -693,3 +693,121 @@ func TestPendingStoreSubmitRacingRemove(t *testing.T) {
 		}
 	})
 }
+
+// newCountingStrikeStore creates a pending store, not started yet, whose first-strike callback counts its calls and the
+// calls running at once, and runs hold for each call. The store ticks every epoch / 2, and an epoch ends at the first
+// tick more than Epoch after the last one, so epochs last about 1.5 Epoch.
+func newCountingStrikeStore(t *testing.T, epoch, firstStrike, secondStrike time.Duration, calls, running, maxRunning *atomic.Int32, hold func()) *request.PendingStore {
+	ticker := time.NewTicker(epoch / 2)
+	t.Cleanup(ticker.Stop)
+	ps := &request.PendingStore{
+		ReqIDLifetime:   time.Minute,
+		ReqIDGCInterval: time.Minute,
+		Logger:          testutil.CreateLogger(t, 0),
+		StartTime:       time.Now(),
+		Time:            ticker.C,
+		Epoch:           epoch,
+		Inspector:       &reqInspector{},
+		OnDelete:        func(string) {},
+		FirstStrikeCallback: func([]byte) {
+			calls.Add(1)
+			n := running.Add(1)
+			for m := maxRunning.Load(); n > m && !maxRunning.CompareAndSwap(m, n); m = maxRunning.Load() {
+			}
+			hold()
+			running.Add(-1)
+		},
+		FirstStrikeThreshold:  firstStrike,
+		SecondStrikeCallback:  func() {},
+		SecondStrikeThreshold: secondStrike,
+	}
+	ps.Init()
+	return ps
+}
+
+func submitNumbered(t *testing.T, ps *request.PendingStore, n uint64) {
+	req := make([]byte, 8)
+	binary.BigEndian.PutUint64(req, n)
+	require.NoError(t, ps.Submit(req))
+}
+
+// Scenario:
+//  1. Start a pending store with the first strike after 1 s and the second 500 ms later, whose first-strike callback
+//     takes 750 ms, past the second strike.
+//  2. Submit two requests together, and wait until the callback of one of them returns.
+//  3. Expect the other request not to be passed to the callback: the forwarding of the strike stopped at the second
+//     strike.
+func TestPendingStoreForwardingOfAStrikeStopsAtTheSecondStrike(t *testing.T) {
+	var calls, running, maxRunning atomic.Int32
+	ps := newCountingStrikeStore(t, 100*time.Millisecond, time.Second, 500*time.Millisecond, &calls, &running, &maxRunning,
+		func() { time.Sleep(750 * time.Millisecond) })
+	t.Cleanup(ps.Close)
+
+	submitNumbered(t, ps, 1) // before Start, so that both requests are in one bucket
+	submitNumbered(t, ps, 2)
+	ps.Start()
+	require.Eventually(t, func() bool { return calls.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return running.Load() == 0 }, 10*time.Second, 10*time.Millisecond)
+	require.Never(t, func() bool { return calls.Load() > 1 }, 300*time.Millisecond, 10*time.Millisecond)
+}
+
+// Scenario:
+//  1. Start a pending store with the first strike after 1 s and no second strike within the test, whose first-strike
+//     callback waits until released.
+//  2. Submit two requests together, and wait for the callback of one of them.
+//  3. Reset the store, as a new term does (or close it), then release the callback.
+//  4. Expect the other request not to be passed to the callback in the old term.
+func TestPendingStoreForwardingOfAStrikeStopsAtResetOrClose(t *testing.T) {
+	for _, closeStore := range []bool{false, true} {
+		name := "reset"
+		if closeStore {
+			name = "close"
+		}
+		t.Run(name, func(t *testing.T) {
+			gate := make(chan struct{})
+			var calls, running, maxRunning atomic.Int32
+			ps := newCountingStrikeStore(t, 100*time.Millisecond, time.Second, time.Hour, &calls, &running, &maxRunning,
+				func() { <-gate })
+			t.Cleanup(ps.Close)
+
+			submitNumbered(t, ps, 1) // before Start, so that both requests are in one bucket
+			submitNumbered(t, ps, 2)
+			ps.Start()
+			require.Eventually(t, func() bool { return calls.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
+
+			if closeStore {
+				ps.Close()
+			} else {
+				ps.ResetTimestamps()
+			}
+			close(gate)
+			require.Never(t, func() bool { return calls.Load() > 1 }, 500*time.Millisecond, 10*time.Millisecond)
+		})
+	}
+}
+
+// Scenario:
+//  1. Start a pending store with 100 ms epochs (about 150 ms in practice), the first strike after 200 ms and the second
+//     1 s later, whose first-strike callback takes 500 ms, as when forwarding waits on a primary that ignores this
+//     batcher.
+//  2. Submit 20 requests every 100 ms for 5 s, so that a strike of 20 or more requests fires every epoch.
+//  3. Expect each strike's forwarding to stop at its second strike, so that at most about
+//     (SecondStrikeThreshold + one callback) / epoch, about 10, forwarding goroutines run at once. Without the stop,
+//     each strike would take 10 s or more, and one would run for every strike, about 30.
+func TestPendingStoreForwardingGoroutinesAreBounded(t *testing.T) {
+	var calls, running, maxRunning atomic.Int32
+	ps := newCountingStrikeStore(t, 100*time.Millisecond, 200*time.Millisecond, time.Second, &calls, &running, &maxRunning,
+		func() { time.Sleep(500 * time.Millisecond) })
+	t.Cleanup(ps.Close)
+	ps.Start()
+
+	for n := uint64(0); n < 1000; n += 20 {
+		for i := range uint64(20) {
+			submitNumbered(t, ps, n+i)
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	require.Eventually(t, func() bool { return calls.Load() >= 30 }, 10*time.Second, 10*time.Millisecond)
+	t.Logf("at most %d forwarding goroutines ran at once", maxRunning.Load())
+	require.LessOrEqual(t, maxRunning.Load(), int32(16))
+}

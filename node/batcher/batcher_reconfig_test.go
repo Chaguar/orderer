@@ -575,7 +575,6 @@ func TestBatcherReconfigPrimaryEvictionAndAddParty(t *testing.T) {
 	evictedIdx := indexOfParty(parties, partyToRemove)
 	evictedConfig := batchers[evictedIdx].GetConfig()
 	evictedConnector := batcher.CreatePrimaryReqConnector(newPrimary, testutil.CreateLogger(t, int(partyToRemove)), evictedConfig, batcher.GetBatchersEndpointsAndCerts(evictedConfig.Shards[0].Batchers), context.Background(), 2*time.Second, 100*time.Millisecond, 500*time.Millisecond)
-	evictedConnector.ConnectToPrimary()
 	defer evictedConnector.Stop()
 
 	evictedReq := tx.CreateStructuredRequest([]byte{99})
