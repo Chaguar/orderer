@@ -129,3 +129,30 @@ func (l *Limiter) Allow() bool {
 		// by the number of goroutines actually running (GOMAXPROCS).
 	}
 }
+
+// Tokens returns the number of tokens currently available in the bucket — that
+// is, how many consecutive Allow() calls would succeed right now without any
+// time advancing. It is a point-in-time snapshot: the value may be stale by
+// the time the caller reads it.
+//
+// A nil Limiter (unlimited) returns math.MaxInt64 as a sentinel for "no limit".
+// The return value is always >= 0.
+func (l *Limiter) Tokens() int64 {
+	if l == nil {
+		return math.MaxInt64
+	}
+	now := l.nowFn()
+	tat := l.tatNanos.Load()
+	// Headroom is how far ahead now is of (tat - burstOffset). Each intervalNanos
+	// of headroom is one token. Clamp to [0, burst].
+	headroom := now - (tat - l.burstOffsetNanos)
+	if headroom <= 0 {
+		return 0
+	}
+	tokens := headroom / l.intervalNanos
+	burst := l.burstOffsetNanos / l.intervalNanos
+	if tokens > burst {
+		tokens = burst
+	}
+	return tokens
+}

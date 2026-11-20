@@ -50,7 +50,6 @@ func TestPrimaryConnector(t *testing.T) {
 	require.Equal(t, types.PartyID(1), batchers[2].GetPrimaryID())
 
 	connector := batcher.CreatePrimaryReqConnector(1, loggers[2], configs[2], batcher.GetBatchersEndpointsAndCerts(configs[2].Shards[0].Batchers), context.Background(), 10*time.Second, 100*time.Millisecond, 1*time.Second)
-	connector.ConnectToPrimary()
 
 	// send request via normal submit
 	batchers[0].Submit(routerContext(t, routerKeyPairs[0]), tx.CreateStructuredRequest([]byte{1}))
@@ -199,7 +198,7 @@ func TestPrimaryReqConnectorSwitchesPrimaryWhileASendIsBlocked(t *testing.T) {
 		5*time.Second, 100*time.Millisecond, time.Second,
 	)
 	t.Cleanup(connector.Stop)
-	connector.ConnectToPrimary()
+	connector.SendReq([]byte{1}) // connects to primary 1
 	<-stalled.accepted
 
 	const senders = 64
@@ -262,7 +261,7 @@ func TestPrimaryAckConnectorDropsAcksToTheOldPrimaryWhenBecomingPrimary(t *testi
 		5*time.Second, 100*time.Millisecond, 500*time.Millisecond,
 	)
 	t.Cleanup(connector.Stop)
-	connector.ConnectToPrimary()
+	connector.SendAck(0, types.PartyID(1)) // connects to primary 1
 	<-stalled.accepted
 
 	// One sender acks batch after batch to primary 1, as a secondary does, and counts the acks that
