@@ -38,6 +38,10 @@ type stubConsenter struct {
 	receivedEventsLock sync.RWMutex
 
 	ackConfigHandler func(req *protos.ConfigAck) (*protos.ConfigAckResponse, error)
+
+	// lastDecision is the last decision number sent; each state update sends the next one.
+	lastDecision     types.DecisionNum
+	lastDecisionLock sync.Mutex
 }
 
 func NewStubConsenter(t *testing.T, partyID types.PartyID, n *node) *stubConsenter {
@@ -198,10 +202,27 @@ func (sc *stubConsenter) BAFs() []types.BatchAttestationFragment {
 }
 
 func (sc *stubConsenter) UpdateState(newState *state.State) {
+	sc.lastDecisionLock.Lock()
+	sc.lastDecision++
 	header := &state.Header{
+		Num:   sc.lastDecision,
 		State: newState,
 	}
+	sc.lastDecisionLock.Unlock()
 	sc.headerChan <- header
+}
+
+// SendDecision sends header as is, even if it is older than the last decision sent.
+func (sc *stubConsenter) SendDecision(header *state.Header) {
+	sc.advanceLastDecision(header.Num)
+	sc.headerChan <- header
+}
+
+// advanceLastDecision raises lastDecision to num, if it is lower.
+func (sc *stubConsenter) advanceLastDecision(num types.DecisionNum) {
+	sc.lastDecisionLock.Lock()
+	defer sc.lastDecisionLock.Unlock()
+	sc.lastDecision = max(sc.lastDecision, num)
 }
 
 func (sc *stubConsenter) UpdateStateHeaderWithConfigBlock(decisionNum types.DecisionNum, availableCommonBlocks []*common.Block, newState *state.State) {
@@ -211,6 +232,9 @@ func (sc *stubConsenter) UpdateStateHeaderWithConfigBlock(decisionNum types.Deci
 		State:                        newState,
 		DecisionNumOfLastConfigBlock: decisionNum,
 	}
+	sc.lastDecisionLock.Lock()
+	sc.lastDecision = decisionNum
+	sc.lastDecisionLock.Unlock()
 	sc.headerChan <- header
 }
 
@@ -219,6 +243,7 @@ func (sc *stubConsenter) ReplicateDecision() <-chan *state.Header {
 }
 
 func (sc *stubConsenter) CreateDecisionConsensusReplicator(conf *config.BatcherNodeConfig, signer identity.SignerSerializer, logger *flogging.FabricLogger, num types.DecisionNum) batcher.DecisionReplicator {
+	sc.advanceLastDecision(num) // the batcher resumes from num, so the next state update sends a newer one
 	return sc
 }
 

@@ -128,6 +128,7 @@ func (b *Batcher) configureBatcher(
 	b.requestsInspectorVerifier = requestsIDAndVerifier
 	b.batcherDeliverService = deliverService
 	b.decisionReplicator = dr
+	b.lastDecision = lastKnownDecisionNum
 	b.batchers = batchers
 	b.Ledger = ledgerArray
 	b.batcherCerts2IDs = make(map[string]types.PartyID)

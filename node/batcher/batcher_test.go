@@ -447,6 +447,52 @@ func TestBatcherRestartsInLastKnownTerm(t *testing.T) {
 	}, 30*time.Second, 10*time.Millisecond)
 }
 
+// Scenario:
+//  1. Start 4 batchers and move them to term 1, whose primary is party 2, with decision 1.
+//  2. Send the batcher of party 2 decision 0 again, in term 0, twice: the second send returns once the first was handled.
+//  3. Expect it to stay in term 1, with party 2 as the primary.
+//  4. Restart it without sending a new decision, and expect it to start in term 1.
+func TestBatcherSkipsADecisionOlderThanTheLastApplied(t *testing.T) {
+	shardID := types.ShardID(0)
+	numParties := 4
+	ca, err := tlsgen.NewCA()
+	require.NoError(t, err)
+
+	batcherNodes := createNodes(t, ca, numParties)
+	batchersInfo := createBatchersInfo(numParties, batcherNodes, ca)
+	consenterNodes := createNodes(t, ca, numParties)
+	consentersInfo := createConsentersInfo(numParties, consenterNodes, ca)
+
+	stubConsenters, cleanConsenters := createConsenterStubs(t, consenterNodes, numParties)
+	defer cleanConsenters()
+
+	routerKeyPairs := pinning.CreateRouterKeyPairs(t, ca, numParties)
+	batchers, loggers, configs, cleanBatchers := createBatchers(t, numParties, shardID, batcherNodes, batchersInfo, consentersInfo, routerKeyPairs, stubConsenters)
+	defer cleanBatchers()
+
+	term := uint64(1)
+	termChangeState := &state.State{Shards: []state.ShardTerm{{Shard: shardID, Term: term}}}
+	for i := 0; i < numParties; i++ {
+		stubConsenters[i].UpdateState(termChangeState)
+	}
+	require.Eventually(t, func() bool {
+		return batchers[1].GetTerm() == term && batchers[1].GetPrimaryID() == types.PartyID(2)
+	}, 30*time.Second, 10*time.Millisecond)
+
+	oldState := &state.State{Shards: []state.ShardTerm{{Shard: shardID, Term: 0}}}
+	stubConsenters[1].SendDecision(&state.Header{Num: 0, State: oldState})
+	// the stub's channel is unbuffered: this send returns only once the batcher took it, after handling the first one
+	stubConsenters[1].SendDecision(&state.Header{Num: 0, State: oldState})
+	require.Equal(t, term, batchers[1].GetTerm())
+	require.Equal(t, types.PartyID(2), batchers[1].GetPrimaryID())
+
+	batchers[1].Stop()
+	batchers[1] = recoverBatcher(t, ca, loggers[1], configs[1], routerKeyPairs, batcherNodes[1], stubConsenters[1])
+
+	require.Equal(t, term, batchers[1].GetTerm())
+	require.Equal(t, types.PartyID(2), batchers[1].GetPrimaryID())
+}
+
 func TestControlEventBroadcasterWaitsForQuorum(t *testing.T) {
 	shardID := types.ShardID(0)
 	numParties := 4
