@@ -164,7 +164,8 @@ func TestValidateConfigRequestReportsWhyTheUpdateWasRejected(t *testing.T) {
 	}
 	envelope := &common.Envelope{
 		Payload: marshalPayload(t, common.HeaderType_CONFIG, "arma",
-			[]byte("nonce"), protoutil.ComputeTxID, &common.ConfigEnvelope{Config: &common.Config{Sequence: 1}, LastUpdate: lastUpdate}),
+			[]byte("nonce"), protoutil.ComputeTxID,
+			&common.ConfigEnvelope{Config: &common.Config{Sequence: 1}, LastUpdate: lastUpdate}),
 		Signature: []byte("signature"),
 	}
 
@@ -177,7 +178,7 @@ func TestValidateConfigRequestReportsWhyTheUpdateWasRejected(t *testing.T) {
 	verifier := requestfilter.NewRulesVerifier(nil)
 	verifier.AddStructureRule(requestfilter.NewSigFilter(fc, policies.ChannelWriters))
 
-	proposerErr := errors.New("implicit policy evaluation failed - 1 sub-policies were satisfied, but this policy requires 2 of the 'Admins' sub-policies to be satisfied")
+	proposerErr := errors.New("not enough admin signatures")
 	proposer := &policyMock.FakeConfigUpdateProposer{}
 	proposer.AuthorizeAndVerifyConfigUpdateReturns(nil, proposerErr)
 	validator := &configrequest.DefaultValidateConfigRequest{ConfigUpdateProposer: proposer, RequestVerifier: verifier}
