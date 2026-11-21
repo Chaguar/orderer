@@ -569,12 +569,13 @@ func TestBatcherReconfigPrimaryEvictionAndAddParty(t *testing.T) {
 	// verify that the evicted party can no longer forward transactions to the primary: when the new primary
 	// reconfigured it rebuilt its TLS trust from the new configuration, which no longer includes the evicted
 	// party's CA, so the evicted party's connection is rejected at the TLS handshake and never reaches the
-	// primary's request handling. Build a request connector using the evicted party's identity (its config still
+	// primary's request handling. Build a primary connector using the evicted party's identity (its config still
 	// carries the pre-eviction batcher endpoints and certificates), point it at the new primary, and confirm the
 	// primary's ledger does not advance.
 	evictedIdx := indexOfParty(parties, partyToRemove)
 	evictedConfig := batchers[evictedIdx].GetConfig()
-	evictedConnector := batcher.CreatePrimaryReqConnector(newPrimary, testutil.CreateLogger(t, int(partyToRemove)), evictedConfig, batcher.GetBatchersEndpointsAndCerts(evictedConfig.Shards[0].Batchers), context.Background(), 2*time.Second, 100*time.Millisecond, 500*time.Millisecond)
+	timing := batcher.LinkTiming{SendTimeout: 2 * time.Second, MinRetryInterval: 100 * time.Millisecond, MaxRetryDelay: 500 * time.Millisecond}
+	evictedConnector := batcher.CreatePrimaryConnector(newPrimary, testutil.CreateLogger(t, int(partyToRemove)), evictedConfig, batcher.GetBatchersEndpointsAndCerts(evictedConfig.Shards[0].Batchers), context.Background(), timing, timing)
 	defer evictedConnector.Stop()
 
 	evictedReq := tx.CreateStructuredRequest([]byte{99})

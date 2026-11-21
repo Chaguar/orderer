@@ -8,7 +8,6 @@ package batcher_test
 
 import (
 	"context"
-	"math"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/Chaguar/orderer/node/batcher"
+	"github.com/Chaguar/orderer/node/comm"
 	"github.com/Chaguar/orderer/node/comm/tlsgen"
 	node_config "github.com/Chaguar/orderer/node/config"
 	"github.com/Chaguar/orderer/node/consensus/state"
@@ -28,6 +28,11 @@ import (
 	"google.golang.org/protobuf/proto"
 )
 
+// Scenario:
+//  1. Start a shard of 4 batchers, with party 1 the primary, and a connector of party 3 to it.
+//  2. Submit a request to party 1, and forward another through the connector; expect both batched by parties 1 and 3.
+//  3. Stop party 1, change the term so that party 2 becomes the primary, and switch the connector to it.
+//  4. Submit a request to party 2, and forward another through the connector; expect both batched by parties 2 and 3.
 func TestPrimaryConnector(t *testing.T) {
 	shardID := types.ShardID(0)
 	numParties := 4
@@ -50,7 +55,8 @@ func TestPrimaryConnector(t *testing.T) {
 	require.Equal(t, types.PartyID(1), batchers[1].GetPrimaryID())
 	require.Equal(t, types.PartyID(1), batchers[2].GetPrimaryID())
 
-	connector := batcher.CreatePrimaryReqConnector(1, loggers[2], configs[2], batcher.GetBatchersEndpointsAndCerts(configs[2].Shards[0].Batchers), context.Background(), 10*time.Second, 100*time.Millisecond, 1*time.Second)
+	connector := batcher.CreatePrimaryConnector(1, loggers[2], configs[2], batcher.GetBatchersEndpointsAndCerts(configs[2].Shards[0].Batchers), context.Background(), defaultTiming, defaultTiming)
+	t.Cleanup(connector.Stop)
 
 	// send request via normal submit
 	batchers[0].Submit(routerContext(t, routerKeyPairs[0]), tx.CreateStructuredRequest([]byte{1}))
@@ -104,25 +110,41 @@ func TestPrimaryConnector(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return batchers[1].Ledger.Height(2) == uint64(2) && batchers[2].Ledger.Height(2) == uint64(2)
 	}, 30*time.Second, 10*time.Millisecond)
-
-	connector.Stop()
 }
 
-// fakePrimary is a batcher control service. Unless it reads, it accepts the streams of forwarded
-// requests and acks and never reads from them. It counts the streams it accepts and the requests it reads.
+// fakePrimary is a batcher control service. It accepts the streams of forwarded requests and of acks, reads each kind
+// only if told to, and otherwise holds the stream open without reading. It counts the streams of each kind, the
+// requests it reads (by their first byte), and records the acks it reads in order.
 type fakePrimary struct {
 	protos.UnimplementedBatcherControlServiceServer
-	reads    bool
-	endAfter int32 // if positive, the first stream of forwarded requests ends after this many requests
-	accepted chan struct{}
-	streams  atomic.Int32
-	ended    atomic.Int32 // streams of forwarded requests that ended
-	requests atomic.Int32
-	byMark   [256]atomic.Int32 // requests read, by their first byte
+	reads     bool  // reads the streams of forwarded requests
+	readsAcks bool  // reads the streams of acks
+	endAfter  int32 // if positive, the first stream of forwarded requests ends after this many requests
+	accepted  chan struct{}
+	streams   atomic.Int32 // streams of forwarded requests accepted
+	ended     atomic.Int32 // streams of forwarded requests that ended
+	requests  atomic.Int32
+	byMark    [256]atomic.Int32 // requests read, by their first byte
+
+	ackStreams atomic.Int32
+	ackEnded   atomic.Int32
+	ackLock    sync.Mutex
+	acked      []*protos.Ack // the acks read, in order
 }
 
 func newFakePrimary(reads bool) *fakePrimary {
-	return &fakePrimary{reads: reads, accepted: make(chan struct{}, 1000)}
+	return &fakePrimary{reads: reads, readsAcks: reads, accepted: make(chan struct{}, 1000)}
+}
+
+// ackedSeqs returns the batches acked so far, in the order read.
+func (fp *fakePrimary) ackedSeqs() []uint64 {
+	fp.ackLock.Lock()
+	defer fp.ackLock.Unlock()
+	seqs := make([]uint64, 0, len(fp.acked))
+	for _, ack := range fp.acked {
+		seqs = append(seqs, ack.Seq)
+	}
+	return seqs
 }
 
 func (fp *fakePrimary) FwdRequestStream(stream protos.BatcherControlService_FwdRequestStreamServer) error {
@@ -149,16 +171,20 @@ func (fp *fakePrimary) FwdRequestStream(stream protos.BatcherControlService_FwdR
 }
 
 func (fp *fakePrimary) NotifyAck(stream protos.BatcherControlService_NotifyAckServer) error {
-	fp.streams.Add(1)
-	fp.accepted <- struct{}{}
-	if !fp.reads {
+	defer fp.ackEnded.Add(1)
+	fp.ackStreams.Add(1)
+	if !fp.readsAcks {
 		<-stream.Context().Done()
 		return nil
 	}
 	for {
-		if _, err := stream.Recv(); err != nil {
+		ack, err := stream.Recv()
+		if err != nil {
 			return nil
 		}
+		fp.ackLock.Lock()
+		fp.acked = append(fp.acked, ack)
+		fp.ackLock.Unlock()
 	}
 }
 
@@ -187,42 +213,52 @@ func waitUntilSendsBlock(t *testing.T, returned *atomic.Int32, senders int32) {
 	}, 10*time.Second, 100*time.Millisecond)
 }
 
-// newReqConnector creates a request connector of party self to the given primary, with a send timeout of 30 s.
-func newReqConnector(t *testing.T, nodes []*node, batchers map[types.PartyID]*batcher.EndpointAndCerts, self, primary types.PartyID) *batcher.PrimaryReqConnector {
+// defaultTiming is the timing of both lanes unless a test needs another: a send timeout of 30 s, and retries after
+// 100 ms doubling up to 1 s.
+var defaultTiming = batcher.LinkTiming{SendTimeout: 30 * time.Second, MinRetryInterval: 100 * time.Millisecond, MaxRetryDelay: time.Second}
+
+// newConnector creates a connector of party self in shard 3 to primary, with the given timing for forwards and for acks,
+// and stops it at the end of the test.
+func newConnector(t *testing.T, nodes []*node, batchers map[types.PartyID]*batcher.EndpointAndCerts, self, primary types.PartyID, forwards, acks batcher.LinkTiming) *batcher.PrimaryConnector {
 	conf := &node_config.BatcherNodeConfig{
 		PartyId:            self,
-		ShardId:            0,
+		ShardId:            3,
 		TLSPrivateKeyFile:  nodes[0].TLSKey,
 		TLSCertificateFile: nodes[0].TLSCert,
 	}
-	connector := batcher.CreatePrimaryReqConnector(
-		primary, testutil.CreateLogger(t, int(self)), conf, batchers, context.Background(),
-		30*time.Second, 100*time.Millisecond, time.Second,
-	)
+	connector := batcher.CreatePrimaryConnector(primary, testutil.CreateLogger(t, int(self)), conf, batchers, context.Background(), forwards, acks)
 	t.Cleanup(connector.Stop)
 	return connector
 }
 
-// fillUntilBlocked forwards requests from one goroutine until SendReq blocks, which shows that the stream and the
-// queue are full, and returns the count of returned calls.
-func fillUntilBlocked(t *testing.T, connector *batcher.PrimaryReqConnector) *atomic.Int32 {
+// fillUntilBlocked forwards requests marked mark from one goroutine until SendReq blocks, which shows that the stream
+// and the queue are full. It returns a function that stops the goroutine after the call in progress, and a channel
+// closed when the goroutine has returned.
+func fillUntilBlocked(t *testing.T, connector *batcher.PrimaryConnector, mark byte) (func(), chan struct{}) {
 	request := make([]byte, 64*1024)
+	request[0] = mark
 	var returned atomic.Int32
+	var stop atomic.Bool
+	done := make(chan struct{})
 	go func() {
+		defer close(done)
 		for range fillCalls {
+			if stop.Load() {
+				return
+			}
 			connector.SendReq(request)
 			returned.Add(1)
 		}
 	}()
 	waitUntilSendsBlock(t, &returned, fillCalls)
-	return &returned
+	return func() { stop.Store(true) }, done
 }
 
 // fillCalls is how many requests fillUntilBlocked forwards: more than the stream and the queue hold.
 const fillCalls = 5000
 
 // silentEndpoint listens on an address that accepts TCP connections but never answers, as a primary on a host that
-// stopped responding. It returns the address, and a function that returns how many connections it accepted. A connector
+// stopped responding. It returns the address, and a function that returns how many connections it accepted. A link
 // to it stays stuck opening its stream, so nothing it queues is sent.
 func silentEndpoint(t *testing.T) (string, func() int) {
 	_, silent := testutil.SharedTestPortAllocator().Allocate(t)
@@ -255,251 +291,133 @@ func silentEndpoint(t *testing.T) (string, func() int) {
 }
 
 // Scenario:
-//  1. Start primary 1, which accepts the stream of forwarded requests but never reads from it, and primary 2, which
-//     reads it.
-//  2. Forward requests marked 1 to primary 1 from one goroutine until a call blocks, because the stream and the queue
-//     are full. The goroutine stops after the call that is blocked during the switch.
-//  3. Switch the connector to primary 2, and expect the blocked call to return at once, well before the send timeout.
-//  4. Forward 10 requests marked 2, and expect primary 2 to receive them and none marked 1.
-func TestPrimaryReqConnectorSwitchesPrimaryWhileASendIsBlocked(t *testing.T) {
+//  1. Start primary 1, which reads both kinds of streams.
+//  2. Forward 10 requests, and ack batches 0 to 99 to primary 1.
+//  3. Expect primary 1 to receive the 10 requests on one stream of forwarded requests, and the 100 acks, in order and
+//     for shard 3, on one stream of acks.
+func TestPrimaryConnectorRoutesEachLane(t *testing.T) {
+	ca, err := tlsgen.NewCA()
+	require.NoError(t, err)
+	primary := newFakePrimary(true)
+	nodes, batchers := serveFakePrimaries(t, ca, primary)
+	connector := newConnector(t, nodes, batchers, 2, 1, defaultTiming, defaultTiming)
+
+	for range 10 {
+		connector.SendReq([]byte{1})
+	}
+	for seq := range types.BatchSequence(100) {
+		connector.SendAck(seq, 1)
+	}
+	require.Eventually(t, func() bool { return primary.byMark[1].Load() == 10 && len(primary.ackedSeqs()) == 100 }, 10*time.Second, 10*time.Millisecond)
+	for i, seq := range primary.ackedSeqs() {
+		require.Equal(t, uint64(i), seq)
+	}
+	primary.ackLock.Lock()
+	for _, ack := range primary.acked {
+		require.Equal(t, uint32(3), ack.Shard)
+	}
+	primary.ackLock.Unlock()
+	require.Equal(t, int32(1), primary.streams.Load())
+	require.Equal(t, int32(1), primary.ackStreams.Load())
+}
+
+// Scenario:
+//  1. Start primaries 1 and 2, both reading both kinds of streams, and create a connector to primary 1.
+//  2. Ack batch 0 to primary 2, which is not the target, and then batch 1 to primary 1.
+//  3. Expect primary 1 to receive only the ack of batch 1, and primary 2 nothing: an ack goes only to the primary it
+//     is for.
+func TestPrimaryConnectorSendsAnAckOnlyToItsPrimary(t *testing.T) {
+	ca, err := tlsgen.NewCA()
+	require.NoError(t, err)
+	target, other := newFakePrimary(true), newFakePrimary(true)
+	nodes, batchers := serveFakePrimaries(t, ca, target, other)
+	connector := newConnector(t, nodes, batchers, 3, 1, defaultTiming, defaultTiming)
+
+	connector.SendAck(0, 2)
+	connector.SendAck(1, 1)
+	require.Eventually(t, func() bool { return len(target.ackedSeqs()) == 1 }, 10*time.Second, 10*time.Millisecond)
+	require.Never(t, func() bool { return len(target.ackedSeqs()) > 1 || other.ackStreams.Load() > 0 }, 300*time.Millisecond, 10*time.Millisecond)
+	require.Equal(t, []uint64{1}, target.ackedSeqs())
+}
+
+// Scenario:
+//  1. Start primary 1, which accepts both kinds of streams but never reads them, and this batcher, party 2.
+//  2. Ack a batch to primary 1, and forward requests to it from one goroutine until a call blocks, because the stream and
+//     the queue are full. The goroutine stops after the call that is blocked during the switch.
+//  3. Switch the connector to party 2, as when this batcher becomes the primary.
+//  4. Expect the blocked call to return, and both streams to primary 1 to end.
+//  5. Forward 10 requests and ack 10 batches to party 2, and expect no stream to be opened to it.
+func TestPrimaryConnectorSendsNothingAsThePrimary(t *testing.T) {
+	ca, err := tlsgen.NewCA()
+	require.NoError(t, err)
+	stalled, self := newFakePrimary(false), newFakePrimary(true)
+	nodes, batchers := serveFakePrimaries(t, ca, stalled, self)
+	connector := newConnector(t, nodes, batchers, 2, 1, defaultTiming, defaultTiming)
+
+	connector.SendAck(0, 1)
+	require.Eventually(t, func() bool { return stalled.ackStreams.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
+	stopFilling, filled := fillUntilBlocked(t, connector, 1)
+
+	stopFilling()
+	connector.ConnectToNewPrimary(2)
+	requireClosed(t, filled, "the forwards blocked on the old primary did not return")
+	require.Eventually(t, func() bool { return stalled.ended.Load() == 1 && stalled.ackEnded.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
+
+	for seq := range types.BatchSequence(10) {
+		connector.SendReq([]byte{2})
+		connector.SendAck(seq, 2)
+	}
+	require.Never(t, func() bool { return self.streams.Load()+self.ackStreams.Load() > 0 }, 300*time.Millisecond, 10*time.Millisecond)
+}
+
+// Scenario:
+//  1. Start primary 1, which accepts both kinds of streams but never reads them, and primary 2, which reads them.
+//  2. Ack batches 0 to 1999 to primary 1, more than its stream and the queue hold, and forward requests marked 1 to it
+//     from one goroutine until a call blocks. The goroutine stops after the call that is blocked during the switch.
+//  3. Switch the connector to primary 2.
+//  4. Expect the blocked call to return, and both streams to primary 1 to end.
+//  5. Forward 10 requests marked 2, and ack batches 5000 to 5009 to primary 2.
+//  6. Expect primary 2 to receive exactly those: none of the requests or acks queued for primary 1.
+func TestPrimaryConnectorDropsTheOldPrimarysMessagesOnASwitch(t *testing.T) {
 	ca, err := tlsgen.NewCA()
 	require.NoError(t, err)
 	stalled, reading := newFakePrimary(false), newFakePrimary(true)
 	nodes, batchers := serveFakePrimaries(t, ca, stalled, reading)
-	connector := newReqConnector(t, nodes, batchers, 3, 1)
+	connector := newConnector(t, nodes, batchers, 3, 1, defaultTiming, defaultTiming)
 
-	marked1 := make([]byte, 64*1024)
-	marked1[0] = 1
-	var returned atomic.Int32
-	var switched atomic.Bool
-	filled := make(chan struct{})
-	go func() {
-		defer close(filled)
-		for !switched.Load() {
-			connector.SendReq(marked1)
-			returned.Add(1)
-		}
-	}()
-	waitUntilSendsBlock(t, &returned, math.MaxInt32)
-
-	switched.Store(true)
-	connector.ConnectToNewPrimary(types.PartyID(2))
-	select {
-	case <-filled:
-	case <-time.After(10 * time.Second):
-		t.Fatal("the call blocked during the switch did not return")
+	for seq := range types.BatchSequence(2000) {
+		connector.SendAck(seq, 1)
 	}
+	stopFilling, filled := fillUntilBlocked(t, connector, 1)
 
-	for range 10 {
+	stopFilling()
+	connector.ConnectToNewPrimary(2)
+	requireClosed(t, filled, "the forwards blocked on the old primary did not return")
+	require.Eventually(t, func() bool { return stalled.ended.Load() == 1 && stalled.ackEnded.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
+
+	for i := range types.BatchSequence(10) {
 		connector.SendReq([]byte{2})
+		connector.SendAck(5000+i, 2)
 	}
-	require.Eventually(t, func() bool { return reading.byMark[2].Load() == 10 }, 10*time.Second, 10*time.Millisecond)
+	require.Eventually(t, func() bool { return reading.byMark[2].Load() == 10 && len(reading.ackedSeqs()) == 10 }, 10*time.Second, 10*time.Millisecond)
 	require.Zero(t, reading.byMark[1].Load())
+	require.Equal(t, []uint64{5000, 5001, 5002, 5003, 5004, 5005, 5006, 5007, 5008, 5009}, reading.ackedSeqs())
 }
 
 // Scenario:
-//  1. Start primary 1, which reads the stream of forwarded requests.
-//  2. Forward 100 requests from each of 16 goroutines at once.
-//  3. Expect primary 1 to receive all 1600, on one stream.
-func TestPrimaryReqConnectorForwardsFromManyGoroutines(t *testing.T) {
-	ca, err := tlsgen.NewCA()
-	require.NoError(t, err)
-	reading := newFakePrimary(true)
-	nodes, batchers := serveFakePrimaries(t, ca, reading)
-	connector := newReqConnector(t, nodes, batchers, 2, 1)
-
-	var senders sync.WaitGroup
-	for range 16 {
-		senders.Go(func() {
-			for range 100 {
-				connector.SendReq([]byte{1})
-			}
-		})
-	}
-	senders.Wait()
-	require.Eventually(t, func() bool { return reading.requests.Load() == 1600 }, 10*time.Second, 10*time.Millisecond)
-	require.Equal(t, int32(1), reading.streams.Load())
-}
-
-// Scenario:
-//  1. Start primary 1 and this batcher, party 2, both reading the stream of forwarded requests.
-//  2. Switch the connector to party 2, as when this batcher becomes the primary.
-//  3. Forward 10 requests, and expect every call to return and no stream to be opened, to either party.
-func TestPrimaryReqConnectorNeverForwardsToItself(t *testing.T) {
-	ca, err := tlsgen.NewCA()
-	require.NoError(t, err)
-	other, self := newFakePrimary(true), newFakePrimary(true)
-	nodes, batchers := serveFakePrimaries(t, ca, other, self)
-	connector := newReqConnector(t, nodes, batchers, 2, 1)
-
-	connector.ConnectToNewPrimary(types.PartyID(2))
-	for range 10 {
-		connector.SendReq([]byte{1})
-	}
-	require.Never(t, func() bool { return other.streams.Load()+self.streams.Load() > 0 }, 300*time.Millisecond, 10*time.Millisecond)
-}
-
-// Scenario:
-//  1. Start primary 1, which ends the first stream of forwarded requests after 3 requests.
-//  2. Forward 3 requests, and wait until primary 1 has received them and ended the stream.
-//  3. Keep forwarding, and expect primary 1 to receive a request on a new stream. The ones sent before the connector
-//     notices that the stream ended are lost, as with any gRPC stream that ends.
-func TestPrimaryReqConnectorReconnectsAfterTheStreamEnds(t *testing.T) {
-	ca, err := tlsgen.NewCA()
-	require.NoError(t, err)
-	primary := newFakePrimary(true)
-	primary.endAfter = 3
-	nodes, batchers := serveFakePrimaries(t, ca, primary)
-	connector := newReqConnector(t, nodes, batchers, 2, 1)
-
-	for range 3 {
-		connector.SendReq([]byte{1})
-	}
-	require.Eventually(t, func() bool { return primary.requests.Load() == 3 }, 10*time.Second, 10*time.Millisecond)
-
-	require.Eventually(t, func() bool {
-		connector.SendReq([]byte{1})
-		return primary.requests.Load() > 3
-	}, 10*time.Second, 20*time.Millisecond)
-	require.Equal(t, int32(2), primary.streams.Load())
-}
-
-// Scenario:
-//  1. Start primary 1, which accepts the stream of forwarded requests but never reads from it.
-//  2. Forward requests until a call blocks, because the stream and the queue are full.
-//  3. Stop the connector, and expect Stop and the blocked call to return.
-func TestPrimaryReqConnectorStopsWhileSendsAreBlocked(t *testing.T) {
-	ca, err := tlsgen.NewCA()
-	require.NoError(t, err)
-	stalled := newFakePrimary(false)
-	nodes, batchers := serveFakePrimaries(t, ca, stalled)
-	connector := newReqConnector(t, nodes, batchers, 2, 1)
-
-	returned := fillUntilBlocked(t, connector)
-	blockedAt := returned.Load()
-
-	stopped := make(chan struct{})
-	go func() {
-		connector.Stop()
-		close(stopped)
-	}()
-	select {
-	case <-stopped:
-	case <-time.After(10 * time.Second):
-		t.Fatal("Stop did not return while a send was blocked")
-	}
-	require.Eventually(t, func() bool { return returned.Load() > blockedAt }, 10*time.Second, 10*time.Millisecond)
-}
-
-// Scenario:
-//  1. Start primary 1, which accepts the stream of acks but never reads from it, and this batcher, party 2,
-//     which reads it.
-//  2. Ack batches to primary 1 one after the other, as a secondary does, until an ack blocks because the
-//     stream is full.
-//  3. Switch the connector to this batcher, which is now the primary.
-//  4. Expect the switch to return, the blocked ack to return, and no ack stream opened to this batcher.
-func TestPrimaryAckConnectorDropsAcksToTheOldPrimaryWhenBecomingPrimary(t *testing.T) {
-	ca, err := tlsgen.NewCA()
-	require.NoError(t, err)
-
-	stalled, self := newFakePrimary(false), newFakePrimary(true)
-	nodes, batchers := serveFakePrimaries(t, ca, stalled, self)
-	conf := &node_config.BatcherNodeConfig{
-		PartyId:            2,
-		ShardId:            0,
-		TLSPrivateKeyFile:  nodes[1].TLSKey,
-		TLSCertificateFile: nodes[1].TLSCert,
-	}
-	connector := batcher.CreatePrimaryAckConnector(
-		1, 0, testutil.CreateLogger(t, 2), conf, batchers, context.Background(),
-		5*time.Second, 100*time.Millisecond, 500*time.Millisecond,
-	)
-	t.Cleanup(connector.Stop)
-	connector.ConnectToPrimary()
-	<-stalled.accepted
-
-	// One sender acks batch after batch to primary 1, as a secondary does, and counts the acks that
-	// returned. It keeps acking after the switch, until stopped.
-	var returned atomic.Int32
-	var stop atomic.Bool
-	done := make(chan struct{})
-	go func() {
-		defer close(done)
-		for seq := types.BatchSequence(0); !stop.Load(); seq++ {
-			connector.SendAck(seq, types.PartyID(1))
-			returned.Add(1)
-		}
-	}()
-	waitUntilSendsBlock(t, &returned, math.MaxInt32)
-	blocked := returned.Load()
-
-	switched := make(chan struct{})
-	go func() {
-		connector.ConnectToNewPrimary(types.PartyID(2))
-		close(switched)
-	}()
-	select {
-	case <-switched:
-	case <-time.After(10 * time.Second):
-		t.Fatal("the connector did not switch to this batcher while an ack was blocked")
-	}
-
-	require.Eventually(t, func() bool { return returned.Load() > blocked }, 10*time.Second, 10*time.Millisecond,
-		"the ack blocked on the old primary did not return")
-	require.Never(t, func() bool { return self.streams.Load() > 0 }, 2*time.Second, 50*time.Millisecond,
-		"an ack stream was opened to this batcher")
-	stop.Store(true)
-	<-done
-}
-
-// Scenario:
-//  1. Start primary 1, which accepts the stream of forwarded requests but never reads from it.
-//  2. Create a connector with a send timeout of 1 s, and forward requests until a send blocks on the full stream.
-//  3. Expect the blocked send to be cut after the timeout and the connector to open a new stream.
-func TestPrimaryReqConnectorCutsASendThatHangs(t *testing.T) {
-	ca, err := tlsgen.NewCA()
-	require.NoError(t, err)
-	stalled := newFakePrimary(false)
-	nodes, batchers := serveFakePrimaries(t, ca, stalled)
-	conf := &node_config.BatcherNodeConfig{
-		PartyId:            2,
-		ShardId:            0,
-		TLSPrivateKeyFile:  nodes[0].TLSKey,
-		TLSCertificateFile: nodes[0].TLSCert,
-	}
-	connector := batcher.CreatePrimaryReqConnector(
-		1, testutil.CreateLogger(t, 2), conf, batchers, context.Background(),
-		300*time.Millisecond, 100*time.Millisecond, time.Second,
-	)
-	t.Cleanup(connector.Stop)
-
-	request := make([]byte, 64*1024)
-	for range 10 {
-		connector.SendReq(request)
-	}
-	require.Eventually(t, func() bool { return stalled.streams.Load() >= 2 }, 10*time.Second, 10*time.Millisecond)
-}
-
-// Scenario:
-//  1. Create a connector with a send timeout of 300 ms to primary 1, whose server is down, so nothing is ever sent.
-//  2. Forward requests until the queue is full.
-//  3. Forward one more, and expect the call to wait the send timeout and then return, dropping the request.
-func TestPrimaryReqConnectorDropsARequestWhenTheQueueStaysFull(t *testing.T) {
+//  1. Create a connector with a forward send timeout of 300 ms to primary 1, whose server is down, so nothing is ever
+//     sent.
+//  2. Forward requests until the queue is full, and forward one more: expect the call to wait the send timeout and then
+//     return, dropping the request.
+//  3. Ack 5000 batches, more than the queue holds, and expect every call to return without waiting.
+func TestPrimaryConnectorFullQueues(t *testing.T) {
 	ca, err := tlsgen.NewCA()
 	require.NoError(t, err)
 	nodes, batchers := serveFakePrimaries(t, ca, newFakePrimary(true))
 	nodes[0].Stop()
-	conf := &node_config.BatcherNodeConfig{
-		PartyId:            2,
-		ShardId:            0,
-		TLSPrivateKeyFile:  nodes[0].TLSKey,
-		TLSCertificateFile: nodes[0].TLSCert,
-	}
-	connector := batcher.CreatePrimaryReqConnector(
-		1, testutil.CreateLogger(t, 2), conf, batchers, context.Background(),
-		300*time.Millisecond, 100*time.Millisecond, time.Second,
-	)
-	t.Cleanup(connector.Stop)
+	forwards := defaultTiming
+	forwards.SendTimeout = 300 * time.Millisecond
+	connector := newConnector(t, nodes, batchers, 2, 1, forwards, defaultTiming)
 
 	for range 1001 { // one taken by the forwarding goroutine, 1000 in the queue
 		connector.SendReq([]byte{1})
@@ -509,93 +427,194 @@ func TestPrimaryReqConnectorDropsARequestWhenTheQueueStaysFull(t *testing.T) {
 	waited := time.Since(start)
 	require.GreaterOrEqual(t, waited, 300*time.Millisecond)
 	require.Less(t, waited, 10*time.Second)
+
+	acked := make(chan struct{})
+	go func() {
+		defer close(acked)
+		for seq := range types.BatchSequence(5000) {
+			connector.SendAck(seq, 1)
+		}
+	}()
+	requireClosed(t, acked, "acking blocked on a full queue")
 }
 
 // Scenario:
-//  1. Start primaries 1 and 2, both reading the stream of forwarded requests.
-//  2. Forward a request to primary 1, so that the connector opens a stream to it.
-//  3. Switch the connector to primary 2, and forward nothing more.
-//  4. Expect the stream to primary 1 to end, and no stream to be opened to primary 2 before a request needs it.
-func TestPrimaryReqConnectorClosesTheOldStreamOnAPrimaryChange(t *testing.T) {
+//  1. Start primary 1, which reads the stream of acks but never the stream of forwarded requests.
+//  2. Forward requests until a call blocks, because the stream and the queue are full.
+//  3. Ack batches 0 to 99, and expect primary 1 to receive all of them: the acks don't wait behind the forwards.
+func TestPrimaryConnectorAcksPassStuckForwards(t *testing.T) {
 	ca, err := tlsgen.NewCA()
 	require.NoError(t, err)
-	oldPrimary, newPrimary := newFakePrimary(true), newFakePrimary(true)
-	nodes, batchers := serveFakePrimaries(t, ca, oldPrimary, newPrimary)
-	connector := newReqConnector(t, nodes, batchers, 3, 1)
+	primary := newFakePrimary(true)
+	primary.reads = false
+	nodes, batchers := serveFakePrimaries(t, ca, primary)
+	connector := newConnector(t, nodes, batchers, 2, 1, defaultTiming, defaultTiming)
 
-	connector.SendReq([]byte{1})
-	require.Eventually(t, func() bool { return oldPrimary.requests.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
-
-	connector.ConnectToNewPrimary(types.PartyID(2))
-	require.Eventually(t, func() bool { return oldPrimary.ended.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
-	require.Never(t, func() bool { return newPrimary.streams.Load() > 0 }, 300*time.Millisecond, 10*time.Millisecond)
+	fillUntilBlocked(t, connector, 1)
+	for seq := range types.BatchSequence(100) {
+		connector.SendAck(seq, 1)
+	}
+	require.Eventually(t, func() bool { return len(primary.ackedSeqs()) == 100 }, 10*time.Second, 10*time.Millisecond)
 }
 
 // Scenario:
-//  1. Start primary 1, which accepts the stream of forwarded requests but never reads from it, and this batcher, party 2.
-//  2. Forward requests to primary 1 until a call blocks, because the stream and the queue are full.
-//  3. Switch the connector to party 2, as when this batcher becomes the primary.
-//  4. Expect the blocked call and every later one to return, the stream to primary 1 to end, and no stream to party 2.
-func TestPrimaryReqConnectorBecomesPrimaryWhileSendsAreBlocked(t *testing.T) {
+//  1. Listen for primary 1 on a port that accepts TCP connections but never completes the TLS handshake, so both lanes
+//     stay stuck connecting (20 s).
+//  2. Ack a batch, and forward requests until the queue is full and a call waits for room.
+//  3. Stop the connector, and expect Stop and the waiting call to return well before the attempts to connect fail.
+//  4. Expect later calls to return at once.
+func TestPrimaryConnectorStopsWhileBothLanesAreConnecting(t *testing.T) {
 	ca, err := tlsgen.NewCA()
 	require.NoError(t, err)
-	stalled, self := newFakePrimary(false), newFakePrimary(true)
-	nodes, batchers := serveFakePrimaries(t, ca, stalled, self)
-	connector := newReqConnector(t, nodes, batchers, 2, 1)
-
-	returned := fillUntilBlocked(t, connector)
-	connector.ConnectToNewPrimary(types.PartyID(2))
-
-	require.Eventually(t, func() bool { return returned.Load() == fillCalls }, 30*time.Second, 10*time.Millisecond)
-	require.Eventually(t, func() bool { return stalled.ended.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
-	require.Zero(t, self.streams.Load())
-}
-
-// Scenario:
-//  1. Listen for primary 1 on a port that accepts TCP connections but never completes the TLS handshake, as a primary on
-//     a host that stopped responding. Start primary 2, which reads the stream of forwarded requests.
-//  2. Forward a request, and expect the call to return while the connector starts opening the stream to primary 1,
-//     well before that attempt fails (20 s).
-//  3. Switch the connector to primary 2, and forward a request marked 2.
-//  4. Expect primary 2 to receive it within 10 s of the first call, well before the attempt to reach primary 1 fails.
-func TestPrimaryReqConnectorSwitchesPrimaryWhileConnecting(t *testing.T) {
-	ca, err := tlsgen.NewCA()
-	require.NoError(t, err)
-	unused, reading := newFakePrimary(true), newFakePrimary(true)
-	nodes, batchers := serveFakePrimaries(t, ca, unused, reading)
-
+	nodes, batchers := serveFakePrimaries(t, ca, newFakePrimary(true))
 	var accepted func() int
 	batchers[1].Endpoint, accepted = silentEndpoint(t)
-	connector := newReqConnector(t, nodes, batchers, 3, 1)
+	conf := &node_config.BatcherNodeConfig{PartyId: 2, ShardId: 3, TLSPrivateKeyFile: nodes[0].TLSKey, TLSCertificateFile: nodes[0].TLSCert}
+	connector := batcher.CreatePrimaryConnector(1, testutil.CreateLogger(t, 2), conf, batchers, context.Background(), defaultTiming, defaultTiming)
 
-	start := time.Now()
-	connector.SendReq([]byte{1})
-	require.Less(t, time.Since(start), 10*time.Second)
-	require.Eventually(t, func() bool { return accepted() > 0 }, 10*time.Second, 5*time.Millisecond)
-	connector.ConnectToNewPrimary(types.PartyID(2))
-	connector.SendReq([]byte{2})
-	require.Eventually(t, func() bool { return reading.byMark[2].Load() == 1 }, 10*time.Second-time.Since(start), 10*time.Millisecond)
+	connector.SendAck(0, 1)
+	for range 1001 { // one taken by the forwarding goroutine, 1000 in the queue
+		connector.SendReq([]byte{1})
+	}
+	require.Eventually(t, func() bool { return accepted() == 2 }, 10*time.Second, 5*time.Millisecond, "both lanes should be connecting")
+	waiting := make(chan struct{})
+	go func() {
+		defer close(waiting)
+		connector.SendReq([]byte{1})
+	}()
+
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		connector.Stop()
+	}()
+	requireClosed(t, stopped, "Stop did not return while both lanes were connecting")
+	requireClosed(t, waiting, "the call waiting for room did not return after Stop")
+
+	later := make(chan struct{})
+	go func() {
+		defer close(later)
+		connector.SendReq([]byte{1})
+		connector.SendAck(1, 1)
+	}()
+	requireClosed(t, later, "a call after Stop did not return")
 }
 
 // Scenario:
-//  1. Start primary 1, which reads the stream of forwarded requests, and forward a request to it.
-//  2. Stop primary 1's server, and forward a request marked 2 while it is down.
+//  1. Start primary 1, which reads both kinds of streams, behind a listener that counts its open connections.
+//  2. Forward a request and ack a batch, and wait until primary 1 has both, over two open connections.
+//  3. Stop the connector, and expect both connections to close.
+func TestPrimaryConnectorStopClosesItsConnections(t *testing.T) {
+	ca, err := tlsgen.NewCA()
+	require.NoError(t, err)
+	nodes := createNodes(t, ca, 1) // for its TLS identity; primary 1 is served on its own listener below
+	_, listener := testutil.SharedTestPortAllocator().Allocate(t)
+	counting := &countingListener{Listener: listener}
+	server, err := comm.NewGRPCServerFromListener(counting, comm.ServerConfig{
+		SecOpts: comm.SecureOptions{
+			ClientRootCAs:     [][]byte{ca.CertBytes()},
+			Key:               nodes[0].TLSKey,
+			Certificate:       nodes[0].TLSCert,
+			RequireClientCert: true,
+			UseTLS:            true,
+			ServerRootCAs:     [][]byte{ca.CertBytes()},
+		},
+	})
+	require.NoError(t, err)
+	primary := newFakePrimary(true)
+	protos.RegisterBatcherControlServiceServer(server.Server(), primary)
+	go func() { _ = server.Start() }()
+	t.Cleanup(server.Stop)
+	batchers := batcher.GetBatchersEndpointsAndCerts(createBatchersInfo(1, nodes, ca))
+	batchers[1].Endpoint = listener.Addr().String()
+	connector := newConnector(t, nodes, batchers, 2, 1, defaultTiming, defaultTiming)
+
+	connector.SendReq([]byte{1})
+	connector.SendAck(0, 1)
+	require.Eventually(t, func() bool {
+		return primary.requests.Load() == 1 && len(primary.ackedSeqs()) == 1 && counting.open.Load() == 2
+	}, 10*time.Second, 10*time.Millisecond)
+
+	connector.Stop()
+	require.Eventually(t, func() bool { return counting.open.Load() == 0 }, 10*time.Second, 10*time.Millisecond)
+}
+
+// countingListener counts the connections it accepted that are still open.
+type countingListener struct {
+	net.Listener
+	open atomic.Int32
+}
+
+func (l *countingListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	l.open.Add(1)
+	return &countedConn{Conn: conn, listener: l}, nil
+}
+
+// countedConn is a connection that a countingListener accepted.
+type countedConn struct {
+	net.Conn
+	listener *countingListener
+	closed   sync.Once
+}
+
+func (c *countedConn) Close() error {
+	c.closed.Do(func() { c.listener.open.Add(-1) })
+	return c.Conn.Close()
+}
+
+// Scenario:
+//  1. Start primary 1, which reads both kinds of streams.
+//  2. From each of 16 goroutines at once, forward 100 requests and ack 50 batches.
+//  3. Expect primary 1 to receive all 1600 requests and 800 acks, on one stream of each kind.
+func TestPrimaryConnectorSendsFromManyGoroutines(t *testing.T) {
+	ca, err := tlsgen.NewCA()
+	require.NoError(t, err)
+	primary := newFakePrimary(true)
+	nodes, batchers := serveFakePrimaries(t, ca, primary)
+	connector := newConnector(t, nodes, batchers, 2, 1, defaultTiming, defaultTiming)
+
+	var senders sync.WaitGroup
+	for g := range types.BatchSequence(16) {
+		senders.Go(func() {
+			for i := range types.BatchSequence(100) {
+				connector.SendReq([]byte{1})
+				if i < 50 {
+					connector.SendAck(g*50+i, 1)
+				}
+			}
+		})
+	}
+	senders.Wait()
+	require.Eventually(t, func() bool { return primary.requests.Load() == 1600 && len(primary.ackedSeqs()) == 800 }, 10*time.Second, 10*time.Millisecond)
+	require.Equal(t, int32(1), primary.streams.Load())
+	require.Equal(t, int32(1), primary.ackStreams.Load())
+}
+
+// Scenario:
+//  1. Start primary 1, which reads both kinds of streams, and forward a request marked 1 and ack batch 0 to it.
+//  2. Stop primary 1's server, and forward a request and ack a batch while it is down.
 //  3. Serve primary 1 again at the same address, without any primary change.
-//  4. Keep forwarding requests marked 2, and expect the new server to receive one: a send just after the stop can still
-//     succeed into the dead connection and be lost, so the connector reconnects on a later one.
-func TestPrimaryReqConnectorReconnectsWhenThePrimaryComesBack(t *testing.T) {
+//  4. Keep forwarding requests marked 2 and acking batches, and expect the new server to receive both kinds: a send just
+//     after the stop can still succeed into the dead connection and be lost, so each lane reconnects on a later one.
+func TestPrimaryConnectorReconnectsWhenThePrimaryComesBack(t *testing.T) {
 	ca, err := tlsgen.NewCA()
 	require.NoError(t, err)
 	first := newFakePrimary(true)
 	nodes, batchers := serveFakePrimaries(t, ca, first)
-	connector := newReqConnector(t, nodes, batchers, 2, 1)
+	connector := newConnector(t, nodes, batchers, 2, 1, defaultTiming, defaultTiming)
 
 	connector.SendReq([]byte{1})
-	require.Eventually(t, func() bool { return first.byMark[1].Load() == 1 }, 10*time.Second, 10*time.Millisecond)
+	connector.SendAck(0, 1)
+	require.Eventually(t, func() bool { return first.byMark[1].Load() == 1 && len(first.ackedSeqs()) == 1 }, 10*time.Second, 10*time.Millisecond)
 
 	address := nodes[0].Address()
 	nodes[0].Stop()
 	connector.SendReq([]byte{2})
+	connector.SendAck(1, 1)
 
 	keyPair, err := ca.NewServerCertKeyPair(localhost)
 	require.NoError(t, err)
@@ -606,39 +625,11 @@ func TestPrimaryReqConnectorReconnectsWhenThePrimaryComesBack(t *testing.T) {
 	go func() { _ = server.Start() }()
 	t.Cleanup(server.Stop)
 
+	seq := types.BatchSequence(2)
 	require.Eventually(t, func() bool {
 		connector.SendReq([]byte{2})
-		return back.byMark[2].Load() > 0
+		connector.SendAck(seq, 1)
+		seq++
+		return back.byMark[2].Load() > 0 && len(back.ackedSeqs()) > 0
 	}, 10*time.Second, 50*time.Millisecond)
-}
-
-// Scenario:
-//  1. Create a connector to primary 1, whose server is down, with a retry delay of 30 s after the first failure.
-//  2. Forward a request: connecting is refused at once, and the connector waits 30 s before it retries.
-//  3. Shortly after, switch the connector to primary 2, which reads, and forward a request marked 2.
-//  4. Expect primary 2 to receive it within 15 s: the switch ends the backoff rather than waiting it out.
-func TestPrimaryReqConnectorSwitchEndsTheBackoff(t *testing.T) {
-	ca, err := tlsgen.NewCA()
-	require.NoError(t, err)
-	down, reading := newFakePrimary(true), newFakePrimary(true)
-	nodes, batchers := serveFakePrimaries(t, ca, down, reading)
-	nodes[0].Stop()
-	conf := &node_config.BatcherNodeConfig{
-		PartyId:            3,
-		ShardId:            0,
-		TLSPrivateKeyFile:  nodes[0].TLSKey,
-		TLSCertificateFile: nodes[0].TLSCert,
-	}
-	connector := batcher.CreatePrimaryReqConnector(
-		1, testutil.CreateLogger(t, 3), conf, batchers, context.Background(),
-		30*time.Second, 30*time.Second, time.Minute,
-	)
-	t.Cleanup(connector.Stop)
-
-	connector.SendReq([]byte{1})
-	time.Sleep(200 * time.Millisecond) // a refused connection fails within milliseconds
-	switched := time.Now()
-	connector.ConnectToNewPrimary(types.PartyID(2))
-	connector.SendReq([]byte{2})
-	require.Eventually(t, func() bool { return reading.byMark[2].Load() == 1 }, 15*time.Second-time.Since(switched), 10*time.Millisecond)
 }

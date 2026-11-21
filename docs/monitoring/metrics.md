@@ -181,7 +181,7 @@ All batcher metrics carry the "party_id" and "shard_id" labels.
 
 - **Namespace:** "batcher"  
   **Name:** "first_resends_total"  
-  **Help:** "The total number of first resends performed."
+  **Help:** "Requests handed to the primary connector after their first strike, including those it then drops."
 
 - **Namespace:** "batcher"  
   **Name:** "batch_mempool_next_requests_latency_seconds"  

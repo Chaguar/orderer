@@ -81,7 +81,7 @@ var (
 	firstResendsTotalOpts = metrics.CounterOpts{
 		Namespace:  "batcher",
 		Name:       "first_resends_total",
-		Help:       "The total number of first resends performed.",
+		Help:       "Requests handed to the primary connector after their first strike, including those it then drops.",
 		LabelNames: []string{"party_id", "shard_id"},
 	}
 
