@@ -8,6 +8,7 @@ package config_test
 
 import (
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/pem"
@@ -19,6 +20,7 @@ import (
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/Chaguar/orderer/common/utils"
 	"github.com/Chaguar/orderer/config"
@@ -50,7 +52,7 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 			require.NoError(t, yaml.Unmarshal([]byte(section), node.GeneralConfig.BCCSP))
 			require.NoError(t, utils.WriteToYAML(node, path))
 
-			logger, logged := recordLogs()
+			logger, recorded := recordLogs(zapcore.DebugLevel)
 			conf, block, err := config.ReadConfig(path, logger)
 			require.NoError(t, err)
 			general := conf.LocalConfig.NodeLocalConfig.GeneralConfig
@@ -58,7 +60,7 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 				require.Equal(t, hsmPIN, pkcs11.Elem().FieldByName("Pin").String(), "the PIN was not loaded")
 			}
 
-			entries := logged()
+			entries := recorded()
 			local, shared := configEntries(t, entries)
 			localTitle, localYAML, _ := strings.Cut(local, "\n")
 			sharedTitle, sharedYAML, _ := strings.Cut(shared, "\n")
@@ -80,7 +82,35 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 			}
 			tlsCert := readDER(general.TLSConfig.Certificate)
 			tlsCertHash := sha256.Sum256(tlsCert)
-			require.Contains(t, sharedYAML, "sha256:"+hex.EncodeToString(tlsCertHash[:]))
+			tlsCertName := "sha256:" + hex.EncodeToString(tlsCertHash[:])
+			require.Contains(t, sharedYAML, tlsCertName)
+
+			// At debug level, the certificate details are logged, keyed by the same hash.
+			certsTitle := fmt.Sprintf("Shared config certificates (block %d):", block.Header.Number)
+			var certsYAML string
+			for _, entry := range entries {
+				if title, content, _ := strings.Cut(entry.Message, "\n"); title == certsTitle {
+					require.Equal(t, zapcore.DebugLevel, entry.Level)
+					certsYAML = content
+				}
+			}
+			require.NotEmpty(t, certsYAML, "the certificate details were not logged")
+			type details struct {
+				Subject   string    `yaml:"subject"`
+				Issuer    string    `yaml:"issuer"`
+				NotBefore time.Time `yaml:"notBefore"`
+				NotAfter  time.Time `yaml:"notAfter"`
+			}
+			var logged map[string]details
+			require.NoError(t, yaml.Unmarshal([]byte(certsYAML), &logged))
+			parsed, err := x509.ParseCertificate(tlsCert)
+			require.NoError(t, err)
+			require.Equal(t, details{
+				Subject:   parsed.Subject.String(),
+				Issuer:    parsed.Issuer.String(),
+				NotBefore: parsed.NotBefore.UTC(),
+				NotAfter:  parsed.NotAfter.UTC(),
+			}, logged[tlsCertName])
 
 			tlsCertBase64 := base64.StdEncoding.EncodeToString(tlsCert)
 			privateKey := base64.StdEncoding.EncodeToString(readDER(general.TLSConfig.PrivateKey))
@@ -94,7 +124,23 @@ func TestReadConfigLogsConfigurationForEveryRole(t *testing.T) {
 	}
 }
 
-func recordLogs() (*flogging.FabricLogger, func() []zapcore.Entry) {
+func TestReadConfigLogsNoCertificateDetailsAtInfoLevel(t *testing.T) {
+	e := newRejoinTestEnv(t)
+	path := filepath.Join(e.dir, "config", "party1", "local_config_router.yaml")
+	testutil.EditDirectoryInNodeConfigYAML(t, path, filepath.Join(e.dir, "storage", config.RouterStr), "", 0)
+
+	logger, recorded := recordLogs(zapcore.InfoLevel)
+	_, _, err := config.ReadConfig(path, logger)
+	require.NoError(t, err)
+
+	entries := recorded()
+	configEntries(t, entries)
+	for _, entry := range entries {
+		require.NotContains(t, entry.Message, "Shared config certificates")
+	}
+}
+
+func recordLogs(level zapcore.Level) (*flogging.FabricLogger, func() []zapcore.Entry) {
 	var mu sync.Mutex
 	var entries []zapcore.Entry
 	record := zap.Hooks(func(entry zapcore.Entry) error {
@@ -103,7 +149,7 @@ func recordLogs() (*flogging.FabricLogger, func() []zapcore.Entry) {
 		entries = append(entries, entry)
 		return nil
 	})
-	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.AddSync(io.Discard), zapcore.DebugLevel)
+	core := zapcore.NewCore(zapcore.NewConsoleEncoder(zap.NewDevelopmentEncoderConfig()), zapcore.AddSync(io.Discard), level)
 	return flogging.NewFabricLogger(zap.New(core, record)), func() []zapcore.Entry {
 		mu.Lock()
 		defer mu.Unlock()

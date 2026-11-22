@@ -13,27 +13,37 @@ import (
 	"encoding/pem"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
+	"go.uber.org/zap/zapcore"
 	"google.golang.org/protobuf/reflect/protoreflect"
 	"gopkg.in/yaml.v3"
 )
 
 // logConfiguration logs the local and shared startup configuration.
+// At debug level, it also logs the details of each certificate in the shared config.
 func logConfiguration(logger *flogging.FabricLogger, conf *Configuration, role string, blockNumber uint64) {
-	logYAML(logger, fmt.Sprintf("Local config (%s)", role), localConfigForLog(conf.LocalConfig.NodeLocalConfig))
+	logger.Infof("Local config (%s):\n%s", role, yamlForLog(localConfigForLog(conf.LocalConfig.NodeLocalConfig)))
 
-	logYAML(logger, fmt.Sprintf("Shared config (block %d)", blockNumber), protoTree(conf.SharedConfig.ProtoReflect()))
+	// Collect the certificate details only when they will be logged.
+	var certs map[string]certificateDetails
+	if logger.IsEnabledFor(zapcore.DebugLevel) {
+		certs = make(map[string]certificateDetails)
+	}
+	logger.Infof("Shared config (block %d):\n%s", blockNumber, yamlForLog(protoTree(conf.SharedConfig.ProtoReflect(), certs)))
+	if certs != nil {
+		logger.Debugf("Shared config certificates (block %d):\n%s", blockNumber, yamlForLog(certs))
+	}
 }
 
-func logYAML(logger *flogging.FabricLogger, title string, value any) {
+func yamlForLog(value any) string {
 	data, err := yaml.Marshal(value)
 	if err != nil {
-		logger.Warnf("%s: failed to render configuration: %v", title, err)
-		return
+		return fmt.Sprintf("<failed to render configuration: %v>", err)
 	}
-	logger.Infof("%s:\n%s", title, strings.TrimSuffix(string(data), "\n"))
+	return strings.TrimSuffix(string(data), "\n")
 }
 
 // localConfigForLog copies the local config with only safe BCCSP fields.
@@ -55,7 +65,8 @@ func localConfigForLog(source *NodeLocalConfig) *NodeLocalConfig {
 }
 
 // protoTree converts protobuf fields for logging, replacing certificates with their SHA-256 hashes.
-func protoTree(msg protoreflect.Message) map[string]any {
+// If certs is not nil, it adds the details of each certificate to it, keyed by its logged hash.
+func protoTree(msg protoreflect.Message, certs map[string]certificateDetails) map[string]any {
 	out := make(map[string]any)
 	fields := msg.Descriptor().Fields()
 	for i := 0; i < fields.Len(); i++ {
@@ -67,24 +78,24 @@ func protoTree(msg protoreflect.Message) map[string]any {
 			list := msg.Get(field).List()
 			values := make([]any, list.Len())
 			for j := 0; j < list.Len(); j++ {
-				values[j] = protoValue(field, list.Get(j))
+				values[j] = protoValue(field, list.Get(j), certs)
 			}
 			out[string(field.Name())] = values
 			continue
 		}
 		if field.Message() == nil || msg.Has(field) {
-			out[string(field.Name())] = protoValue(field, msg.Get(field))
+			out[string(field.Name())] = protoValue(field, msg.Get(field), certs)
 		}
 	}
 	return out
 }
 
-func protoValue(field protoreflect.FieldDescriptor, value protoreflect.Value) any {
+func protoValue(field protoreflect.FieldDescriptor, value protoreflect.Value, certs map[string]certificateDetails) any {
 	switch field.Kind() {
 	case protoreflect.BytesKind:
-		return certificatesForLog(value.Bytes())
+		return certificatesForLog(value.Bytes(), certs)
 	case protoreflect.MessageKind, protoreflect.GroupKind:
-		return protoTree(value.Message())
+		return protoTree(value.Message(), certs)
 	default:
 		return value.Interface()
 	}
@@ -92,7 +103,14 @@ func protoValue(field protoreflect.FieldDescriptor, value protoreflect.Value) an
 
 // certificatesForLog returns the SHA-256 hash of the DER of each PEM certificate in data,
 // ignoring any other content, or redacts data that holds no valid certificate.
-func certificatesForLog(data []byte) string {
+// If certs is not nil, it adds the details of each certificate to it, keyed by its hash.
+//
+// The hash after the "sha256:" prefix matches the output of:
+//
+//	openssl x509 -in cert.pem -outform der | sha256sum
+//
+// so a logged certificate can be matched against its file.
+func certificatesForLog(data []byte, certs map[string]certificateDetails) string {
 	if len(data) == 0 {
 		return "<empty>"
 	}
@@ -102,14 +120,32 @@ func certificatesForLog(data []byte) string {
 		if block.Type != "CERTIFICATE" {
 			continue
 		}
-		if _, err := x509.ParseCertificate(block.Bytes); err != nil {
+		cert, err := x509.ParseCertificate(block.Bytes)
+		if err != nil {
 			continue
 		}
 		hash := sha256.Sum256(block.Bytes)
-		hashes = append(hashes, "sha256:"+hex.EncodeToString(hash[:]))
+		name := "sha256:" + hex.EncodeToString(hash[:])
+		if certs != nil {
+			certs[name] = certificateDetails{
+				Subject:   cert.Subject.String(),
+				Issuer:    cert.Issuer.String(),
+				NotBefore: cert.NotBefore.UTC(),
+				NotAfter:  cert.NotAfter.UTC(),
+			}
+		}
+		hashes = append(hashes, name)
 	}
 	if len(hashes) == 0 {
 		return "<redacted, not a valid certificate>"
 	}
 	return strings.Join(hashes, ",")
+}
+
+// certificateDetails describes a certificate in the debug-level configuration log.
+type certificateDetails struct {
+	Subject   string    `yaml:"subject"`
+	Issuer    string    `yaml:"issuer"`
+	NotBefore time.Time `yaml:"notBefore"`
+	NotAfter  time.Time `yaml:"notAfter"`
 }

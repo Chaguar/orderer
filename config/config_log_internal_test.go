@@ -9,6 +9,7 @@ package config
 import (
 	"bytes"
 	"crypto/sha256"
+	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
 	"testing"
@@ -31,6 +32,18 @@ func TestCertificatesForLog(t *testing.T) {
 		hash := sha256.Sum256(block.Bytes)
 		return "sha256:" + hex.EncodeToString(hash[:])
 	}
+	detailsOf := func(cert *x509.Certificate) certificateDetails {
+		return certificateDetails{
+			Subject:   cert.Subject.String(),
+			Issuer:    cert.Issuer.String(),
+			NotBefore: cert.NotBefore.UTC(),
+			NotAfter:  cert.NotAfter.UTC(),
+		}
+	}
+	firstHash, secondHash := hashOf(first.Cert), hashOf(second.Cert)
+	firstDetails := map[string]certificateDetails{firstHash: detailsOf(first.TLSCert)}
+	bothDetails := map[string]certificateDetails{firstHash: detailsOf(first.TLSCert), secondHash: detailsOf(second.TLSCert)}
+
 	join := func(parts ...[]byte) []byte {
 		return bytes.Join(parts, []byte("\n"))
 	}
@@ -38,23 +51,30 @@ func TestCertificatesForLog(t *testing.T) {
 	const redacted = "<redacted, not a valid certificate>"
 
 	for _, tc := range []struct {
-		name string
-		data []byte
-		want string
+		name        string
+		data        []byte
+		want        string
+		wantDetails map[string]certificateDetails
 	}{
-		{"empty", nil, "<empty>"},
-		{"single certificate", first.Cert, hashOf(first.Cert)},
-		{"certificate bundle", join(first.Cert, second.Cert), hashOf(first.Cert) + "," + hashOf(second.Cert)},
-		{"text around certificates", join([]byte("Bag Attributes\nsubject=CN=x"), first.Cert, []byte("issuer=CN=y"), second.Cert), hashOf(first.Cert) + "," + hashOf(second.Cert)},
-		{"certificate with private key", join(first.Cert, first.Key), hashOf(first.Cert)},
-		{"private key only", first.Key, redacted},
-		{"invalid certificate block", notCert, redacted},
-		{"not PEM", []byte("plain text"), redacted},
+		{"empty", nil, "<empty>", map[string]certificateDetails{}},
+		{"single certificate", first.Cert, firstHash, firstDetails},
+		{"certificate bundle", join(first.Cert, second.Cert), firstHash + "," + secondHash, bothDetails},
+		{"same certificate twice", join(first.Cert, first.Cert), firstHash + "," + firstHash, firstDetails},
+		{"text around certificates", join([]byte("Bag Attributes\nsubject=CN=x"), first.Cert, []byte("issuer=CN=y"), second.Cert), firstHash + "," + secondHash, bothDetails},
+		{"certificate with private key", join(first.Cert, first.Key), firstHash, firstDetails},
+		{"private key only", first.Key, redacted, map[string]certificateDetails{}},
+		{"invalid certificate block", notCert, redacted, map[string]certificateDetails{}},
+		{"not PEM", []byte("plain text"), redacted, map[string]certificateDetails{}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			got := certificatesForLog(tc.data)
+			certs := make(map[string]certificateDetails)
+			got := certificatesForLog(tc.data, certs)
 			require.Equal(t, tc.want, got)
 			require.NotContains(t, got, "-----BEGIN")
+			require.Equal(t, tc.wantDetails, certs)
+
+			// Without a map, only the hashes are returned.
+			require.Equal(t, tc.want, certificatesForLog(tc.data, nil))
 		})
 	}
 }
