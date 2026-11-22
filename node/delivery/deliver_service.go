@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package delivery
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 )
 
 // DeliverService serves the decisions of consensus over the single channel they are written to.
@@ -35,7 +35,7 @@ type DeliverService struct {
 func NewDeliverService(channelID string, consensusLedger blockledger.Reader, bundle channelconfig.Resources) (*DeliverService, error) {
 	accessControl, err := deliver.NewAccessControl(bundle, policies.ChannelOrdererReaders)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed building the access control of the consensus deliver service")
+		return nil, fmt.Errorf("failed building the access control of the consensus deliver service: %w", err)
 	}
 
 	return &DeliverService{
@@ -46,7 +46,7 @@ func NewDeliverService(channelID string, consensusLedger blockledger.Reader, bun
 }
 
 func (d *DeliverService) Broadcast(_ orderer.AtomicBroadcast_BroadcastServer) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func (d *DeliverService) Deliver(stream orderer.AtomicBroadcast_DeliverServer) error {

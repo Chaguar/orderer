@@ -7,13 +7,13 @@ SPDX-License-Identifier: Apache-2.0
 package ledger
 
 import (
+	"fmt"
 	"slices"
 
 	"github.com/Chaguar/orderer/common/ledger/blkstorage"
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
-	"github.com/pkg/errors"
 )
 
 // BatchLedgerArray holds a BatchLedgerPart for each party, for a given shard.
@@ -29,7 +29,7 @@ type BatchLedgerArray struct {
 
 func NewBatchLedgerArray(shardID types.ShardID, partyID types.PartyID, parties []types.PartyID, channelID string, batchLedgerDir string, logger *flogging.FabricLogger, metrics *BatchLedgerMetrics) (*BatchLedgerArray, error) {
 	if !slices.Contains(parties, partyID) {
-		return nil, errors.Errorf("partyID %d not in parties %v", partyID, parties)
+		return nil, fmt.Errorf("partyID %d not in parties %v", partyID, parties)
 	}
 
 	logger.Infof("Creating batch ledger array for shard=%d, party=%d, parties=%v, dir=%s", shardID, partyID, parties, batchLedgerDir)
@@ -42,7 +42,7 @@ func NewBatchLedgerArray(shardID types.ShardID, partyID types.PartyID, parties [
 	// assemblers; this however requires additional protocols between assemblers and consensus.
 	provider, err := blkstorage.NewProvider(blkstorage.NewConf(batchLedgerDir, -1), &disabled.Provider{})
 	if err != nil {
-		return nil, errors.Errorf("failed creating block provider: %s", err)
+		return nil, fmt.Errorf("failed creating block provider: %w", err)
 	}
 
 	for _, primaryPartyID := range parties {

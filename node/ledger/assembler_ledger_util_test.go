@@ -7,15 +7,19 @@ SPDX-License-Identifier: Apache-2.0
 package ledger_test
 
 import (
+	"math"
 	"testing"
 
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/Chaguar/orderer/node/consensus/state"
 	node_ledger "github.com/Chaguar/orderer/node/ledger"
+	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"google.golang.org/protobuf/proto"
 
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestAssemblerBlockMetadataToFromBytes(t *testing.T) {
@@ -103,4 +107,31 @@ func TestBatchFrontierToString(t *testing.T) {
 		assert.Equal(t, "{Sh: 1, {<Pr: 11, Sq: 101>, <Pr: 12, Sq: 102>, <Pr: 13, Sq: 103>, <Pr: 14, Sq: 104>}; Sh: 2, {<Pr: 11, Sq: 105>, <Pr: 12, Sq: 106>, <Pr: 13, Sq: 107>, <Pr: 14, Sq: 108>}}",
 			node_ledger.BatchFrontierToString(bf))
 	})
+}
+
+func TestAssemblerBlockMetadataFromBytesRejectsOutOfRangeIDs(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		metadata *stateprotos.AssemblerBlockMetadata
+		errMsg   string
+	}{
+		{
+			name:     "shard",
+			metadata: &stateprotos.AssemblerBlockMetadata{Shard: math.MaxUint16 + 1, Primary: 1},
+			errMsg:   "the shard value 65536 exceeds uint16 maximum 65535",
+		},
+		{
+			name:     "primary",
+			metadata: &stateprotos.AssemblerBlockMetadata{Shard: 1, Primary: math.MaxUint16 + 1},
+			errMsg:   "the primary value 65536 exceeds uint16 maximum 65535",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			bytes, err := proto.Marshal(tc.metadata)
+			require.NoError(t, err)
+
+			_, _, _, _, _, _, _, err = node_ledger.AssemblerBlockMetadataFromBytes(bytes)
+			require.EqualError(t, err, tc.errMsg)
+		})
+	}
 }

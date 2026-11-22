@@ -7,13 +7,14 @@ SPDX-License-Identifier: Apache-2.0
 package ledger
 
 import (
+	"fmt"
+
 	"github.com/Chaguar/orderer/common/ledger/blkstorage"
 	"github.com/Chaguar/orderer/common/ledger/blockledger"
 	"github.com/Chaguar/orderer/common/ledger/blockledger/fileledger"
 	"github.com/hyperledger/fabric-lib-go/common/metrics/disabled"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 )
 
 //go:generate counterfeiter -o mocks/append_listener.go . AppendListener
@@ -31,12 +32,12 @@ type ConsensusLedger struct {
 func NewConsensusLedger(ledgerDir string) (*ConsensusLedger, error) {
 	provider, err := blkstorage.NewProvider(blkstorage.NewConf(ledgerDir, -1), &disabled.Provider{})
 	if err != nil {
-		return nil, errors.Wrap(err, "failed creating block provider")
+		return nil, fmt.Errorf("failed creating block provider: %w", err)
 	}
 
 	blockStore, err := provider.Open("consensus")
 	if err != nil {
-		return nil, errors.Wrap(err, "failed creating consensus ledger")
+		return nil, fmt.Errorf("failed creating consensus ledger: %w", err)
 	}
 
 	fl := fileledger.NewFileLedger(blockStore)

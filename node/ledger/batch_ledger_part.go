@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package ledger
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/Chaguar/common/protoutil"
@@ -16,7 +17,6 @@ import (
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -64,7 +64,7 @@ func newBatchLedgerPart(
 	if h > 0 {
 		block, err := fl.RetrieveBlockByNumber(h - 1)
 		if err != nil {
-			return nil, errors.Errorf("failed retrieving last block: %v", err)
+			return nil, fmt.Errorf("failed retrieving last block: %w", err)
 		}
 		part.prevHash = protoutil.BlockHeaderHash(block.Header)
 	}
