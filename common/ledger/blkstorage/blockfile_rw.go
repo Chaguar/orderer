@@ -7,11 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/Chaguar/common/tools/fileutil"
-
-	"github.com/pkg/errors"
 )
 
 type blockfileWriter struct {
@@ -27,7 +26,7 @@ func newBlockfileWriter(filePath string) (*blockfileWriter, error) {
 func (w *blockfileWriter) truncateFile(targetSize int) error {
 	fileStat, err := w.file.Stat()
 	if err != nil {
-		return errors.Wrapf(err, "error truncating the file [%s] to size [%d]", w.filePath, targetSize)
+		return fmt.Errorf("error truncating the file [%s] to size [%d]: %w", w.filePath, targetSize, err)
 	}
 	if fileStat.Size() > int64(targetSize) {
 		w.file.Truncate(int64(targetSize))
@@ -49,7 +48,7 @@ func (w *blockfileWriter) append(b []byte, sync bool) error {
 func (w *blockfileWriter) open() error {
 	file, err := os.OpenFile(w.filePath, os.O_RDWR|os.O_APPEND|os.O_CREATE, 0o660)
 	if err != nil {
-		return errors.Wrapf(err, "error opening block file writer for file %s", w.filePath)
+		return fmt.Errorf("error opening block file writer for file %s: %w", w.filePath, err)
 	}
 	if err := fileutil.SyncParentDir(w.filePath); err != nil {
 		return err
@@ -59,5 +58,5 @@ func (w *blockfileWriter) open() error {
 }
 
 func (w *blockfileWriter) close() error {
-	return errors.WithStack(w.file.Close())
+	return w.file.Close()
 }

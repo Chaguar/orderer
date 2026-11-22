@@ -7,9 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package pebbledb
 
 import (
+	"fmt"
+
 	"github.com/cockroachdb/pebble/v2"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/pkg/errors"
 )
 
 // FormatMajorVersion is the on-disk format every Pebble database of the orderer is created at. Pebble
@@ -27,7 +28,10 @@ func Open(path string, opts *pebble.Options, logger *flogging.FabricLogger) (*pe
 		opts.Logger = panicOnFatal{logger}
 	}
 	db, err := pebble.Open(path, opts)
-	return db, errors.Wrapf(err, "failed opening pebble database at %s", path)
+	if err != nil {
+		return nil, fmt.Errorf("failed opening pebble database at %s: %w", path, err)
+	}
+	return db, nil
 }
 
 // panicOnFatal is a Pebble logger that panics on a fatal error instead of exiting the process, as the

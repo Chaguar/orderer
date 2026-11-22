@@ -7,7 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
+
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
@@ -27,7 +28,7 @@ func newBuffer(b []byte) *buffer {
 func (b *buffer) DecodeVarint() (uint64, error) {
 	v, n := protowire.ConsumeVarint(b.buf[b.position:])
 	if n < 0 {
-		return 0, errors.Wrap(protowire.ParseError(n), "error decoding varint with proto.Buffer")
+		return 0, fmt.Errorf("error decoding varint with proto.Buffer: %w", protowire.ParseError(n))
 	}
 	b.position += n
 	return v, nil
@@ -37,7 +38,7 @@ func (b *buffer) DecodeVarint() (uint64, error) {
 func (b *buffer) DecodeRawBytes(alloc bool) ([]byte, error) {
 	v, n := protowire.ConsumeBytes(b.buf[b.position:])
 	if n < 0 {
-		return nil, errors.Wrap(protowire.ParseError(n), "error decoding raw bytes with proto.Buffer")
+		return nil, fmt.Errorf("error decoding raw bytes with proto.Buffer: %w", protowire.ParseError(n))
 	}
 	b.position += n
 	if alloc {

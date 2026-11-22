@@ -7,12 +7,13 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
 
 	"github.com/Chaguar/common/tools/fileutil"
-	"github.com/pkg/errors"
 )
 
 // ErrPruned is returned when a block below the prune point is requested, whether or not its bytes are
@@ -78,7 +79,7 @@ func (p *pruneMgr) pruneBefore(blockNum uint64, tail *blockfilesInfo) error {
 	// records one, since the active file is never eligible. Checked here as well because the sweep below
 	// deletes every file below that one, the active file included if the record were past it.
 	if current.firstStoredBlockfileNum > tail.latestFileNumber {
-		return errors.Errorf(
+		return fmt.Errorf(
 			"cannot prune. the prune info records block file [%d] as the lowest surviving block file, but the "+
 				"latest block file is [%d]", current.firstStoredBlockfileNum, tail.latestFileNumber,
 		)
@@ -123,7 +124,7 @@ func (p *pruneMgr) pruneBefore(blockNum uint64, tail *blockfilesInfo) error {
 	// one of the file above. Each file's range is known from these first blocks without reading the file.
 	from, err := retrieveFirstBlockNumFromFile(p.rootDir, lowestFile)
 	if err != nil {
-		return errors.WithMessagef(err, "cannot determine the first block of block file [%d]", lowestFile)
+		return fmt.Errorf("cannot determine the first block of block file [%d]: %w", lowestFile, err)
 	}
 	for f := lowestFile; f < lowestFile+eligible; f++ {
 		to, err := p.firstBlockNumAfter(f, tail)
@@ -166,7 +167,7 @@ func (p *pruneMgr) firstBlockNumAfter(fileNum int, tail *blockfilesInfo) (uint64
 	}
 	n, err := retrieveFirstBlockNumFromFile(p.rootDir, fileNum+1)
 	if err != nil {
-		return 0, errors.WithMessagef(err, "cannot determine the first block of block file [%d]", fileNum+1)
+		return 0, fmt.Errorf("cannot determine the first block of block file [%d]: %w", fileNum+1, err)
 	}
 	return n, nil
 }
@@ -218,7 +219,7 @@ func (p *pruneMgr) sweepOrphans(below int) error {
 			break // ascending, so nothing lower remains
 		}
 		if err := os.Remove(deriveBlockfilePath(p.rootDir, n)); err != nil && !os.IsNotExist(err) {
-			return errors.Wrapf(err, "error removing orphaned block file [%d]", n)
+			return fmt.Errorf("error removing orphaned block file [%d]: %w", n, err)
 		}
 		swept++
 	}
@@ -233,7 +234,7 @@ func (p *pruneMgr) sweepOrphans(below int) error {
 // instead of depending on the caller finishing the loop.
 func (p *pruneMgr) removeBlockfile(fileNum int) error {
 	if err := os.Remove(deriveBlockfilePath(p.rootDir, fileNum)); err != nil && !os.IsNotExist(err) {
-		return errors.Wrapf(err, "error removing block file [%d]", fileNum)
+		return fmt.Errorf("error removing block file [%d]: %w", fileNum, err)
 	}
 	return fileutil.SyncDir(p.rootDir)
 }

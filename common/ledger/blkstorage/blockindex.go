@@ -7,12 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Chaguar/orderer/common/ledger/util"
 	"github.com/Chaguar/orderer/common/ledger/util/kvdb"
 
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
@@ -77,7 +77,7 @@ func (index *blockIndex) getBlockLocByBlockNum(blockNum uint64) (*fileLocPointer
 		return nil, err
 	}
 	if b == nil {
-		return nil, errors.Errorf("no such block number [%d] in index", blockNum)
+		return nil, fmt.Errorf("no such block number [%d] in index", blockNum)
 	}
 	blkLoc := &fileLocPointer{}
 	if err := blkLoc.unmarshal(b); err != nil {
@@ -133,21 +133,21 @@ func (flp *fileLocPointer) unmarshal(b []byte) error {
 
 	i, n := protowire.ConsumeVarint(b[position:])
 	if n < 0 {
-		return errors.Wrapf(protowire.ParseError(n), "unexpected error while unmarshalling bytes [%#v] into fileLocPointer", b)
+		return fmt.Errorf("unexpected error while unmarshalling bytes [%#v] into fileLocPointer: %w", b, protowire.ParseError(n))
 	}
 	position += n
 	flp.fileSuffixNum = int(i)
 
 	i, n = protowire.ConsumeVarint(b[position:])
 	if n < 0 {
-		return errors.Wrapf(protowire.ParseError(n), "unexpected error while unmarshalling bytes [%#v] into fileLocPointer", b)
+		return fmt.Errorf("unexpected error while unmarshalling bytes [%#v] into fileLocPointer: %w", b, protowire.ParseError(n))
 	}
 	position += n
 	flp.offset = int(i)
 
 	i, n = protowire.ConsumeVarint(b[position:])
 	if n < 0 {
-		return errors.Wrapf(protowire.ParseError(n), "unexpected error while unmarshalling bytes [%#v] into fileLocPointer", b)
+		return fmt.Errorf("unexpected error while unmarshalling bytes [%#v] into fileLocPointer: %w", b, protowire.ParseError(n))
 	}
 	flp.bytesLength = int(i)
 	return nil

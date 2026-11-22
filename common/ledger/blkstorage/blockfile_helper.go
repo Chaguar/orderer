@@ -7,13 +7,13 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"fmt"
 	"os"
 	"slices"
 	"strconv"
 	"strings"
 
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // constructBlockfilesInfo scans the last blockfile (if any) and construct the blockfilesInfo
@@ -108,7 +108,7 @@ func retrieveLastFileSuffix(rootDir string) (int, error) {
 	biggestFileNum := -1
 	filesInfo, err := os.ReadDir(rootDir)
 	if err != nil {
-		return -1, errors.Wrapf(err, "error reading dir %s", rootDir)
+		return -1, fmt.Errorf("error reading dir %s: %w", rootDir, err)
 	}
 	for _, fileInfo := range filesInfo {
 		name := fileInfo.Name()
@@ -135,7 +135,7 @@ func retrieveLastFileSuffix(rootDir string) (int, error) {
 func blockfileNumsIn(rootDir string) ([]int, error) {
 	entries, err := os.ReadDir(rootDir)
 	if err != nil {
-		return nil, errors.Wrapf(err, "error reading dir %s", rootDir)
+		return nil, fmt.Errorf("error reading dir %s: %w", rootDir, err)
 	}
 
 	nums := make([]int, 0, len(entries))
@@ -145,7 +145,7 @@ func blockfileNumsIn(rootDir string) ([]int, error) {
 		}
 		n, err := strconv.Atoi(strings.TrimPrefix(e.Name(), blockfilePrefix))
 		if err != nil {
-			return nil, errors.Wrapf(err, "unexpected block file name %s", e.Name())
+			return nil, fmt.Errorf("unexpected block file name %s: %w", e.Name(), err)
 		}
 		nums = append(nums, n)
 	}
@@ -162,7 +162,7 @@ func getFileInfoOrPanic(rootDir string, fileNum int) os.FileInfo {
 	filePath := deriveBlockfilePath(rootDir, fileNum)
 	fileInfo, err := os.Lstat(filePath)
 	if err != nil {
-		panic(errors.Wrapf(err, "error retrieving file info for file number %d", fileNum))
+		panic(fmt.Errorf("error retrieving file info for file number %d: %w", fileNum, err))
 	}
 	return fileInfo
 }

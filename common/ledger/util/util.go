@@ -20,7 +20,6 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
@@ -61,11 +60,11 @@ func DecodeOrderPreservingVarUint64(bytes []byte) (uint64, int, error) {
 
 	switch {
 	case numBytes != 1:
-		return 0, 0, errors.Errorf("number of consumed bytes from DecodeVarint is invalid, expected 1, but got %d", numBytes)
+		return 0, 0, fmt.Errorf("number of consumed bytes from DecodeVarint is invalid, expected 1, but got %d", numBytes)
 	case s > 8:
-		return 0, 0, errors.Errorf("decoded size from DecodeVarint is invalid, expected <=8, but got %d", s)
+		return 0, 0, fmt.Errorf("decoded size from DecodeVarint is invalid, expected <=8, but got %d", s)
 	case int(s) > len(bytes)-1:
-		return 0, 0, errors.Errorf("decoded size (%d) from DecodeVarint is more than available bytes (%d)", s, len(bytes)-1)
+		return 0, 0, fmt.Errorf("decoded size (%d) from DecodeVarint is more than available bytes (%d)", s, len(bytes)-1)
 	default:
 		// no error
 		size := int(s)

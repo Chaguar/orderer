@@ -16,7 +16,6 @@ import (
 	"github.com/Chaguar/orderer/common/filerepo"
 
 	"github.com/Chaguar/common/tools/fileutil"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -78,11 +77,11 @@ func (s *pruneStore) getInfo() (*pruneInfo, error) {
 
 	b, err := s.repo.Read(name)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "error reading prune info [%s]", name)
+		return nil, fmt.Errorf("error reading prune info [%s]: %w", name, err)
 	}
 	info := &pruneInfo{}
 	if err := info.unmarshal(b); err != nil {
-		return nil, errors.WithMessagef(err, "error unmarshalling prune info [%s]", name)
+		return nil, fmt.Errorf("error unmarshalling prune info [%s]: %w", name, err)
 	}
 
 	// Only now that the latest file has been read: a failure above leaves every file in place for whoever
@@ -106,7 +105,7 @@ func (s *pruneStore) saveInfo(info *pruneInfo) error {
 	// A base name is written once, so filerepo refusing to overwrite is a check rather than an obstacle: it
 	// can only fire here if the sequence went backwards.
 	if err := s.repo.Save(baseName(pruneInfoPrefix, next), info.marshal()); err != nil {
-		return errors.WithMessagef(err, "error saving prune info %s", info)
+		return fmt.Errorf("error saving prune info %s: %w", info, err)
 	}
 
 	superseded := s.infoSeq
@@ -126,7 +125,7 @@ func (s *pruneStore) open() error {
 
 	repo, err := filerepo.New(s.rootDir, pruneStoreFileSuffix)
 	if err != nil {
-		return errors.WithMessagef(err, "error opening prune store under [%s]", s.rootDir)
+		return fmt.Errorf("error opening prune store under [%s]: %w", s.rootDir, err)
 	}
 	s.repo = repo
 	return nil
@@ -136,7 +135,7 @@ func (s *pruneStore) open() error {
 func (s *pruneStore) dirExists() (bool, error) {
 	exists, err := fileutil.DirExists(filepath.Join(s.rootDir, pruneStoreFileSuffix))
 	if err != nil {
-		return false, errors.WithMessagef(err, "error checking for a prune store under [%s]", s.rootDir)
+		return false, fmt.Errorf("error checking for a prune store under [%s]: %w", s.rootDir, err)
 	}
 	return exists, nil
 }
@@ -146,7 +145,7 @@ func (s *pruneStore) dirExists() (bool, error) {
 func (s *pruneStore) seqs(prefix string) ([]uint64, error) {
 	fileNames, err := s.repo.List()
 	if err != nil {
-		return nil, errors.WithMessage(err, "error listing prune store")
+		return nil, fmt.Errorf("error listing prune store: %w", err)
 	}
 
 	var seqs []uint64
@@ -159,7 +158,7 @@ func (s *pruneStore) seqs(prefix string) ([]uint64, error) {
 		// than refusing to open the ledger.
 		seq, err := strconv.ParseUint(digits, 10, 64)
 		if err != nil {
-			return nil, errors.Wrapf(err, "prune store file [%s] has no readable sequence number", fileName)
+			return nil, fmt.Errorf("prune store file [%s] has no readable sequence number: %w", fileName, err)
 		}
 		seqs = append(seqs, seq)
 	}
