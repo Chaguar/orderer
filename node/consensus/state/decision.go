@@ -34,11 +34,11 @@ type asn1Proposal struct {
 // The proposal is extracted from the block's Data field.
 func ConsenterBlockToProposal(block *common.Block) (*smartbft_types.Proposal, error) {
 	if block == nil {
-		return nil, fmt.Errorf("block is nil")
+		return nil, errors.New("block is nil")
 	}
 
 	if block.Header == nil {
-		return nil, fmt.Errorf("block header is nil")
+		return nil, errors.New("block header is nil")
 	}
 
 	if block.Data == nil || len(block.Data.Data) == 0 {

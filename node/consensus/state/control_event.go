@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/binary"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/Chaguar/orderer/common/types"
@@ -131,7 +132,7 @@ func (ce *ControlEvent) fromProto(pe *stateprotos.ControlEvent) error {
 	switch event := pe.Event.(type) {
 	case *stateprotos.ControlEvent_Baf:
 		if event.Baf == nil {
-			return fmt.Errorf("BAF event payload is nil")
+			return errors.New("BAF event payload is nil")
 		}
 		baf := &types.SimpleBatchAttestationFragment{}
 		if err := baf.FromProto(event.Baf); err != nil {
@@ -140,7 +141,7 @@ func (ce *ControlEvent) fromProto(pe *stateprotos.ControlEvent) error {
 		ce.BAF = baf
 	case *stateprotos.ControlEvent_Complaint:
 		if event.Complaint == nil {
-			return fmt.Errorf("Complaint event payload is nil")
+			return errors.New("Complaint event payload is nil")
 		}
 		ce.Complaint = &Complaint{}
 		if err := ce.Complaint.fromProto(event.Complaint); err != nil {
@@ -148,7 +149,7 @@ func (ce *ControlEvent) fromProto(pe *stateprotos.ControlEvent) error {
 		}
 	case *stateprotos.ControlEvent_ConfigRequest:
 		if event.ConfigRequest == nil {
-			return fmt.Errorf("ConfigRequest event payload is nil")
+			return errors.New("ConfigRequest event payload is nil")
 		}
 		ce.ConfigRequest = &ConfigRequest{}
 		if err := ce.ConfigRequest.fromProto(event.ConfigRequest); err != nil {
@@ -156,14 +157,14 @@ func (ce *ControlEvent) fromProto(pe *stateprotos.ControlEvent) error {
 		}
 	case *stateprotos.ControlEvent_AssemblerDecisionReport:
 		if event.AssemblerDecisionReport == nil {
-			return fmt.Errorf("AssemblerDecisionReport event payload is nil")
+			return errors.New("AssemblerDecisionReport event payload is nil")
 		}
 		ce.AssemblerReport = &AssemblerDecisionReport{}
 		if err := ce.AssemblerReport.fromProto(event.AssemblerDecisionReport); err != nil {
 			return err
 		}
 	default:
-		return fmt.Errorf("unknown control event type")
+		return errors.New("unknown control event type")
 	}
 
 	return nil

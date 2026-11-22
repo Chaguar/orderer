@@ -103,7 +103,7 @@ func VerifyDataCommonBlock(block *common.Block, blockNum uint64, prevHash []byte
 	}
 
 	if !bytes.Equal(computedBlockMetadata, block.Metadata.Metadata[common.BlockMetadataIndex_ORDERER]) {
-		return fmt.Errorf("proposed block metadata isn't equal to computed metadata")
+		return errors.New("proposed block metadata isn't equal to computed metadata")
 	}
 
 	// verify last config
@@ -163,7 +163,7 @@ func VerifyConfigCommonBlock(configBlock *common.Block, blockNum uint64, prevHas
 	}
 
 	if !bytes.Equal(computedBlockMetadata, configBlock.Metadata.Metadata[common.BlockMetadataIndex_ORDERER]) {
-		return fmt.Errorf("proposed config block metadata isn't equal to computed metadata")
+		return errors.New("proposed config block metadata isn't equal to computed metadata")
 	}
 
 	// verify last config

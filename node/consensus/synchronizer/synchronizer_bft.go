@@ -132,7 +132,7 @@ func (s *BFTSynchronizer) Buffer() *commonsync.SyncBuffer {
 
 func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 	if s.isStopped() {
-		return nil, fmt.Errorf("synchronizer stopped")
+		return nil, errors.New("synchronizer stopped")
 	}
 
 	// === We probe all the endpoints and establish a target height, as well as detect the self endpoint.
@@ -166,7 +166,7 @@ func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 	s.mutex.Lock()
 	if s.stopped { // Stop was called while the target height was detected
 		s.mutex.Unlock()
-		return nil, fmt.Errorf("synchronizer stopped")
+		return nil, errors.New("synchronizer stopped")
 	}
 	s.syncBuff = commonsync.NewSyncBuffer(capacityBlocks)
 	s.mutex.Unlock()

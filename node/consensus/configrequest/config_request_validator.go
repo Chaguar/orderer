@@ -69,7 +69,7 @@ func (vc *DefaultValidateConfigRequest) ValidateConfigRequest(envelope *common.E
 	}
 
 	if !proto.Equal(configEnvelope.Config, expectedConfigEnvelope.Config) {
-		return fmt.Errorf("pending last update does not match calculated expected config")
+		return errors.New("pending last update does not match calculated expected config")
 	}
 
 	return nil

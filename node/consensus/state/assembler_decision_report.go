@@ -8,6 +8,7 @@ package state
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"math"
 
@@ -96,7 +97,7 @@ func (r *AssemblerDecisionReport) toProto() *stateprotos.AssemblerDecisionReport
 
 func (r *AssemblerDecisionReport) fromProto(pr *stateprotos.AssemblerDecisionReport) error {
 	if pr.GetParty() == 0 {
-		return fmt.Errorf("the AssemblerDecisionReport Party value must be greater than zero")
+		return errors.New("the AssemblerDecisionReport Party value must be greater than zero")
 	}
 	if pr.GetParty() > math.MaxUint16 {
 		return fmt.Errorf("the AssemblerDecisionReport Party value %d exceeds uint16 maximum %d", pr.Party, math.MaxUint16)

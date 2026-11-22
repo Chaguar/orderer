@@ -36,10 +36,10 @@ func (*ConsenterBlockVerifierCreator) CreateBlockVerifier(
 	lg *flogging.FabricLogger,
 ) (deliverclient.CloneableUpdatableBlockVerifier, error) {
 	if configBlock == nil {
-		return nil, fmt.Errorf("config block is nil")
+		return nil, errors.New("config block is nil")
 	}
 	if configBlock.Header == nil {
-		return nil, fmt.Errorf("config block header is nil")
+		return nil, errors.New("config block header is nil")
 	}
 	if !protoutil.IsConfigBlock(configBlock) {
 		return nil, errors.New("config block parameter does not carry a config block")

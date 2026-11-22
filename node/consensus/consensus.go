@@ -1467,7 +1467,7 @@ func (c *Consensus) verifyControlEvent(req []byte, proposalNum arma_types.Decisi
 		}
 		return reqID, ce, nil
 	} else {
-		return smartbft_types.RequestInfo{}, ce, fmt.Errorf("empty control event")
+		return smartbft_types.RequestInfo{}, ce, errors.New("empty control event")
 	}
 }
 
@@ -1561,7 +1561,7 @@ func (c *Consensus) verifyAndClassifyRequest(request *protos.Request) (*protos.R
 	}
 
 	if configRequest == nil {
-		return nil, fmt.Errorf("unexpected config request was verified and proposed")
+		return nil, errors.New("unexpected config request was verified and proposed")
 	}
 
 	return configRequest, nil
