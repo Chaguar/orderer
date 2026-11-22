@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package blocksprovider
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 )
 
 //go:generate counterfeiter -o fake/block_handler.go --fake-name BlockHandler . BlockHandler
@@ -100,7 +100,7 @@ RecvLoop: // Loop until the endpoint is refreshed, or there is an error on the c
 		case response, ok := <-br.recvC:
 			if !ok {
 				br.logger.Warningf("Orderer hung up without sending status")
-				err = errors.Errorf("orderer `%s` hung up without sending status", br.endpoint.Address)
+				err = fmt.Errorf("orderer `%s` hung up without sending status", br.endpoint.Address)
 				break RecvLoop
 			}
 			var blockNum uint64
@@ -108,7 +108,7 @@ RecvLoop: // Loop until the endpoint is refreshed, or there is an error on the c
 			blockNum, channelConfig, err = br.processMsg(response)
 			if err != nil {
 				br.logger.Warningf("Got error while attempting to receive blocks: %v", err)
-				err = errors.WithMessagef(err, "got error while attempting to receive blocks from orderer `%s`", br.endpoint.Address)
+				err = fmt.Errorf("got error while attempting to receive blocks from orderer `%s`: %w", br.endpoint.Address, err)
 				break RecvLoop
 			}
 			onSuccess(blockNum, channelConfig)
@@ -130,10 +130,10 @@ func (br *BlockReceiver) processMsg(msg *orderer.DeliverResponse) (uint64, *comm
 	switch t := msg.GetType().(type) {
 	case *orderer.DeliverResponse_Status:
 		if t.Status == common.Status_SUCCESS {
-			return 0, nil, errors.Errorf("received success for a seek that should never complete")
+			return 0, nil, errors.New("received success for a seek that should never complete")
 		}
 
-		return 0, nil, errors.Errorf("received bad status %v from orderer", t.Status)
+		return 0, nil, fmt.Errorf("received bad status %v from orderer", t.Status)
 	case *orderer.DeliverResponse_Block:
 		if t.Block.GetHeader() == nil {
 			return 0, nil, fmt.Errorf("block from orderer [%s] has no block or header", br.endpoint.String())
@@ -141,12 +141,12 @@ func (br *BlockReceiver) processMsg(msg *orderer.DeliverResponse) (uint64, *comm
 		blockNum := t.Block.Header.Number
 
 		if err := br.updatableBlockVerifier.VerifyBlock(t.Block); err != nil {
-			return 0, nil, errors.WithMessagef(err, "block [%d] from orderer [%s] could not be verified", blockNum, br.endpoint.String())
+			return 0, nil, fmt.Errorf("block [%d] from orderer [%s] could not be verified: %w", blockNum, br.endpoint.String(), err)
 		}
 
 		err := br.blockHandler.HandleBlock(br.channelID, t.Block)
 		if err != nil {
-			return 0, nil, errors.WithMessagef(err, "block [%d] from orderer [%s] could not be handled", blockNum, br.endpoint.String())
+			return 0, nil, fmt.Errorf("block [%d] from orderer [%s] could not be handled: %w", blockNum, br.endpoint.String(), err)
 		}
 
 		br.logger.Debugf("Handled block %d", blockNum)
@@ -155,14 +155,14 @@ func (br *BlockReceiver) processMsg(msg *orderer.DeliverResponse) (uint64, *comm
 		if br.configBlockOps.IsConfigBlock(t.Block) {
 			configEnv, err := br.configBlockOps.ConfigFromBlock(t.Block)
 			if err != nil {
-				return 0, nil, errors.WithMessagef(err, "failed to extract channel-config from config block [%d] from orderer [%s]", blockNum, br.endpoint.String())
+				return 0, nil, fmt.Errorf("failed to extract channel-config from config block [%d] from orderer [%s]: %w", blockNum, br.endpoint.String(), err)
 			}
 
 			channelConfig = configEnv.GetConfig()
 			br.logger.Debugf("channel config: %+v", channelConfig)
 
 			if err := br.updatableBlockVerifier.UpdateConfig(t.Block); err != nil {
-				return 0, nil, errors.WithMessagef(err, "config block [%d] from orderer [%s] failed to update block verifier", blockNum, br.endpoint.String())
+				return 0, nil, fmt.Errorf("config block [%d] from orderer [%s] failed to update block verifier: %w", blockNum, br.endpoint.String(), err)
 			}
 			br.logger.Infof("Updated config block %d", blockNum)
 		}
@@ -171,6 +171,6 @@ func (br *BlockReceiver) processMsg(msg *orderer.DeliverResponse) (uint64, *comm
 
 		return blockNum, channelConfig, nil
 	default:
-		return 0, nil, errors.Errorf("unknown message type: %T, message: %+v", t, msg)
+		return 0, nil, fmt.Errorf("unknown message type: %T, message: %+v", t, msg)
 	}
 }

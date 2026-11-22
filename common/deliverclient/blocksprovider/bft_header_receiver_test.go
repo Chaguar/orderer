@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package blocksprovider_test
 
 import (
-	"fmt"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -16,7 +16,6 @@ import (
 
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -28,7 +27,7 @@ import (
 
 func TestBftHeaderReceiver_NoBlocks_RecvError(t *testing.T) {
 	fakeBlockVerifier := &fake.UpdatableBlockVerifier{}
-	fakeBlockVerifier.VerifyBlockAttestationReturns(fmt.Errorf("fake-verify-error"))
+	fakeBlockVerifier.VerifyBlockAttestationReturns(errors.New("fake-verify-error"))
 
 	streamClientMock := &fake.DeliverClient{}
 	streamClientMock.RecvReturns(nil, errors.New("oops"))
@@ -54,7 +53,7 @@ func TestBftHeaderReceiver_NoBlocks_RecvError(t *testing.T) {
 
 func TestBftHeaderReceiver_BadStatus(t *testing.T) {
 	fakeBlockVerifier := &fake.UpdatableBlockVerifier{}
-	fakeBlockVerifier.VerifyBlockAttestationReturns(fmt.Errorf("fake-verify-error"))
+	fakeBlockVerifier.VerifyBlockAttestationReturns(errors.New("fake-verify-error"))
 
 	streamClientMock := &fake.DeliverClient{}
 	streamClientMock.RecvReturnsOnCall(0, &orderer.DeliverResponse{Type: &orderer.DeliverResponse_Status{Status: common.Status_SUCCESS}}, nil)
@@ -78,7 +77,7 @@ func TestBftHeaderReceiver_BadStatus(t *testing.T) {
 
 func TestBftHeaderReceiver_NilResponse(t *testing.T) {
 	fakeBlockVerifier := &fake.UpdatableBlockVerifier{}
-	fakeBlockVerifier.VerifyBlockAttestationReturns(fmt.Errorf("fake-verify-error"))
+	fakeBlockVerifier.VerifyBlockAttestationReturns(errors.New("fake-verify-error"))
 
 	streamClientMock := &fake.DeliverClient{}
 	streamClientMock.RecvReturns(nil, nil)

@@ -8,6 +8,7 @@ package deliverclient
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -20,7 +21,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -315,7 +315,7 @@ func TestBlockVerificationAssistant_VerifyBlock(t *testing.T) {
 
 		err = assistant.VerifyBlock(block)
 		require.Error(t, err)
-		require.EqualError(t, err, errors.Errorf("signature set did not satisfy policy").Error())
+		require.EqualError(t, err, errors.New("signature set did not satisfy policy").Error())
 	})
 
 	t.Run("non config block with tx not well formed", func(t *testing.T) {
@@ -340,7 +340,7 @@ func TestBlockVerificationAssistant_VerifyBlock(t *testing.T) {
 
 		err = assistant.VerifyBlock(block)
 		require.Error(t, err)
-		require.Equal(t, err.Error(), errors.Errorf("failed to verify transactions are well formed for block with id [%d] on channel [%s]: transaction 0 has no signature", block.Header.Number, assistant.channelID).Error())
+		require.Equal(t, err.Error(), fmt.Errorf("failed to verify transactions are well formed for block with id [%d] on channel [%s]: transaction 0 has no signature", block.Header.Number, assistant.channelID).Error())
 	})
 }
 
@@ -440,7 +440,7 @@ func TestBlockVerificationAssistant_UpdateConfig(t *testing.T) {
 
 		err = assistant.UpdateConfig(configBlock)
 		require.Error(t, err)
-		require.Equal(t, err.Error(), errors.Errorf("config block channel ID [%s] does not match expected: [%s]", blockChannelId, assistant.channelID).Error())
+		require.Equal(t, err.Error(), fmt.Errorf("config block channel ID [%s] does not match expected: [%s]", blockChannelId, assistant.channelID).Error())
 	})
 }
 
@@ -542,7 +542,7 @@ func TestBlockVerificationAssistant_VerifyBlockAttestation(t *testing.T) {
 
 		err = assistant.VerifyBlockAttestation(block)
 		require.Error(t, err)
-		require.EqualError(t, err, errors.Errorf("signature set did not satisfy policy").Error())
+		require.EqualError(t, err, errors.New("signature set did not satisfy policy").Error())
 	})
 }
 

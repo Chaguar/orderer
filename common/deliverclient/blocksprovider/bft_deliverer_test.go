@@ -9,6 +9,7 @@ package blocksprovider_test
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -22,7 +23,6 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
@@ -385,7 +385,7 @@ func TestBFTDeliverer_FatalErrors(t *testing.T) {
 	t.Run("Ledger height returns an error", func(t *testing.T) {
 		setup := newBFTDelivererTestSetup(t)
 		setup.initialize(t)
-		setup.fakeLedgerInfo.LedgerHeightReturns(0, fmt.Errorf("fake-ledger-error"))
+		setup.fakeLedgerInfo.LedgerHeightReturns(0, errors.New("fake-ledger-error"))
 		setup.start()
 
 		t.Log("Exits the DeliverBlocks loop")
@@ -399,7 +399,7 @@ func TestBFTDeliverer_FatalErrors(t *testing.T) {
 		setup := newBFTDelivererTestSetup(t)
 		setup.initialize(t)
 
-		setup.fakeSigner.SignReturns(nil, fmt.Errorf("fake-ledger-error"))
+		setup.fakeSigner.SignReturns(nil, errors.New("fake-ledger-error"))
 		setup.start()
 
 		t.Log("Starts the DeliverBlocks and Monitor loop")
@@ -435,7 +435,7 @@ func TestBFTDeliverer_DialRetries(t *testing.T) {
 		setup := newBFTDelivererTestSetup(t)
 		setup.initialize(t)
 
-		setup.fakeDialer.DialReturnsOnCall(0, nil, fmt.Errorf("fake-dial-error"))
+		setup.fakeDialer.DialReturnsOnCall(0, nil, errors.New("fake-dial-error"))
 		cc, err := grpc.Dial("localhost:6005", grpc.WithTransportCredentials(insecure.NewCredentials()))
 		setup.gWithT.Expect(err).NotTo(HaveOccurred())
 		setup.fakeDialer.DialReturnsOnCall(1, cc, nil)
@@ -467,7 +467,7 @@ func TestBFTDeliverer_DialRetries(t *testing.T) {
 
 		// 6 rounds
 		for i := 0; i < 24; i++ {
-			setup.fakeDialer.DialReturnsOnCall(i, nil, fmt.Errorf("fake-dial-error"))
+			setup.fakeDialer.DialReturnsOnCall(i, nil, errors.New("fake-dial-error"))
 		}
 
 		cc, err := grpc.Dial("localhost:6005", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -516,7 +516,7 @@ func TestBFTDeliverer_DialRetries(t *testing.T) {
 		setup := newBFTDelivererTestSetup(t)
 		setup.initialize(t)
 
-		setup.fakeDialer.DialReturns(nil, fmt.Errorf("fake-dial-error"))
+		setup.fakeDialer.DialReturns(nil, errors.New("fake-dial-error"))
 
 		setup.start()
 		setup.gWithT.Eventually(setup.fakeDialer.DialCallCount, eventuallyTO).Should(BeNumerically(">=", 100))
@@ -554,7 +554,7 @@ func TestBFTDeliverer_DialRetries(t *testing.T) {
 
 		setup.fakeDurationExceededHandler.DurationExceededHandlerReturns(true)
 
-		setup.fakeDialer.DialReturns(nil, fmt.Errorf("fake-dial-error"))
+		setup.fakeDialer.DialReturns(nil, errors.New("fake-dial-error"))
 
 		setup.start()
 		t.Log("Calls handler and stops")
@@ -595,7 +595,7 @@ func TestBFTDeliverer_DeliverRetries(t *testing.T) {
 		setup := newBFTDelivererTestSetup(t)
 		setup.initialize(t)
 
-		setup.fakeDeliverStreamer.DeliverReturnsOnCall(0, nil, fmt.Errorf("deliver-error"))
+		setup.fakeDeliverStreamer.DeliverReturnsOnCall(0, nil, errors.New("deliver-error"))
 		setup.fakeDeliverStreamer.DeliverReturnsOnCall(1, setup.fakeDeliverClient, nil)
 
 		setup.start()
@@ -624,7 +624,7 @@ func TestBFTDeliverer_DeliverRetries(t *testing.T) {
 
 		// 6 rounds
 		for i := 0; i < 24; i++ {
-			setup.fakeDeliverStreamer.DeliverReturnsOnCall(i, nil, fmt.Errorf("deliver-error"))
+			setup.fakeDeliverStreamer.DeliverReturnsOnCall(i, nil, errors.New("deliver-error"))
 		}
 		setup.fakeDeliverStreamer.DeliverReturnsOnCall(24, setup.fakeDeliverClient, nil)
 
@@ -670,7 +670,7 @@ func TestBFTDeliverer_DeliverRetries(t *testing.T) {
 		setup := newBFTDelivererTestSetup(t)
 		setup.initialize(t)
 
-		setup.fakeDeliverStreamer.DeliverReturns(nil, fmt.Errorf("deliver-error"))
+		setup.fakeDeliverStreamer.DeliverReturns(nil, errors.New("deliver-error"))
 
 		setup.start()
 		setup.gWithT.Eventually(setup.fakeDialer.DialCallCount, eventuallyTO).Should(BeNumerically(">=", 40))
@@ -759,7 +759,7 @@ func TestBFTDeliverer_BlockReception(t *testing.T) {
 		setup.initialize(t)
 
 		t.Log("block verification fails")
-		setup.fakeUpdatableBlockVerifier.VerifyBlockReturns(fmt.Errorf("fake-verify-error"))
+		setup.fakeUpdatableBlockVerifier.VerifyBlockReturns(errors.New("fake-verify-error"))
 
 		startTime := time.Now()
 		setup.start()
@@ -835,7 +835,7 @@ func TestBFTDeliverer_BlockReception(t *testing.T) {
 		setup.initialize(t)
 
 		t.Log("block verification fails")
-		setup.fakeBlockHandler.HandleBlockReturns(fmt.Errorf("block-handling-error"))
+		setup.fakeBlockHandler.HandleBlockReturns(errors.New("block-handling-error"))
 
 		startTime := time.Now()
 		setup.start()
@@ -877,7 +877,7 @@ func TestBFTDeliverer_BlockReception(t *testing.T) {
 
 		// 6 failed rounds, creates exponential backoff
 		for i := 0; i < 24; i++ {
-			setup.fakeDialer.DialReturnsOnCall(i, nil, fmt.Errorf("fake-dial-error"))
+			setup.fakeDialer.DialReturnsOnCall(i, nil, errors.New("fake-dial-error"))
 		}
 		// success
 		cc, err := grpc.Dial("localhost:6005", grpc.WithTransportCredentials(insecure.NewCredentials()))
@@ -943,17 +943,17 @@ func TestBFTDeliverer_BlockReception(t *testing.T) {
 
 		// 20 failed rounds, no enough to exceed MaxRetryDuration (it takes 81 calls to go over 10m)
 		for i := 0; i < 80; i++ {
-			setup.fakeDialer.DialReturnsOnCall(i, nil, fmt.Errorf("fake-dial-error"))
+			setup.fakeDialer.DialReturnsOnCall(i, nil, errors.New("fake-dial-error"))
 		}
 
 		// another 20 failed rounds, together, it is enough to exceed MaxRetryDuration
 		for i := 81; i < 160; i++ {
-			setup.fakeDialer.DialReturnsOnCall(i, nil, fmt.Errorf("fake-dial-error"))
+			setup.fakeDialer.DialReturnsOnCall(i, nil, errors.New("fake-dial-error"))
 		}
 
 		// another 20 failed rounds, together, it is enough to exceed MaxRetryDuration
 		for i := 161; i < 240; i++ {
-			setup.fakeDialer.DialReturnsOnCall(i, nil, fmt.Errorf("fake-dial-error"))
+			setup.fakeDialer.DialReturnsOnCall(i, nil, errors.New("fake-dial-error"))
 		}
 
 		// success at attempt 80, 160 and >=240, should reset total sleep time

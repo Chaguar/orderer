@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package deliver_test
 
 import (
+	"errors"
 	"time"
 
 	"github.com/Chaguar/common/api/msppb"
@@ -18,7 +19,6 @@ import (
 	. "github.com/Chaguar/common/tools/test"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
 )
 
 var _ = Describe("SessionAccessControl", func() {

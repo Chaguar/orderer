@@ -7,10 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package blocksprovider_test
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"

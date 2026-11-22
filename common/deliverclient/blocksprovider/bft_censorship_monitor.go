@@ -8,6 +8,7 @@ package blocksprovider
 
 import (
 	"container/list"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -16,7 +17,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"go.uber.org/zap/zapcore"
 
 	"github.com/Chaguar/orderer/common/deliverclient/orderers"
@@ -416,12 +416,12 @@ func (m *BFTCensorshipMonitor) newHeaderClient(endpoint *orderers.Endpoint, prev
 
 	seekInfoEnv, err := m.requester.SeekInfoHeadersFrom(blockNumber)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "could not create a signed Deliver SeekInfo message, something is critically wrong")
+		return nil, nil, fmt.Errorf("could not create a signed Deliver SeekInfo message, something is critically wrong: %w", err)
 	}
 
 	deliverClient, clientCloser, err = m.requester.Connect(seekInfoEnv, endpoint)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "could not connect to ordering service")
+		return nil, nil, fmt.Errorf("could not connect to ordering service: %w", err)
 	}
 
 	return deliverClient, clientCloser, nil

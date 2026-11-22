@@ -10,6 +10,7 @@ import (
 	"context"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"io"
 	"time"
 
@@ -29,7 +30,6 @@ import (
 	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 

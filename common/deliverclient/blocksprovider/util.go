@@ -7,12 +7,13 @@ SPDX-License-Identifier: Apache-2.0
 package blocksprovider
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"time"
 
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 
 	"github.com/Chaguar/common/common/channelconfig"
 )
@@ -93,12 +94,12 @@ type timeNumber struct {
 func extractOrdererConfig(channelID string, channelConfig *cb.Config, cryptoProvider bccsp.BCCSP) (channelconfig.Orderer, error) {
 	bundle, err := channelconfig.NewBundle(channelID, channelConfig, cryptoProvider)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create channel config bundle")
+		return nil, fmt.Errorf("failed to create channel config bundle: %w", err)
 	}
 
 	ordConf, ok := bundle.OrdererConfig()
 	if !ok {
-		return nil, errors.Errorf("orderer config section not found in channel config")
+		return nil, errors.New("orderer config section not found in channel config")
 	}
 
 	return ordConf, nil
