@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -24,7 +25,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // AssemblerBFTSynchronizer brings the local assembler ledger up to TargetHeight by pulling
@@ -101,7 +101,7 @@ func (s *AssemblerBFTSynchronizer) Buffer() *commonsync.SyncBuffer {
 func (a *AssemblerBFTSynchronizer) synchronize() error {
 	startHeight := a.Support.Height()
 	if a.TargetHeight == 0 {
-		return fmt.Errorf("error synchronizing assembler: targetHeight must be > 0")
+		return errors.New("error synchronizing assembler: targetHeight must be > 0")
 	}
 
 	if startHeight == a.TargetHeight {
@@ -117,7 +117,7 @@ func (a *AssemblerBFTSynchronizer) synchronize() error {
 	if startHeight == 0 {
 		genesisBlock, err := a.fetchGenesisBlock()
 		if err != nil {
-			a.Logger.Panicf("Cannot join the cluster: %s", errors.Wrap(err, "failed to fetch genesis block"))
+			a.Logger.Panicf("Cannot join the cluster: failed to fetch genesis block: %s", err)
 		}
 		a.Support.WriteConfigBlock(genesisBlock)
 		startHeight = a.Support.Height()
@@ -137,7 +137,7 @@ func (a *AssemblerBFTSynchronizer) synchronize() error {
 	// Create the BFT block deliverer
 	bftDeliverer, err := a.createBFTDeliverer(startHeight, arma_types.PartyID(a.SelfPartyID))
 	if err != nil {
-		return errors.Wrapf(err, "cannot create BFT block deliverer")
+		return fmt.Errorf("cannot create BFT block deliverer: %w", err)
 	}
 
 	// Start a go-routine that fetches block and inserts them into the syncBuffer.
@@ -146,7 +146,7 @@ func (a *AssemblerBFTSynchronizer) synchronize() error {
 
 	_, err = a.getBlocksFromSyncBuffer(startHeight, a.TargetHeight)
 	if err != nil {
-		return errors.Wrap(err, "failed to get any blocks from SyncBuffer")
+		return fmt.Errorf("failed to get any blocks from SyncBuffer: %w", err)
 	}
 
 	return nil
@@ -181,7 +181,7 @@ func (a *AssemblerBFTSynchronizer) getBlocksFromSyncBuffer(startHeight, targetHe
 	a.syncBuffer.Stop()
 
 	if lastPulledBlock == nil {
-		return nil, errors.Errorf("failed pulling block %d", seq)
+		return nil, fmt.Errorf("failed pulling block %d", seq)
 	}
 
 	a.Logger.Infof("Finished synchronizing with cluster, fetched %d blocks, starting from block [%d], up until and including block [%d]",
@@ -198,12 +198,12 @@ func (a *AssemblerBFTSynchronizer) createBFTDeliverer(startHeight uint64, myPart
 
 	lastBlock := a.Support.Block(startHeight - 1)
 	if lastBlock == nil || lastBlock.Header == nil {
-		return nil, errors.Errorf("failed to retrieve last block %d from ledger", startHeight-1)
+		return nil, fmt.Errorf("failed to retrieve last block %d from ledger", startHeight-1)
 	}
 
 	ledgerLastConfigBlock, err := a.Support.LastConfigBlock(lastBlock)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to retrieve last config block from ledger")
+		return nil, fmt.Errorf("failed to retrieve last config block from ledger: %w", err)
 	}
 	if ledgerLastConfigBlock == nil || ledgerLastConfigBlock.Header == nil {
 		return nil, errors.New("last config block from ledger is nil")
@@ -219,13 +219,13 @@ func (a *AssemblerBFTSynchronizer) createBFTDeliverer(startHeight uint64, myPart
 	blockOps := &utils.CommonConfigBlockOperations{}
 	lastConfigEnv, err := blockOps.ConfigFromBlock(joinConfigBlock)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to retrieve last config envelope")
+		return nil, fmt.Errorf("failed to retrieve last config envelope: %w", err)
 	}
 
 	var updatableVerifier deliverclient.CloneableUpdatableBlockVerifier
 	updatableVerifier, err = a.VerifierFactory.CreateBlockVerifier(ledgerLastConfigBlock, lastBlock, a.CryptoProvider, a.Logger)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create BlockVerificationAssistant")
+		return nil, fmt.Errorf("failed to create BlockVerificationAssistant: %w", err)
 	}
 
 	clientConfig := a.ClusterDialer.Config // The cluster and block puller use slightly different options
@@ -234,7 +234,7 @@ func (a *AssemblerBFTSynchronizer) createBFTDeliverer(startHeight uint64, myPart
 
 	tlsCertHash, err := protoutil.HashTLSCertificate(clientConfig.SecOpts.Certificate)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed hashing the TLS certificate")
+		return nil, fmt.Errorf("failed hashing the TLS certificate: %w", err)
 	}
 
 	// The maximal amount of time to wait before retrying to connect.
@@ -283,13 +283,13 @@ func (a *AssemblerBFTSynchronizer) fetchGenesisBlock() (*common.Block, error) {
 	a.Logger.Infof("Fetching genesis block, party: %d", a.SelfPartyID)
 	blockPuller, err := a.BlockPullerFactory.CreateGenesisFetcher(arma_types.PartyID(a.SelfPartyID), a.Support, a.ClusterDialer, a.LocalConfigCluster, a.CryptoProvider, a.Logger)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot create GenesisFetcher")
+		return nil, fmt.Errorf("cannot create GenesisFetcher: %w", err)
 	}
 	defer blockPuller.Close()
 
 	genesisByEndpoint, err := blockPuller.GenesisByEndpoints()
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot get GenesisByEndpoints")
+		return nil, fmt.Errorf("cannot get GenesisByEndpoints: %w", err)
 	}
 
 	a.Logger.Infof("Received genesis blocks from %d endpoints: %v", len(genesisByEndpoint), slices.Collect(maps.Keys(genesisByEndpoint)))

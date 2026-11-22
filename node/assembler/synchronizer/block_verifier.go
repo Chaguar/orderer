@@ -7,11 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"fmt"
+
 	"github.com/Chaguar/orderer/common/deliverclient"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 type AssemblerBlockVerifierCreator struct{}
@@ -24,7 +25,7 @@ func (*AssemblerBlockVerifierCreator) CreateBlockVerifier(
 ) (deliverclient.CloneableUpdatableBlockVerifier, error) {
 	verifier, err := deliverclient.NewBlockVerificationAssistant(configBlock, lastBlock, cryptoProvider, lg)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create assembler block verifier")
+		return nil, fmt.Errorf("failed to create assembler block verifier: %w", err)
 	}
 	return verifier, nil
 }

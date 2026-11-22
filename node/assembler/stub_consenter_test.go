@@ -9,6 +9,7 @@ package assembler_test
 import (
 	"context"
 	"encoding/asn1"
+	"errors"
 	"fmt"
 	"net"
 	"testing"
@@ -143,7 +144,7 @@ func (sc *stubConsenter) Deliver(stream orderer.AtomicBroadcast_DeliverServer) e
 }
 
 func (sc *stubConsenter) Broadcast(stream orderer.AtomicBroadcast_BroadcastServer) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func (sc *stubConsenter) SetNextConfigDecision(ba *state.AvailableBatchOrdered, st *state.State) {
@@ -225,7 +226,7 @@ func (sc *stubConsenter) AckConfig(ctx context.Context, req *protos.ConfigAck) (
 }
 
 func (sc *stubConsenter) NotifyEvent(stream protos.Consensus_NotifyEventServer) error {
-	return fmt.Errorf("NotifyEvent not implemented")
+	return errors.New("NotifyEvent not implemented")
 }
 
 func (sc *stubConsenter) SubmitConfig(ctx context.Context, request *protos.Request) (*protos.SubmitResponse, error) {

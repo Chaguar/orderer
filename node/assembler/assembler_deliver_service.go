@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package assembler
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -44,7 +45,7 @@ func NewAssemblerDeliverService(ledger blockledger.Reader, logger *flogging.Fabr
 }
 
 func (a AssemblerDeliverService) Broadcast(_ orderer.AtomicBroadcast_BroadcastServer) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func (a AssemblerDeliverService) Deliver(stream orderer.AtomicBroadcast_DeliverServer) error {
@@ -142,7 +143,7 @@ func NewAssemblerSigFilter(bundle channelconfig.Resources) *assemblerSigFilter {
 func (asf *assemblerSigFilter) Apply(env *common.Envelope) error {
 	signedData, err := protoutil.EnvelopeAsSignedData(env)
 	if err != nil {
-		return fmt.Errorf("could not convert message to signedData: %s", err)
+		return fmt.Errorf("could not convert message to signedData: %w", err)
 	}
 
 	policy, ok := asf.bundle.PolicyManager().GetPolicy(policies.ChannelReaders)
@@ -152,7 +153,7 @@ func (asf *assemblerSigFilter) Apply(env *common.Envelope) error {
 
 	err = policy.EvaluateSignedData(signedData)
 	if err != nil {
-		return fmt.Errorf("AssemblerSigFilter evaluation failed: %s", err)
+		return fmt.Errorf("AssemblerSigFilter evaluation failed: %w", err)
 	}
 	return nil
 }

@@ -8,6 +8,7 @@ package assembler
 
 import (
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -29,7 +30,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 )
 
 type Net interface {
@@ -58,7 +58,7 @@ type Assembler struct {
 }
 
 func (a *Assembler) Broadcast(server orderer.AtomicBroadcast_BroadcastServer) error {
-	return fmt.Errorf("should not be used")
+	return errors.New("should not be used")
 }
 
 func (a *Assembler) Deliver(server orderer.AtomicBroadcast_DeliverServer) error {
@@ -451,7 +451,7 @@ func (a *Assembler) checkNewConfiguration(newConfiguration *config.Configuration
 	//  check if party is evicted in the new configuration. If yes, an admin action is required.
 	evicted, err := config.IsPartyEvicted(a.assemblerNodeConfig.PartyId, newConfiguration)
 	if err != nil {
-		return false, fmt.Errorf("failed to check if assembler's party was evicted in the new configuration: %v", err)
+		return false, fmt.Errorf("failed to check if assembler's party was evicted in the new configuration: %w", err)
 	}
 	if evicted {
 		a.logger.Warnf("Assembler's party %d was evicted in the new configuration", a.assemblerNodeConfig.PartyId)
@@ -461,7 +461,7 @@ func (a *Assembler) checkNewConfiguration(newConfiguration *config.Configuration
 	// check if there is a change that requires admin's action.
 	currPartyConfig, err := config.FindParty(a.assemblerNodeConfig.PartyId, a.configuration)
 	if err != nil {
-		return false, fmt.Errorf("failed to find party %d in current configuration: %v", a.assemblerNodeConfig.PartyId, err)
+		return false, fmt.Errorf("failed to find party %d in current configuration: %w", a.assemblerNodeConfig.PartyId, err)
 	}
 	if currPartyConfig == nil {
 		return false, fmt.Errorf("current configuration does not contain party %d", a.assemblerNodeConfig.PartyId)
@@ -469,7 +469,7 @@ func (a *Assembler) checkNewConfiguration(newConfiguration *config.Configuration
 
 	newPartyConfig, err := config.FindParty(a.assemblerNodeConfig.PartyId, newConfiguration)
 	if err != nil {
-		return false, fmt.Errorf("failed to find party %d in new configuration: %v", a.assemblerNodeConfig.PartyId, err)
+		return false, fmt.Errorf("failed to find party %d in new configuration: %w", a.assemblerNodeConfig.PartyId, err)
 	}
 	if newPartyConfig == nil {
 		return false, fmt.Errorf("new configuration does not contain party %d", a.assemblerNodeConfig.PartyId)
@@ -477,7 +477,7 @@ func (a *Assembler) checkNewConfiguration(newConfiguration *config.Configuration
 
 	requireRestart, err := config.IsNodeConfigChangeRestartRequired(currPartyConfig.AssemblerConfig, newPartyConfig.AssemblerConfig, a.logger)
 	if err != nil {
-		return false, fmt.Errorf("failed to check if node config change requires restart: %v", err)
+		return false, fmt.Errorf("failed to check if node config change requires restart: %w", err)
 	}
 	if requireRestart {
 		a.logger.Warnf("Assembler's identity was changed in the new configuration")

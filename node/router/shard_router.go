@@ -9,6 +9,7 @@ package router
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"sync"
 	"time"
@@ -234,7 +235,7 @@ func (sr *ShardRouter) reconnect(connIndex int) error {
 	for {
 		select {
 		case <-sr.stopCtx.Done():
-			return fmt.Errorf("reconnection aborted because the shard-router was stopped")
+			return errors.New("reconnection aborted because the shard-router was stopped")
 		case <-time.After(interval):
 			sr.logger.Warnf("Retry attempt #%d", numOfRetries)
 			numOfRetries++
@@ -294,7 +295,7 @@ func (sr *ShardRouter) fillConnPool() error {
 			dialOpts, err := sr.clientConfig.DialOptions()
 			if err != nil {
 				sr.logger.Errorf("Failed to get DialOptions: %v", err)
-				return fmt.Errorf("failed to get DialOptions: %v", err)
+				return fmt.Errorf("failed to get DialOptions: %w", err)
 			}
 
 			dialOpts = append(dialOpts, grpc.WithDefaultServiceConfig(retryPolicy))
@@ -306,7 +307,7 @@ func (sr *ShardRouter) fillConnPool() error {
 			)
 			if err != nil {
 				sr.logger.Errorf("Failed connecting to %s: %v", sr.batcherEndpoint, err)
-				return fmt.Errorf("failed connecting to %s: %v", sr.batcherEndpoint, err)
+				return fmt.Errorf("failed connecting to %s: %w", sr.batcherEndpoint, err)
 			}
 
 			if sr.connPool[i] != nil {

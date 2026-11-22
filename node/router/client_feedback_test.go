@@ -159,7 +159,7 @@ func TestIncreaseErrorCountCountsEveryRejection(t *testing.T) {
 
 	m.increaseErrorCount(nil)
 	m.increaseErrorCount(ErrThrottled)
-	m.increaseErrorCount(fmt.Errorf("%w for request %x: %v", errContextDone, []byte("req1"), context.Canceled))
+	m.increaseErrorCount(fmt.Errorf("%w for request %x: %w", errContextDone, []byte("req1"), context.Canceled))
 	require.Zero(t, read(m.rejectedTxsWithCode400))
 	require.Zero(t, read(m.rejectedTxsWithCode500))
 

@@ -9,7 +9,7 @@ package router
 import (
 	"bytes"
 	"context"
-	"fmt"
+	"errors"
 	"sync"
 	"testing"
 	"time"
@@ -99,7 +99,7 @@ func TestSendRequests(t *testing.T) {
 
 func TestSendRequestsReturnsWithError(t *testing.T) {
 	fakeSubmitStreamClient := &commMocks.FakeRequestTransmit_SubmitStreamClient{}
-	fakeSubmitStreamClient.SendReturns(fmt.Errorf("error"))
+	fakeSubmitStreamClient.SendReturns(errors.New("error"))
 	ctx, cancel := context.WithCancel(context.Background())
 	logger := testutil.CreateLogger(t, 1)
 	_, verifier := createTestBundleAndVerifier()
@@ -144,7 +144,7 @@ func TestReadResponses(t *testing.T) {
 				TraceId: traceID,
 			}, nil
 		}
-		return nil, fmt.Errorf("rpc error: service unavailable")
+		return nil, errors.New("rpc error: service unavailable")
 	}
 
 	logger := testutil.CreateLogger(t, 2)
@@ -192,7 +192,7 @@ func TestReadResponsesReturnsWithError(t *testing.T) {
 		Error:   "SERVICE_UNAVAILABLE",
 		ReqID:   reqID,
 		TraceId: traceID,
-	}, fmt.Errorf("rpc error: service unavailable"))
+	}, errors.New("rpc error: service unavailable"))
 	logger := testutil.CreateLogger(t, 3)
 	_, verifier := createTestBundleAndVerifier()
 
@@ -221,7 +221,7 @@ func TestReadResponsesReturnsWithError(t *testing.T) {
 // scenario: when error is received, check that the requests in the request channel get a response.
 func TestErrorRequestChannel(t *testing.T) {
 	fakeSubmitStreamClient := &commMocks.FakeRequestTransmit_SubmitStreamClient{}
-	fakeSubmitStreamClient.RecvReturns(&protos.SubmitResponse{Error: "SERVICE_UNAVAILABLE"}, fmt.Errorf("rpc error: service unavailable"))
+	fakeSubmitStreamClient.RecvReturns(&protos.SubmitResponse{Error: "SERVICE_UNAVAILABLE"}, errors.New("rpc error: service unavailable"))
 	logger := testutil.CreateLogger(t, 3)
 	_, verifier := createTestBundleAndVerifier()
 
@@ -347,7 +347,7 @@ func TestRenewStreamSuccess(t *testing.T) {
 // The stream is then expected to be reported to the reconnection goroutine in SR
 func TestReconnectRequest(t *testing.T) {
 	fakeSubmitStreamClient := &commMocks.FakeRequestTransmit_SubmitStreamClient{}
-	fakeSubmitStreamClient.SendReturns(fmt.Errorf("error"))
+	fakeSubmitStreamClient.SendReturns(errors.New("error"))
 	ctx, cancel := context.WithCancel(context.Background())
 	logger := testutil.CreateLogger(t, 1)
 	_, verifier := createTestBundleAndVerifier()
@@ -391,7 +391,7 @@ func TestBatcherIsStoppedReconnectWithBackoff(t *testing.T) {
 	streamNumber := 3
 
 	fakeSubmitStreamClient := &commMocks.FakeRequestTransmit_SubmitStreamClient{}
-	fakeSubmitStreamClient.RecvReturns(nil, fmt.Errorf("batcher is stopped"))
+	fakeSubmitStreamClient.RecvReturns(nil, errors.New("batcher is stopped"))
 	logger := testutil.CreateLogger(t, 3)
 	_, verifier := createTestBundleAndVerifier()
 
@@ -462,7 +462,7 @@ func TestBatcherIsStoppedReconnectWithBackoff(t *testing.T) {
 	s.cancelOnce = sync.Once{}
 	s.notifiedReconnect = false
 
-	fakeSubmitStreamClient.RecvReturns(nil, fmt.Errorf("some other error"))
+	fakeSubmitStreamClient.RecvReturns(nil, errors.New("some other error"))
 	wg.Add(1)
 	go func() {
 		s.readResponses()
@@ -584,7 +584,7 @@ func TestSendResponseToAllClientsOnErrorAnswersATracedRequestOnce(t *testing.T) 
 	s.registerReply(tr)
 	s.requestsChannel <- tr
 
-	s.sendResponseToAllClientsOnError(fmt.Errorf("batcher is gone"))
+	s.sendResponseToAllClientsOnError(errors.New("batcher is gone"))
 
 	require.Len(t, responseChan, 1)
 	resp := <-responseChan
@@ -632,7 +632,7 @@ func TestResponseToClientWithErrorCountsATracedBadRequest(t *testing.T) {
 	}
 	s.registerReply(tr)
 
-	s.responseToClientWithError(tr, badRequest(fmt.Errorf("request verification error: empty payload field")))
+	s.responseToClientWithError(tr, badRequest(errors.New("request verification error: empty payload field")))
 
 	resp := <-responseChan
 	require.Equal(t, "request verification error: empty payload field", resp.SubmitResponse.Error)

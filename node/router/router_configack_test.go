@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package router_test
 
 import (
-	"fmt"
+	"errors"
 	"path/filepath"
 	"sync"
 	"sync/atomic"
@@ -122,7 +122,7 @@ func TestRouterConfigAck_RetriesUntilConsenterAccepts(t *testing.T) {
 	recorder := &configAckRecorder{}
 	testSetup.stubConsenter.AckConfigHandler = func(req *protos.ConfigAck) (*protos.ConfigAckResponse, error) {
 		if atomic.AddInt32(&callCount, 1) <= failuresBeforeSuccess {
-			return nil, fmt.Errorf("temporary failure")
+			return nil, errors.New("temporary failure")
 		}
 		recorder.record(req)
 		return &protos.ConfigAckResponse{}, nil
