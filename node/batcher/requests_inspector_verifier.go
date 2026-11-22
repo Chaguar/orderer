@@ -8,6 +8,8 @@ package batcher
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"runtime"
 
 	"github.com/Chaguar/common/common/policies"
@@ -18,7 +20,6 @@ import (
 	"github.com/Chaguar/orderer/node/router"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/proto"
 )
@@ -88,7 +89,7 @@ func (r *RequestsInspectorVerifier) VerifyBatchedRequests(reqs types.BatchedRequ
 	}
 
 	if len(reqs) > int(r.batchMaxSize) {
-		return nil, errors.Errorf("batch is too big; has %d requests", len(reqs))
+		return nil, fmt.Errorf("batch is too big; has %d requests", len(reqs))
 	}
 
 	size := 0
@@ -97,7 +98,7 @@ func (r *RequestsInspectorVerifier) VerifyBatchedRequests(reqs types.BatchedRequ
 	}
 
 	if size > int(r.batchMaxBytes) {
-		return nil, errors.Errorf("batch is too big; size in bytes is %d", size)
+		return nil, fmt.Errorf("batch is too big; size in bytes is %d", size)
 	}
 
 	ids := make([]string, len(reqs))
@@ -128,7 +129,7 @@ func (r *RequestsInspectorVerifier) VerifyBatchedRequests(reqs types.BatchedRequ
 					continue
 				}
 				if err := r.VerifyRequest(reqs[j]); err != nil {
-					return errors.Errorf("failed verifying request in index %d; req ID: %s; err: %v", j, reqID, err)
+					return fmt.Errorf("failed verifying request in index %d; req ID: %s; err: %w", j, reqID, err)
 				}
 			}
 			return nil
@@ -136,7 +137,7 @@ func (r *RequestsInspectorVerifier) VerifyBatchedRequests(reqs types.BatchedRequ
 	}
 
 	if err := g.Wait(); err != nil {
-		return nil, errors.Errorf("failed verifying batch; err: %v", err)
+		return nil, fmt.Errorf("failed verifying batch; err: %w", err)
 	}
 
 	return ids, nil
@@ -147,7 +148,7 @@ func (r *RequestsInspectorVerifier) VerifyRequestShard(req *comm.Request) error 
 		shardIndex, _ := r.mapper.Map(req.Payload)
 		if r.shardID != r.shards[shardIndex] {
 			rawReq, _ := proto.Marshal(req)
-			return errors.Errorf("request maps to shard %d but our shard is %d; request ID %s", r.shards[shardIndex], r.shardID, r.RequestID(rawReq))
+			return fmt.Errorf("request maps to shard %d but our shard is %d; request ID %s", r.shards[shardIndex], r.shardID, r.RequestID(rawReq))
 		}
 	}
 	return nil
@@ -157,7 +158,7 @@ func (r *RequestsInspectorVerifier) VerifyRequestShard(req *comm.Request) error 
 func (r *RequestsInspectorVerifier) VerifyRequestFromRouter(req *comm.Request) error {
 	if r.configSeq != req.ConfigSeq {
 		// TODO reverify or do reconfig if needed; support dynamic reconfig
-		return errors.Errorf("mismatch config seq: request's config seq is %d while batcher's config seq is %d", req.ConfigSeq, r.configSeq)
+		return fmt.Errorf("mismatch config seq: request's config seq is %d while batcher's config seq is %d", req.ConfigSeq, r.configSeq)
 	}
 	return nil
 }
@@ -165,18 +166,18 @@ func (r *RequestsInspectorVerifier) VerifyRequestFromRouter(req *comm.Request) e
 func (r *RequestsInspectorVerifier) VerifyRequest(req []byte) error {
 	var request comm.Request
 	if err := proto.Unmarshal(req, &request); err != nil {
-		return errors.Errorf("failed to unmarshall req")
+		return fmt.Errorf("failed to unmarshal req: %w", err)
 	}
 
 	if err := r.VerifyRequestShard(&request); err != nil {
-		return errors.Errorf("failed verifying request with id: %s; err: %v", r.RequestID(req), err)
+		return fmt.Errorf("failed verifying request with id: %s; err: %w", r.RequestID(req), err)
 	}
 
 	if err := r.requestVerifier.Verify(&request); err != nil {
-		return errors.Errorf("failed verifying request with id: %s; err: %v", r.RequestID(req), err)
+		return fmt.Errorf("failed verifying request with id: %s; err: %w", r.RequestID(req), err)
 	}
 	if _, err := r.requestVerifier.VerifyStructureAndClassify(&request); err != nil {
-		return errors.Errorf("failed verifying request 's structure with id: %s; err: %v", r.RequestID(req), err)
+		return fmt.Errorf("failed verifying request's structure with id: %s; err: %w", r.RequestID(req), err)
 	}
 
 	return nil

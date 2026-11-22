@@ -8,13 +8,13 @@ package batcher
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/Chaguar/orderer/common/controlevent"
 	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/pkg/errors"
 )
 
 type ControlEventBroadcaster struct {
@@ -69,11 +69,11 @@ func (b *ControlEventBroadcaster) BroadcastControlEvent(ce state.ControlEvent, c
 		case <-ctx.Done():
 			timer.Stop()
 			b.logger.Infof("broadcast cancelled by input context, %s", ctx.Err())
-			return errors.Errorf("broadcast cancelled by input context, %s", ctx.Err())
+			return fmt.Errorf("broadcast cancelled by input context: %w", ctx.Err())
 		case <-b.ctx.Done():
 			timer.Stop()
 			b.logger.Infof("broadcast cancelled by object context, %s", b.ctx.Err())
-			return errors.Errorf("broadcast cancelled by object context, %s", b.ctx.Err())
+			return fmt.Errorf("broadcast cancelled by object context: %w", b.ctx.Err())
 		case <-timer.C:
 		}
 

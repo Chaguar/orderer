@@ -8,6 +8,7 @@ package batcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -35,7 +36,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -321,14 +321,14 @@ func findBatcherInConfigByShard(shardID types.ShardID, conf *config.Configuratio
 	partyID := conf.LocalConfig.NodeLocalConfig.PartyID
 	partyConfig, err := config.FindParty(partyID, conf)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to find party config in the shared configuration for batcher")
+		return nil, fmt.Errorf("failed to find party config in the shared configuration for batcher: %w", err)
 	}
 	for _, batcher := range partyConfig.BatchersConfig {
 		if types.ShardID(batcher.GetShardId()) == shardID {
 			return batcher, nil
 		}
 	}
-	return nil, errors.Errorf("batcher in shard %v does not exist in the party config", shardID)
+	return nil, fmt.Errorf("batcher in shard %v does not exist in the party config", shardID)
 }
 
 func (b *Batcher) hasBatchingParamsChanged(newConfig *node_config.BatcherNodeConfig) bool {
@@ -359,7 +359,7 @@ func (b *Batcher) ApplyConfig(lastBlock *common.Block, configState *state.State)
 
 	newConfig, configSeq, err := currentFullConfig.NewUpdatedConfigurationFromBlock(lastBlock)
 	if err != nil {
-		return true, errors.Wrapf(err, "failed to build new configuration")
+		return true, fmt.Errorf("failed to build new configuration: %w", err)
 	}
 	newBatcherConfig := newConfig.ExtractBatcherConfig(lastBlock)
 
@@ -383,7 +383,7 @@ func (b *Batcher) ApplyConfig(lastBlock *common.Block, configState *state.State)
 	// check if party is removed
 	isPartyEvicted, err := config.IsPartyEvicted(partyID, newConfig)
 	if err != nil {
-		return true, errors.Wrapf(err, "failed to detect if party is evicted")
+		return true, fmt.Errorf("failed to detect if party is evicted: %w", err)
 	}
 	if isPartyEvicted {
 		b.logger.Warnf("Batcher's party %d was evicted in the new configuration", partyID)
@@ -393,15 +393,15 @@ func (b *Batcher) ApplyConfig(lastBlock *common.Block, configState *state.State)
 	// check if batcher identity (address or certificates) is changed
 	currBatcherIdentityConfig, err := findBatcherInConfigByShard(shardID, currentFullConfig)
 	if err != nil {
-		return true, errors.Errorf("failed to find current batcher config, err: %v\n", err)
+		return true, fmt.Errorf("failed to find current batcher config, err: %w", err)
 	}
 	newBatcherIdentityConfig, err := findBatcherInConfigByShard(shardID, newConfig)
 	if err != nil {
-		return true, errors.Errorf("failed to find new batcher config, err: %v\n", err)
+		return true, fmt.Errorf("failed to find new batcher config, err: %w", err)
 	}
 	isRestartRequired, err := config.IsNodeConfigChangeRestartRequired(currBatcherIdentityConfig, newBatcherIdentityConfig, b.logger)
 	if err != nil {
-		return true, errors.Errorf("could not decide if node restart is required, err: %v\n", err)
+		return true, fmt.Errorf("could not decide if node restart is required, err: %w", err)
 	}
 
 	if isRestartRequired {
@@ -474,7 +474,7 @@ func (b *Batcher) stopAndReconfigure(
 }
 
 func (b *Batcher) Broadcast(_ orderer.AtomicBroadcast_BroadcastServer) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func (b *Batcher) Deliver(stream orderer.AtomicBroadcast_DeliverServer) error {
@@ -550,7 +550,7 @@ func (b *Batcher) validateRouterFromContext(ctx context.Context) error {
 	b.lock.Unlock()
 
 	if currentFullConfig == nil {
-		err := errors.Errorf("access denied; the configuration holding the certificate of the router of party %d is nil", partyID)
+		err := fmt.Errorf("access denied; the configuration holding the certificate of the router of party %d is nil", partyID)
 		b.logger.Errorf("Rejecting a request: %s", err)
 		return err
 	}
@@ -558,7 +558,7 @@ func (b *Batcher) validateRouterFromContext(ctx context.Context) error {
 	expectedRouterCert := currentFullConfig.ExtractRouterInParty().TLSCert
 
 	if err := utils.ValidateClientCertFromContext(ctx, expectedRouterCert); err != nil {
-		err = errors.Wrapf(err, "access denied; only the router of party %d is served", partyID)
+		err = fmt.Errorf("access denied; only the router of party %d is served: %w", partyID, err)
 		b.logger.Errorf("Rejecting a request: %s", err)
 		return err
 	}
@@ -639,7 +639,7 @@ func (b *Batcher) extractBatcherFromContext(c context.Context) (types.PartyID, e
 
 	from, exists := b.batcherCerts2IDs[string(cert.Raw)]
 	if !exists {
-		return 0, errors.Errorf("access denied; unknown certificate; %s", utils.CertificateToString(cert))
+		return 0, fmt.Errorf("access denied; unknown certificate; %s", utils.CertificateToString(cert))
 	}
 
 	return from, nil
@@ -648,7 +648,7 @@ func (b *Batcher) extractBatcherFromContext(c context.Context) (types.PartyID, e
 func (b *Batcher) FwdRequestStream(stream protos.BatcherControlService_FwdRequestStreamServer) error {
 	from, err := b.extractBatcherFromContext(stream.Context())
 	if err != nil {
-		return errors.Errorf("Could not extract batcher from context; err %v", err)
+		return fmt.Errorf("could not extract batcher from context; err %w", err)
 	}
 	b.logger.Infof("Starting to handle fwd requests from batcher %d", from)
 
@@ -684,7 +684,7 @@ func (b *Batcher) FwdRequestStream(stream protos.BatcherControlService_FwdReques
 func (b *Batcher) NotifyAck(stream protos.BatcherControlService_NotifyAckServer) error {
 	from, err := b.extractBatcherFromContext(stream.Context())
 	if err != nil {
-		return errors.Errorf("Could not extract batcher from context; err %v", err)
+		return fmt.Errorf("could not extract batcher from context; err %w", err)
 	}
 
 	b.logger.Infof("Starting to handle acks from batcher %d", from)

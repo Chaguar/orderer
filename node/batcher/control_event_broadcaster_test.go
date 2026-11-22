@@ -8,6 +8,7 @@ package batcher_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/Chaguar/orderer/testutil"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
