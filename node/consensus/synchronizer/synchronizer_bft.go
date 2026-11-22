@@ -150,7 +150,7 @@ func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 	if startHeight == 0 {
 		genesisBlock, err := s.fetchGenesisBlock()
 		if err != nil {
-			s.Logger.Panicf("Cannot join the cluster: %s", fmt.Errorf("failed to fetch genesis block: %w", err))
+			s.Logger.Panicf("Cannot join the cluster: failed to fetch genesis block: %s", err)
 		}
 		s.Support.WriteConfigBlock(genesisBlock)
 		startHeight = s.Support.Height()

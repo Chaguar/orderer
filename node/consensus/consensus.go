@@ -487,7 +487,7 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 	if configRequests != nil {
 		if computedState, err = c.ConfigApplier.ApplyConfigToState(computedState, configRequests[0], parties); err != nil {
 			c.lock.Unlock()
-			return nil, fmt.Errorf("failed applying config to state, err: %s", err)
+			return nil, fmt.Errorf("failed applying config to state, err: %w", err)
 		}
 	}
 	lastConfigBlockNum := c.lastConfigBlockNum
@@ -589,7 +589,7 @@ func (c *Consensus) verifyProposalRequests(requests arma_types.BatchedRequests, 
 	for _, rawReq := range requests {
 		configSeq, isBAF, err := c.getReqConfigSeq(rawReq)
 		if err != nil {
-			return nil, fmt.Errorf("invalid request %s: %v", rawReq, err)
+			return nil, fmt.Errorf("invalid request %s: %w", rawReq, err)
 		}
 		// Only requests that affect the computed state are verified here: those at the current config
 		// sequence, and BAFs any number of configs behind (which consensus surfaces for revival). A
@@ -600,7 +600,7 @@ func (c *Consensus) verifyProposalRequests(requests arma_types.BatchedRequests, 
 		var reqInfo smartbft_types.RequestInfo
 		if configSeq == verificationSeq || (isBAF && configSeq < verificationSeq) {
 			if reqInfo, _, err = c.verifyProposalCE(rawReq, proposalNum); err != nil {
-				return nil, fmt.Errorf("invalid request %s: %v", rawReq, err)
+				return nil, fmt.Errorf("invalid request %s: %w", rawReq, err)
 			}
 		} else {
 			reqInfo = c.RequestID(rawReq)
@@ -1539,13 +1539,13 @@ func (c *Consensus) verifyAndClassifyRequest(request *protos.Request) (*protos.R
 
 	if err := c.RequestVerifier.Verify(request); err != nil {
 		c.Logger.Debugf("request is invalid: %s", err)
-		return nil, fmt.Errorf("request verification error: %s", err)
+		return nil, fmt.Errorf("request verification error: %w", err)
 	}
 
 	reqType, err := c.RequestVerifier.VerifyStructureAndClassify(request)
 	if err != nil {
 		c.Logger.Debugf("request structure is invalid: %s", err)
-		return nil, fmt.Errorf("request structure verification error: %s", err)
+		return nil, fmt.Errorf("request structure verification error: %w", err)
 	}
 
 	// if the request comes from the Router then we expect reqType = HeaderType_CONFIG_UPDATE
@@ -1557,7 +1557,7 @@ func (c *Consensus) verifyAndClassifyRequest(request *protos.Request) (*protos.R
 
 	configRequest, err := c.ConfigUpdateProposer.ProposeConfigUpdate(request, c.Config.Bundle, c.Signer, c.RequestVerifier, c.Config.BCCSP)
 	if err != nil {
-		return nil, fmt.Errorf("propose config update error: %s", err)
+		return nil, fmt.Errorf("propose config update error: %w", err)
 	}
 
 	if configRequest == nil {

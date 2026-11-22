@@ -184,7 +184,7 @@ func (ce *ControlEvent) Bytes() []byte {
 func (ce *ControlEvent) FromBytes(bytes []byte) error {
 	protoEvent := &stateprotos.ControlEvent{}
 	if err := proto.Unmarshal(bytes, protoEvent); err != nil {
-		return fmt.Errorf("failed to unmarshal control event: %v", err)
+		return fmt.Errorf("failed to unmarshal control event: %w", err)
 	}
 	return ce.fromProto(protoEvent)
 }

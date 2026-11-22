@@ -45,7 +45,7 @@ func CreateDataCommonBlock(blockNum uint64, prevHash []byte, batchID arma_types.
 	block.Header.DataHash = batchID.Digest()
 	blockMetadata, err := ledger.AssemblerBlockMetadataToBytes(batchID, &state.OrderingInformation{DecisionNum: decisionNum, BatchCount: batchCount, BatchIndex: batchIndex}, txCount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to invoke AssemblerBlockMetadataToBytes: %s", err)
+		return nil, fmt.Errorf("failed to invoke AssemblerBlockMetadataToBytes: %w", err)
 	}
 	block.Metadata.Metadata[common.BlockMetadataIndex_ORDERER] = blockMetadata
 	block.Metadata.Metadata[common.BlockMetadataIndex_LAST_CONFIG] = protoutil.MarshalOrPanic(&common.Metadata{
@@ -61,7 +61,7 @@ func CreateConfigCommonBlock(blockNum uint64, prevHash []byte, txCount uint64, d
 	configBlock.Header.DataHash = batchedConfigReq.Digest()
 	blockMetadata, err := ledger.AssemblerBlockMetadataToBytes(arma_types.NewSimpleBatch(arma_types.ShardIDConsensus, 0, 0, nil, 0, nil), &state.OrderingInformation{DecisionNum: decisionNum, BatchCount: batchCount, BatchIndex: batchIndex}, txCount)
 	if err != nil {
-		return nil, fmt.Errorf("failed to invoke AssemblerBlockMetadataToBytes: %s", err)
+		return nil, fmt.Errorf("failed to invoke AssemblerBlockMetadataToBytes: %w", err)
 	}
 	configBlock.Metadata.Metadata[common.BlockMetadataIndex_ORDERER] = blockMetadata
 	configBlock.Metadata.Metadata[common.BlockMetadataIndex_LAST_CONFIG] = protoutil.MarshalOrPanic(&common.Metadata{
@@ -149,11 +149,11 @@ func VerifyConfigCommonBlock(configBlock *common.Block, blockNum uint64, prevHas
 	// verify data hash
 	data := arma_types.BatchedRequests(configBlock.Data.Data)
 	if !bytes.Equal(configBlock.Header.DataHash, data.Digest()) {
-		return fmt.Errorf("proposed config block data hash isn't equal to computed data digest %s", data.Digest())
+		return fmt.Errorf("proposed config block data hash isn't equal to computed data digest %s", hex.EncodeToString(data.Digest()))
 	}
 
 	if !bytes.Equal(configBlock.Header.DataHash, dataHash) {
-		return fmt.Errorf("proposed config block data hash isn't equal to computed data hash %s", dataHash)
+		return fmt.Errorf("proposed config block data hash isn't equal to computed data hash %s", hex.EncodeToString(dataHash))
 	}
 
 	// verify orderer metadata

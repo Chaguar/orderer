@@ -232,7 +232,7 @@ func (s *State) Deserialize(rawBytes []byte) error {
 		for _, bafProto := range ps.Pending {
 			baf := &types.SimpleBatchAttestationFragment{}
 			if err := baf.FromProto(bafProto); err != nil {
-				return fmt.Errorf("failed loading batch attestation fragment: %v", err)
+				return fmt.Errorf("failed loading batch attestation fragment: %w", err)
 			}
 			s.Pending = append(s.Pending, baf)
 		}
@@ -243,7 +243,7 @@ func (s *State) Deserialize(rawBytes []byte) error {
 		s.Complaints = make([]Complaint, len(ps.Complaints))
 		for i, protoComplaint := range ps.Complaints {
 			if err := s.Complaints[i].fromProto(protoComplaint); err != nil {
-				return fmt.Errorf("failed loading complaint at index %d: %v", i, err)
+				return fmt.Errorf("failed loading complaint at index %d: %w", i, err)
 			}
 		}
 	}
@@ -254,7 +254,7 @@ func (s *State) Deserialize(rawBytes []byte) error {
 		for _, bafProto := range ps.StaleConfigBafs {
 			baf := &types.SimpleBatchAttestationFragment{}
 			if err := baf.FromProto(bafProto); err != nil {
-				return fmt.Errorf("failed loading stale config batch attestation fragment: %v", err)
+				return fmt.Errorf("failed loading stale config batch attestation fragment: %w", err)
 			}
 			s.StaleConfigBAFs = append(s.StaleConfigBAFs, baf)
 		}

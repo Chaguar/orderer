@@ -25,8 +25,9 @@ import (
 type SigVerifierFunc func(block *common.Block, verifyData bool) error
 
 func createErrorFunc(err error) SigVerifierFunc {
+	err = fmt.Errorf("failed to initialize sig verifier function: %w", err)
 	return func(_ *common.Block, _ bool) error {
-		return fmt.Errorf("failed to initialize sig verifier function: %w", err)
+		return err
 	}
 }
 
@@ -39,7 +40,8 @@ type SigVerifierCreator struct {
 // SigVerifierFromConfig creates a SigVerifier from the given configuration.
 func (svc *SigVerifierCreator) SigVerifierFromConfig(configuration *common.ConfigEnvelope, channel string, configBlockNum uint64) (SigVerifierFunc, error) {
 	if configuration == nil {
-		return createErrorFunc(errors.New("nil configuration")), errors.New("nil configuration")
+		err := errors.New("nil configuration")
+		return createErrorFunc(err), err
 	}
 
 	bundle, err := channelconfig.NewBundle(channel, configuration.Config, svc.BCCSP)

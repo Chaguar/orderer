@@ -48,7 +48,7 @@ func (vc *DefaultValidateConfigRequest) ValidateConfigRequest(envelope *common.E
 
 	configEnvelope := &common.ConfigEnvelope{}
 	if err = proto.Unmarshal(payload.Data, configEnvelope); err != nil {
-		return fmt.Errorf("payload data unmarshalling error: %s", err)
+		return fmt.Errorf("payload data unmarshalling error: %w", err)
 	}
 
 	if configEnvelope.LastUpdate == nil || configEnvelope.Config == nil {
