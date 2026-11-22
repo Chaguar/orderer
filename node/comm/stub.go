@@ -8,8 +8,6 @@ package comm
 
 import (
 	"sync"
-
-	"github.com/pkg/errors"
 )
 
 // Stub holds all information about the remote node,
@@ -60,7 +58,7 @@ func (stub *Stub) Activate(createRemoteContext func() (*RemoteContext, error)) e
 	}
 	remoteStub, err := createRemoteContext()
 	if err != nil {
-		return errors.WithStack(err)
+		return err
 	}
 
 	stub.RemoteContext = remoteStub

@@ -10,13 +10,14 @@ import (
 	"bytes"
 	"context"
 	"encoding/asn1"
+	"errors"
+	"fmt"
 	"slices"
 	"strconv"
 	"sync"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/connectivity"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -55,7 +56,7 @@ func (ac *AuthCommMgr) Remote(id uint64) (*RemoteContext, error) {
 	mapping := ac.Mapping
 	stub := mapping.ByID(id)
 	if stub == nil {
-		return nil, errors.Errorf("node %d doesn't exist in channel ", id)
+		return nil, fmt.Errorf("node %d doesn't exist in channel", id)
 	}
 
 	if stub.Active() {
@@ -64,7 +65,7 @@ func (ac *AuthCommMgr) Remote(id uint64) (*RemoteContext, error) {
 
 	err := stub.Activate(ac.createRemoteContext(stub))
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	return stub.RemoteContext, nil
 }
@@ -187,7 +188,7 @@ func (ac *AuthCommMgr) createRemoteContext(stub *Stub) func() (*RemoteContext, e
 		probeConnection := func(conn *grpc.ClientConn) error {
 			connState := conn.GetState()
 			if connState == connectivity.Connecting {
-				return errors.Errorf("connection to %d(%s) is in state %s", stub.ID, stub.Endpoint, connState)
+				return fmt.Errorf("connection to %d(%s) is in state %s", stub.ID, stub.Endpoint, connState)
 			}
 			return nil
 		}
@@ -204,7 +205,7 @@ func (ac *AuthCommMgr) createRemoteContext(stub *Stub) func() (*RemoteContext, e
 			nodeStub := membersMapping.LookupByIdentity(ac.NodeIdentity)
 
 			if nodeStub == nil {
-				return nil, errors.Errorf("node identity %v is missing in channel", ac.NodeIdentity)
+				return nil, fmt.Errorf("node identity %v is missing in channel", ac.NodeIdentity)
 			}
 
 			stepClientStream := &NodeClientStream{
@@ -272,7 +273,7 @@ func (cs *NodeClientStream) Auth() error {
 
 	tlsBinding, err := GetTLSSessionBinding(cs.StepClient.Context(), bindingFieldsHash)
 	if err != nil {
-		return errors.Wrap(err, "TLSBinding failed")
+		return fmt.Errorf("TLSBinding failed: %w", err)
 	}
 	payload.SessionBinding = tlsBinding
 
@@ -289,7 +290,7 @@ func (cs *NodeClientStream) Auth() error {
 
 	sig, err := cs.Signer.Sign(asnSignFields)
 	if err != nil {
-		return errors.Wrap(err, "signing failed")
+		return fmt.Errorf("signing failed: %w", err)
 	}
 
 	payload.Signature = sig

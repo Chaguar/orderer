@@ -10,11 +10,12 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"time"
 
 	"google.golang.org/grpc/credentials"
 
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/backoff"
 	"google.golang.org/grpc/credentials/insecure"
@@ -180,7 +181,7 @@ func (cc ClientConfig) DialContext(ctx context.Context, address string) (*grpc.C
 
 	conn, err := grpc.DialContext(ctx, address, dialOpts...)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create new connection")
+		return nil, fmt.Errorf("failed to create new connection: %w", err)
 	}
 	return conn, nil
 }
@@ -245,7 +246,7 @@ func (so SecureOptions) TLSConfig() (*tls.Config, error) {
 	if so.RequireClientCert {
 		cert, err := so.ClientCertificate()
 		if err != nil {
-			return nil, errors.WithMessage(err, "failed to load client certificate")
+			return nil, fmt.Errorf("failed to load client certificate: %w", err)
 		}
 		tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
 	}
@@ -267,7 +268,7 @@ func (so SecureOptions) ClientCertificate() (tls.Certificate, error) {
 	}
 	cert, err := tls.X509KeyPair(so.Certificate, so.Key)
 	if err != nil {
-		return tls.Certificate{}, errors.WithMessage(err, "failed to create key pair")
+		return tls.Certificate{}, fmt.Errorf("failed to create key pair: %w", err)
 	}
 	return cert, nil
 }

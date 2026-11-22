@@ -8,6 +8,7 @@ package comm
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -15,7 +16,6 @@ import (
 	"github.com/Chaguar/common/common/util"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 )
@@ -48,7 +48,7 @@ func (rc *RemoteContext) NewStream(timeout time.Duration) (*Stream, error) {
 	stream, err := rc.GetStreamFunc(ctx)
 	if err != nil {
 		cancel()
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	streamID := atomic.AddUint64(&rc.nextStreamID, 1)
@@ -110,7 +110,7 @@ func (rc *RemoteContext) NewStream(timeout time.Duration) (*Stream, error) {
 
 	err = stream.Auth()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to create new stream")
+		return nil, fmt.Errorf("failed to create new stream: %w", err)
 	}
 
 	rc.Logger.Debugf("Created new stream to %s with ID of %d and buffer size of %d",

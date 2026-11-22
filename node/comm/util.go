@@ -17,6 +17,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"math/rand"
 	"strconv"
@@ -34,7 +35,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/peer"
@@ -204,7 +204,7 @@ type Dialer interface {
 // among the blocks of the given block buffer.
 func VerifyBlockHash(indexInBuffer int, blockBuff []*common.Block) error {
 	if len(blockBuff) <= indexInBuffer {
-		return errors.Errorf("index %d out of bounds (total %d blocks)", indexInBuffer, len(blockBuff))
+		return fmt.Errorf("index %d out of bounds (total %d blocks)", indexInBuffer, len(blockBuff))
 	}
 	block := blockBuff[indexInBuffer]
 	if block.Header == nil {
@@ -222,7 +222,7 @@ func VerifyBlockHash(indexInBuffer int, blockBuff []*common.Block) error {
 	if !bytes.Equal(dataHash, block.Header.DataHash) {
 		computedHash := hex.EncodeToString(dataHash)
 		claimedHash := hex.EncodeToString(block.Header.DataHash)
-		return errors.Errorf("computed hash of block (%d) (%s) doesn't match claimed hash (%s)",
+		return fmt.Errorf("computed hash of block (%d) (%s) doesn't match claimed hash (%s)",
 			seq, computedHash, claimedHash)
 	}
 	// We have a previous block in the buffer, ensure current block's previous hash matches the previous one.
@@ -234,12 +234,12 @@ func VerifyBlockHash(indexInBuffer int, blockBuff []*common.Block) error {
 		}
 		prevSeq := prevBlock.Header.Number
 		if prevSeq+1 != currSeq {
-			return errors.Errorf("sequences %d and %d were received consecutively", prevSeq, currSeq)
+			return fmt.Errorf("sequences %d and %d were received consecutively", prevSeq, currSeq)
 		}
 		if !bytes.Equal(block.Header.PreviousHash, protoutil.BlockHeaderHash(prevBlock.Header)) {
 			claimedPrevHash := hex.EncodeToString(block.Header.PreviousHash)
 			actualPrevHash := hex.EncodeToString(protoutil.BlockHeaderHash(prevBlock.Header))
-			return errors.Errorf("block [%d]'s hash (%s) mismatches block [%d]'s prev block hash (%s)",
+			return fmt.Errorf("block [%d]'s hash (%s) mismatches block [%d]'s prev block hash (%s)",
 				prevSeq, actualPrevHash, currSeq, claimedPrevHash)
 		}
 	}
@@ -311,11 +311,11 @@ func EndpointconfigFromConfigBlock(block *common.Block, bccsp bccsp.BCCSP) ([]En
 
 	bundle, err := channelconfig.NewBundleFromEnvelope(envelopeConfig, bccsp)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed extracting bundle from envelope")
+		return nil, fmt.Errorf("failed extracting bundle from envelope: %w", err)
 	}
 	msps, err := bundle.MSPManager().GetMSPs()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed obtaining MSPs from MSPManager")
+		return nil, fmt.Errorf("failed obtaining MSPs from MSPManager: %w", err)
 	}
 	ordererConfig, ok := bundle.OrdererConfig()
 	if !ok {
@@ -328,7 +328,7 @@ func EndpointconfigFromConfigBlock(block *common.Block, bccsp bccsp.BCCSP) ([]En
 		// Validate that every orderer org has a corresponding MSP instance in the MSP Manager.
 		msp, exists := msps[org.MSPID()]
 		if !exists {
-			return nil, errors.Errorf("no MSP found for MSP with ID of %s", org.MSPID())
+			return nil, fmt.Errorf("no MSP found for MSP with ID of %s", org.MSPID())
 		}
 
 		// Build a per org mapping of the TLS CA certs for this org,
@@ -416,8 +416,9 @@ func bundleFromConfigBlock(block *common.Block, bccsp bccsp.BCCSP) (*channelconf
 }
 
 func createErrorFunc(err error) protoutil.BlockVerifierFunc {
+	err = fmt.Errorf("initialized with an invalid config block: %w", err)
 	return func(_ *common.BlockHeader, _ *common.BlockMetadata) error {
-		return errors.Wrap(err, "initialized with an invalid config block")
+		return err
 	}
 }
 
@@ -478,7 +479,7 @@ func (bv *BlockValidationPolicyVerifier) VerifyBlockSignature(sd []*protoutil.Si
 	}
 	policy, exists := policyMgr.GetPolicy(policies.BlockValidation)
 	if !exists {
-		return errors.Errorf("policy %s wasn't found", policies.BlockValidation)
+		return fmt.Errorf("policy %s wasn't found", policies.BlockValidation)
 	}
 	return policy.EvaluateSignedData(sd)
 }
@@ -506,7 +507,7 @@ func LastConfigBlock(block *common.Block, blockRetriever BlockRetriever) (*commo
 	}
 	lastConfigBlock := blockRetriever.Block(lastConfigBlockNum)
 	if lastConfigBlock == nil {
-		return nil, errors.Errorf("unable to retrieve last config block [%d]", lastConfigBlockNum)
+		return nil, fmt.Errorf("unable to retrieve last config block [%d]", lastConfigBlockNum)
 	}
 	return lastConfigBlock, nil
 }
@@ -645,7 +646,7 @@ func requestAsString(request *orderer.StepRequest) string {
 func exportKM(cs tls.ConnectionState, label string, context []byte) ([]byte, error) {
 	tlsBinding, err := cs.ExportKeyingMaterial(label, context, 32)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed generating TLS Binding material")
+		return nil, fmt.Errorf("failed generating TLS Binding material: %w", err)
 	}
 	return tlsBinding, nil
 }
@@ -673,7 +674,7 @@ func GetTLSSessionBinding(ctx context.Context, bindingPayload []byte) ([]byte, e
 
 	tlsBinding, err := exportKM(connState, KeyingMaterialLabel, bindingPayload)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed exporting keying material")
+		return nil, fmt.Errorf("failed exporting keying material: %w", err)
 	}
 
 	return tlsBinding, nil

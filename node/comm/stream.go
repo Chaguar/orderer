@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package comm
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -14,7 +15,6 @@ import (
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 )
 
@@ -77,7 +77,7 @@ func (stream *Stream) sendOrDrop(request *orderer.StepRequest, allowDrop bool, r
 
 	select {
 	case <-stream.abortChan:
-		return errors.Errorf("stream %d aborted", stream.ID)
+		return fmt.Errorf("stream %d aborted", stream.ID)
 	case stream.sendBuff <- struct {
 		request *orderer.StepRequest
 		report  func(error)
