@@ -8,6 +8,7 @@ package batcher
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"slices"
 	"strings"
@@ -18,7 +19,6 @@ import (
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/pkg/errors"
 )
 
 //go:generate counterfeiter -o mocks/request_inspector.go . RequestInspector
@@ -559,31 +559,31 @@ func (b *BatcherRole) verifyBatch(batch types.Batch) ([]string, error) {
 		b.Logger.Warnf("Batch config seq (%d) does not match batcher's current config seq (%d)", batch.ConfigSequence(), b.ConfigSequenceGetter.ConfigSequence())
 	}
 	if batch.Primary() != b.primary {
-		return nil, errors.Errorf("batch primary (%d) not equal to expected primary (%d)", batch.Primary(), b.primary)
+		return nil, fmt.Errorf("batch primary (%d) not equal to expected primary (%d)", batch.Primary(), b.primary)
 	}
 	if batch.Shard() != b.Shard {
-		return nil, errors.Errorf("batch shard (%d) not equal to expected shard (%d)", batch.Shard(), b.Shard)
+		return nil, fmt.Errorf("batch shard (%d) not equal to expected shard (%d)", batch.Shard(), b.Shard)
 	}
 	if batch.Seq() != b.seq {
-		return nil, errors.Errorf("batch seq (%d) not equal to expected seq (%d)", batch.Seq(), b.seq)
+		return nil, fmt.Errorf("batch seq (%d) not equal to expected seq (%d)", batch.Seq(), b.seq)
 	}
 	if len(batch.Requests()) == 0 {
-		return nil, errors.Errorf("empty batch")
+		return nil, errors.New("empty batch")
 	}
 	br := batch.Requests()
 	digestStart := time.Now()
 	computedDigest := br.Digest()
 	b.Metrics.batchHashingLatency.Observe(time.Since(digestStart).Seconds())
 	if !slices.Equal(batch.Digest(), computedDigest) {
-		return nil, errors.Errorf("batch digest (%v) is not equal to calculated digest (%v)", batch.Digest(), computedDigest)
+		return nil, fmt.Errorf("batch digest (%x) is not equal to calculated digest (%x)", batch.Digest(), computedDigest)
 	}
 	primaryBAF := types.NewSimpleBatchAttestationFragment(batch.Shard(), batch.Primary(), batch.Seq(), batch.Digest(), batch.Primary(), batch.ConfigSequence(), uint64(len(batch.Requests())), nil)
 	if err := b.SigVerifier.VerifySignature(types.NewBatcherIdentity(batch.Primary(), batch.Shard()), primaryBAF.ToBeSigned(), batch.PrimarySignature()); err != nil {
-		return nil, errors.Wrapf(err, "failed verifying primary signature for batch seq %d", b.seq)
+		return nil, fmt.Errorf("failed verifying primary signature for batch seq %d: %w", b.seq, err)
 	}
 	reqIDs, err := b.BatchedRequestsVerifier.VerifyBatchedRequests(batch.Requests())
 	if err != nil {
-		return nil, errors.Errorf("failed verifying requests for batch seq %d; err: %v", b.seq, err)
+		return nil, fmt.Errorf("failed verifying requests for batch seq %d; err: %w", b.seq, err)
 	}
 	return reqIDs, nil
 }

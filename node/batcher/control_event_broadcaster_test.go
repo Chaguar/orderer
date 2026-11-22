@@ -8,6 +8,7 @@ package batcher_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 	"time"
 
@@ -17,7 +18,6 @@ import (
 	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/Chaguar/orderer/testutil"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 
@@ -69,7 +69,7 @@ func TestBroadcastControlEventQuorumScenarios(t *testing.T) {
 			defer cancel()
 			err := b.BroadcastControlEvent(state.ControlEvent{}, ctx)
 			if tt.expectError {
-				require.Error(t, err)
+				require.ErrorIs(t, err, context.Canceled)
 			} else {
 				require.NoError(t, err)
 			}

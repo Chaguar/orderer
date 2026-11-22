@@ -8,6 +8,7 @@ package batcher_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"sync"
@@ -87,7 +88,7 @@ func (sc *stubConsenter) NotifyEvent(stream protos.Consensus_NotifyEventServer) 
 }
 
 func (sc *stubConsenter) SubmitConfig(ctx context.Context, request *protos.Request) (*protos.SubmitResponse, error) {
-	return nil, fmt.Errorf("not implemented")
+	return nil, errors.New("not implemented")
 }
 
 func (sc *stubConsenter) Stop() {

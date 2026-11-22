@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package batcher
 
 import (
-	"fmt"
+	"errors"
 	"time"
 
 	"github.com/Chaguar/common/common/policies"
@@ -33,7 +33,7 @@ type BatcherDeliverService struct {
 }
 
 func (d *BatcherDeliverService) Broadcast(_ orderer.AtomicBroadcast_BroadcastServer) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func (d *BatcherDeliverService) Deliver(stream orderer.AtomicBroadcast_DeliverServer) error {

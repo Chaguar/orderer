@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package batcher_test
 
 import (
+	"errors"
 	"testing"
 
 	policyMocks "github.com/Chaguar/orderer/common/policy/mocks"
@@ -19,7 +20,6 @@ import (
 	"github.com/Chaguar/orderer/testutil"
 	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
