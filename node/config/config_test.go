@@ -127,13 +127,17 @@ func TestAssemblerNodeConfigToYaml(t *testing.T) {
 		{2, "127.0.0.1:7051", []RawBytes{{1, 2, 3}, {4, 5, 6}}, RawBytes("BatcherPubKey-2"), RawBytes("TLS CERT")},
 	}
 	shards := []ShardInfo{{ShardId: 1, Batchers: batchers}}
+	consenters := []ConsenterInfo{
+		{1, "127.0.0.1:7050", RawBytes("ConsenterPubKey-1"), []RawBytes{{1, 2, 3}, {4, 5, 6}}},
+		{2, "127.0.0.1:7051", RawBytes("ConsenterPubKey-2"), []RawBytes{{1, 2, 3}, {4, 5, 6}}},
+	}
 
 	anc := &AssemblerNodeConfig{
 		TLSCertificateFile: RawBytes{4, 5, 6},
 		TLSPrivateKeyFile:  RawBytes{7, 8, 9},
 		PartyId:            1,
 		Shards:             shards,
-		Consenter:          ConsenterInfo{1, "127.0.0.1:7050", RawBytes("ConsenterPubKey-1"), []RawBytes{{1, 2, 3}, {4, 5, 6}}},
+		Consenters:         consenters,
 		ClientRootCAs:      [][]byte{},
 	}
 
@@ -145,6 +149,27 @@ func TestAssemblerNodeConfigToYaml(t *testing.T) {
 	err = NodeConfigFromYAML(&ancFromYAML, path)
 	require.NoError(t, err)
 	require.Equal(t, ancFromYAML, *anc)
+}
+
+// Scenario:
+//  1. Build the config of the assembler of party 2, listing the consenters of parties 1, 2 and 3.
+//  2. Expect OwnConsenter to return the consenter of party 2.
+//  3. Remove the consenter of party 2 from the list, and expect OwnConsenter to fail.
+func TestAssemblerOwnConsenter(t *testing.T) {
+	consenters := []ConsenterInfo{
+		{PartyID: 1, Endpoint: "127.0.0.1:7050"},
+		{PartyID: 2, Endpoint: "127.0.0.1:7051"},
+		{PartyID: 3, Endpoint: "127.0.0.1:7052"},
+	}
+	anc := &AssemblerNodeConfig{PartyId: 2, Consenters: consenters}
+
+	consenter, err := anc.OwnConsenter()
+	require.NoError(t, err)
+	require.Equal(t, consenters[1], consenter)
+
+	anc.Consenters = []ConsenterInfo{consenters[0], consenters[2]}
+	_, err = anc.OwnConsenter()
+	require.EqualError(t, err, "no consenter of party 2 among the 2 consenters")
 }
 
 func TestShardsIDsFromBatcherConfig(t *testing.T) {
