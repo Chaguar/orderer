@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package router
 
 import (
-	"github.com/pkg/errors"
+	"fmt"
 
 	"github.com/Chaguar/orderer/common/ratelimit"
 	"github.com/Chaguar/orderer/config"
@@ -52,15 +52,15 @@ func newThrottler(cfg nodeconfig.RouterThrottlingConfig) (*throttler, error) {
 		// A "global" policy with no positive rate is a misconfiguration: fail fast
 		// rather than silently running with throttling disabled.
 		if cfg.Rate <= 0 {
-			return nil, errors.Errorf("router throttling policy %q requires Rate > 0, got %d", cfg.Policy, cfg.Rate)
+			return nil, fmt.Errorf("router throttling policy %q requires Rate > 0, got %d", cfg.Policy, cfg.Rate)
 		}
 		lim := ratelimit.New(float64(cfg.Rate), cfg.Burst)
 		if lim == nil {
 			// Rate > 0 but so large that the per-token interval rounds to zero ns.
-			return nil, errors.Errorf("router throttling policy %q: Rate %d is too high (per-token interval rounds to zero)", cfg.Policy, cfg.Rate)
+			return nil, fmt.Errorf("router throttling policy %q: Rate %d is too high (per-token interval rounds to zero)", cfg.Policy, cfg.Rate)
 		}
 		return &throttler{global: lim}, nil
 	default:
-		return nil, errors.Errorf("unknown router throttling policy %q", cfg.Policy)
+		return nil, fmt.Errorf("unknown router throttling policy %q", cfg.Policy)
 	}
 }

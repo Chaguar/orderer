@@ -89,11 +89,11 @@ func (a *AssemblerSupportAdapter) ClientConfig() comm.ClientConfig {
 func (a *AssemblerSupportAdapter) LastConfigBlock(block *common.Block) (*common.Block, error) {
 	lastConfigIndex, err := protoutil.GetLastConfigIndexFromBlock(block)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get last config index from assembler's last block: %s", err)
+		return nil, fmt.Errorf("failed to get last config index from assembler's last block: %w", err)
 	}
 	lastConfigBlock, err := a.assembler.ledger.LedgerReader().RetrieveBlockByNumber(lastConfigIndex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get last config block: %s", err)
+		return nil, fmt.Errorf("failed to get last config block: %w", err)
 	}
 	return lastConfigBlock, nil
 }

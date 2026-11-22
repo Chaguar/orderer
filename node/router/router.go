@@ -10,6 +10,7 @@ import (
 	"context"
 	rand3 "crypto/rand"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"math"
@@ -41,7 +42,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 )
 
 type Net interface {
@@ -365,7 +365,7 @@ func (r *Router) SoftStop() error {
 
 	// next, we stop the shard routers, which will be responsible for sending responses to pending requests
 	for _, sr := range r.shardRouters {
-		sr.SoftStop(fmt.Errorf("router is stopping, cannot process request"))
+		sr.SoftStop(errors.New("router is stopping, cannot process request"))
 	}
 
 	// wait until all feedback channels are drained and all responses are sent
@@ -452,7 +452,7 @@ func (r *Router) init() {
 }
 
 func (r *Router) Deliver(server orderer.AtomicBroadcast_DeliverServer) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 func (r *Router) SubmitStream(stream protos.RequestTransmit_SubmitStreamServer) error {
@@ -561,7 +561,7 @@ func (r *Router) Submit(ctx context.Context, request *protos.Request) (*protos.S
 		}
 	case <-ctx.Done():
 		response = Response{
-			err:   fmt.Errorf("%w for request %x: %v", errContextDone, reqID, ctx.Err()),
+			err:   fmt.Errorf("%w for request %x: %w", errContextDone, reqID, ctx.Err()),
 			reqID: reqID,
 		}
 	}
@@ -749,7 +749,7 @@ func (r *Router) ApplyConfig(configBlock *common.Block) (bool, error) {
 	// extract new router node config from the last config block and configuration.
 	newConfiguration, configSeq, err := r.configuration.NewUpdatedConfigurationFromBlock(configBlock)
 	if err != nil {
-		return false, fmt.Errorf("failed to extract new configuration from last config block: %v", err)
+		return false, fmt.Errorf("failed to extract new configuration from last config block: %w", err)
 	}
 
 	// send ack to the consensus node, and wait for its response before applying the new config
@@ -765,7 +765,7 @@ func (r *Router) ApplyConfig(configBlock *common.Block) (bool, error) {
 	// first, check if party is evicted in the new configuration. If yes, an admin action is required.
 	evicted, err := config.IsPartyEvicted(r.routerNodeConfig.PartyID, newConfiguration)
 	if err != nil {
-		return false, fmt.Errorf("failed to check if router's party was evicted in the new configuration: %v", err)
+		return false, fmt.Errorf("failed to check if router's party was evicted in the new configuration: %w", err)
 	}
 	if evicted {
 		r.logger.Warnf("Router's party %d was evicted in the new configuration", r.routerNodeConfig.PartyID)
@@ -777,7 +777,7 @@ func (r *Router) ApplyConfig(configBlock *common.Block) (bool, error) {
 	newPartyConfig, _ := config.FindParty(r.routerNodeConfig.PartyID, newConfiguration)
 	requireRestart, err := config.IsNodeConfigChangeRestartRequired(currPartyConfig.RouterConfig, newPartyConfig.RouterConfig, r.logger)
 	if err != nil {
-		return false, fmt.Errorf("failed to check if node config change requires restart: %v", err)
+		return false, fmt.Errorf("failed to check if node config change requires restart: %w", err)
 	}
 	if requireRestart {
 		r.logger.Warnf("Router's identity was changed in the new configuration")

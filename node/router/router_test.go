@@ -45,7 +45,6 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/onsi/gomega/gexec"
-	"github.com/pkg/errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -158,7 +157,7 @@ func TestStubBatcherReceivesClientRouterRequests(t *testing.T) {
 func TestSubmitToStubBatchersGetMetrics(t *testing.T) {
 	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false)
 	err := createServerTLSClientConnection(testSetup, testSetup.ca)
-	require.NoError(t, errors.Wrap(err, "during TLS client connection setup"))
+	require.NoError(t, err, "during TLS client connection setup")
 	require.NotNil(t, testSetup.clientConn)
 
 	defer testSetup.Close()
@@ -1124,7 +1123,7 @@ func submitStreamRequests(conn *grpc.ClientConn, numOfRequests int) (res testStr
 		default:
 			resp, err := stream.Recv()
 			if err != nil {
-				res.err = fmt.Errorf("error receiving response: %s", err)
+				res.err = fmt.Errorf("error receiving response: %w", err)
 			}
 			if resp.Error != "" {
 				requestErr := fmt.Errorf("receiving response with error: %s", resp.Error)

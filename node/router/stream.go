@@ -8,6 +8,7 @@ package router
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"strings"
 	"sync"
@@ -18,7 +19,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-lib-go/common/metrics"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 type stream struct {
@@ -133,14 +133,14 @@ func (s *stream) verifyAndClassifyRequest(request *protos.Request) (common.Heade
 	err := s.verifier.Verify(request)
 	if err != nil {
 		s.logger.Debugf("request is invalid: %s", err)
-		return reqType, badRequest(fmt.Errorf("request verification error: %s", err))
+		return reqType, badRequest(fmt.Errorf("request verification error: %w", err))
 	}
 
 	// verify the request structure and clasify the request
 	reqType, err = s.verifier.VerifyStructureAndClassify(request)
 	if err != nil {
 		s.logger.Debugf("request structure is invalid: %s", err)
-		return reqType, badRequest(fmt.Errorf("request structure verification error: %s", err))
+		return reqType, badRequest(fmt.Errorf("request structure verification error: %w", err))
 	}
 
 	if _, known := common.HeaderType_name[int32(reqType)]; !known || reqType == common.HeaderType_CONFIG || reqType == common.HeaderType_ORDERER_TRANSACTION || reqType == common.HeaderType_DELIVER_SEEK_INFO {

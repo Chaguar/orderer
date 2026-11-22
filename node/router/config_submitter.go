@@ -127,7 +127,7 @@ func (cs *configSubmitter) Forward(tr *TrackedRequest) {
 // forwardRequest forwards the config request from the config submitter to the consensus
 func (cs *configSubmitter) forwardRequest(tr *TrackedRequest) error {
 	if tr == nil {
-		return fmt.Errorf("received nil tracked request")
+		return errors.New("received nil tracked request")
 	}
 
 	feedback := Response{reqID: tr.reqID}
@@ -135,7 +135,7 @@ func (cs *configSubmitter) forwardRequest(tr *TrackedRequest) error {
 
 	configRequest, err := cs.configUpdateProposer.ProposeConfigUpdate(tr.request, cs.bundle, cs.signer, cs.verifier, cs.bccsp)
 	if err != nil {
-		feedback.err = badRequest(fmt.Errorf("error in verification and proposing update: %s", err))
+		feedback.err = badRequest(fmt.Errorf("error in verification and proposing update: %w", err))
 		tr.feedback.reply(feedback)
 		return err
 	}
@@ -161,7 +161,7 @@ func (cs *configSubmitter) forwardRequest(tr *TrackedRequest) error {
 	}
 	feedback.SubmitResponse = resp
 	if err != nil {
-		feedback.err = fmt.Errorf("error forwarding config request to consenter: %v", err)
+		feedback.err = fmt.Errorf("error forwarding config request to consenter: %w", err)
 	} else {
 		cs.metrics.forwardedToConsenter.Add(1)
 		feedback.SubmitResponse = resp

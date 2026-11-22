@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package router
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
@@ -18,7 +19,6 @@ import (
 	"github.com/Chaguar/orderer/node/config"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-lib-go/common/metrics"
-	"github.com/pkg/errors"
 	"github.com/prometheus/client_golang/prometheus"
 )
 

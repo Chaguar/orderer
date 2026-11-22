@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package assembler_test
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"testing"
@@ -164,7 +165,7 @@ func (sb *stubBatcher) Restart() {
 }
 
 func (sb *stubBatcher) Broadcast(stream orderer.AtomicBroadcast_BroadcastServer) error {
-	return fmt.Errorf("not implemented")
+	return errors.New("not implemented")
 }
 
 // AdmitOnly makes the stub serve only a request signed with one of signCerts.
