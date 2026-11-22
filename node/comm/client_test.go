@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"net"
 	"testing"
 	"time"
@@ -19,7 +20,6 @@ import (
 	testgrpc "github.com/Chaguar/orderer/node/comm/testdata/grpc"
 	"github.com/Chaguar/orderer/testutil"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -244,7 +244,7 @@ func TestClientConfigDial(t *testing.T) {
 				require.NoError(t, err)
 				require.NotNil(t, conn)
 			} else {
-				t.Log(errors.WithStack(err))
+				t.Log(err)
 				require.Regexp(t, test.errorMsg, err.Error())
 			}
 		})

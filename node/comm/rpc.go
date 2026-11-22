@@ -8,13 +8,13 @@ package comm
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"sync"
 	"time"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 
@@ -102,7 +102,7 @@ func (s *RPC) Nodes() []uint64 {
 func (s *RPC) SendConsensus(destination uint64, msg *orderer.ConsensusRequest) error {
 	stream, err := s.getOrCreateStream(destination, ConsensusOperation)
 	if err != nil {
-		return errors.Wrap(err, "failed to get or create stream")
+		return fmt.Errorf("failed to get or create stream: %w", err)
 	}
 
 	req := &orderer.StepRequest{
@@ -114,12 +114,12 @@ func (s *RPC) SendConsensus(destination uint64, msg *orderer.ConsensusRequest) e
 	s.consensusLock.Lock()
 	defer s.consensusLock.Unlock()
 
-	err = stream.Send(req)
-	if err != nil {
+	if err := stream.Send(req); err != nil {
 		s.unMapStream(destination, ConsensusOperation, stream.ID)
+		return fmt.Errorf("failed to send consensus request: %w", err)
 	}
 
-	return errors.Wrap(err, "failed to send consensus request")
+	return nil
 }
 
 // SendSubmit sends a SubmitRequest to the given destination node.
@@ -169,7 +169,7 @@ func (s *RPC) getOrCreateStream(destination uint64, operationType OperationType)
 	}
 	stub, err := s.Comm.Remote(destination)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 	stream, err = stub.NewStream(s.Timeout)
 	if err != nil {

@@ -11,6 +11,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,7 +27,6 @@ import (
 	"github.com/Chaguar/orderer/node/comm/tlsgen"
 	"github.com/Chaguar/orderer/testutil"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
@@ -170,7 +170,7 @@ func invokeEmptyStream(address string, dialOptions ...grpc.DialOption) (*testgrp
 	// depends on timing.
 	err = stream.Send(&testgrpc.Empty{})
 	if err != nil && err != io.EOF {
-		return nil, fmt.Errorf("stream send failed: %s", err)
+		return nil, fmt.Errorf("stream send failed: %w", err)
 	}
 
 	stream.CloseSend()

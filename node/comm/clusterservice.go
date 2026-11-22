@@ -9,6 +9,7 @@ package comm
 import (
 	"bytes"
 	"encoding/asn1"
+	"errors"
 	"fmt"
 	"io"
 	"strconv"
@@ -20,7 +21,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
@@ -129,14 +129,14 @@ func (s *ClusterService) VerifyAuthRequest(stream orderer.ClusterNodeService_Ste
 		return nil, nil, errors.New("invalid request object")
 	}
 	if authReq.GetTimestamp() == nil {
-		return nil, nil, fmt.Errorf("auth request is missing a timestamp")
+		return nil, nil, errors.New("auth request is missing a timestamp")
 	}
 
 	bindingFieldsHash := GetSessionBindingHash(authReq)
 
 	tlsBinding, err := GetTLSSessionBinding(stream.Context(), bindingFieldsHash)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "session binding read failed")
+		return nil, nil, fmt.Errorf("session binding read failed: %w", err)
 	}
 
 	if !bytes.Equal(tlsBinding, authReq.SessionBinding) {
@@ -151,31 +151,31 @@ func (s *ClusterService) VerifyAuthRequest(stream orderer.ClusterNodeService_Ste
 		SessionBinding: tlsBinding,
 	})
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "ASN encoding failed")
+		return nil, nil, fmt.Errorf("ASN encoding failed: %w", err)
 	}
 
 	membership := s.Membership
 	if membership == nil {
-		return nil, nil, errors.Errorf("channel %s not found in config", authReq.Channel)
+		return nil, nil, fmt.Errorf("channel %s not found in config", authReq.Channel)
 	}
 
 	fromIdentity := membership.MemberMapping[authReq.FromId]
 	if fromIdentity == nil {
-		return nil, nil, errors.Errorf("node %d is not member of channel %s", authReq.FromId, authReq.Channel)
+		return nil, nil, fmt.Errorf("node %d is not member of channel %s", authReq.FromId, authReq.Channel)
 	}
 
 	toIdentity := membership.MemberMapping[authReq.ToId]
 	if toIdentity == nil {
-		return nil, nil, errors.Errorf("node %d is not member of channel %s", authReq.ToId, authReq.Channel)
+		return nil, nil, fmt.Errorf("node %d is not member of channel %s", authReq.ToId, authReq.Channel)
 	}
 
 	if !bytes.Equal(toIdentity, s.NodeIdentity) {
-		return nil, nil, errors.Errorf("node id mismatch")
+		return nil, nil, errors.New("node id mismatch")
 	}
 
 	err = VerifySignature(fromIdentity, SHA256Digest(msg), authReq.Signature)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "signature mismatch")
+		return nil, nil, fmt.Errorf("signature mismatch: %w", err)
 	}
 
 	return authReq, fromIdentity, nil
@@ -191,7 +191,7 @@ func (s *ClusterService) handleMessage(stream ClusterStepStream, addr string, ex
 		return err
 	}
 	if request == nil {
-		return errors.Errorf("request message is nil")
+		return errors.New("request message is nil")
 	}
 
 	s.Lock.RLock()
@@ -199,7 +199,7 @@ func (s *ClusterService) handleMessage(stream ClusterStepStream, addr string, ex
 	s.Lock.RUnlock()
 
 	if !authorized {
-		return errors.Errorf("stream %d is stale", streamID)
+		return fmt.Errorf("stream %d is stale", streamID)
 	}
 
 	exp.checkExpiration(time.Now(), channel)
@@ -219,7 +219,7 @@ func (s *ClusterService) handleMessage(stream ClusterStepStream, addr string, ex
 		}
 		return s.RequestHandler.OnConsensus(channel, sender, conReq)
 	}
-	return errors.Errorf("Message is neither a Submit nor Consensus request")
+	return errors.New("message is neither a Submit nor Consensus request")
 }
 
 func (s *ClusterService) initializeExpirationCheck(stream orderer.ClusterNodeService_StepServer, endpoint, nodeName string) *certificateExpirationCheck {

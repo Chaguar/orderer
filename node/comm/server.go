@@ -11,6 +11,8 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
+	"fmt"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -19,7 +21,6 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	grpc_middleware "github.com/grpc-ecosystem/go-grpc-middleware"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/health"
 	healthpb "google.golang.org/grpc/health/grpc_health_v1"
@@ -240,7 +241,7 @@ func (gServer *GRPCServer) Stop() {
 func (gServer *GRPCServer) appendClientRootCA(clientRoot []byte) error {
 	certs, err := pemToX509Certs(clientRoot)
 	if err != nil {
-		return errors.WithMessage(err, "failed to append client root certificate(s)")
+		return fmt.Errorf("failed to append client root certificate(s): %w", err)
 	}
 
 	if len(certs) < 1 {

@@ -10,6 +10,8 @@ import (
 	"context"
 	crand "crypto/rand"
 	"crypto/x509"
+	"errors"
+	"fmt"
 	"math"
 	"math/rand/v2"
 	"reflect"
@@ -24,7 +26,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 
@@ -204,21 +205,21 @@ func (p *BlockPuller) fetchGenesisFromEndpoint(endpoint EndpointCriteria) (*gene
 	// Establish connection
 	conn, err := p.Dialer.Dial(endpoint)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to dial %s", endpoint.Endpoint)
+		return nil, fmt.Errorf("failed to dial %s: %w", endpoint.Endpoint, err)
 	}
 
 	// Create seek envelope for block 0
 	env, err := p.seekSpecificBlock(0)
 	if err != nil {
 		conn.Close()
-		return nil, errors.Wrap(err, "failed to create seek envelope")
+		return nil, fmt.Errorf("failed to create seek envelope: %w", err)
 	}
 
 	// Request block
 	stream, err := p.requestBlocks(endpoint.Endpoint, NewImpatientStream(conn, p.FetchTimeout), env)
 	if err != nil {
 		conn.Close()
-		return nil, errors.Wrap(err, "failed to request block")
+		return nil, fmt.Errorf("failed to request block: %w", err)
 	}
 	defer stream.abort()
 
@@ -226,20 +227,20 @@ func (p *BlockPuller) fetchGenesisFromEndpoint(endpoint EndpointCriteria) (*gene
 	resp, err := stream.Recv()
 	if err != nil {
 		conn.Close()
-		return nil, errors.Wrap(err, "failed to receive block")
+		return nil, fmt.Errorf("failed to receive block: %w", err)
 	}
 
 	// Extract and validate block
 	block, err := extractBlockFromResponse(resp)
 	if err != nil {
 		conn.Close()
-		return nil, errors.Wrap(err, "invalid block response")
+		return nil, fmt.Errorf("invalid block response: %w", err)
 	}
 
 	blockNum := block.GetHeader().GetNumber()
 	if blockNum != 0 {
 		conn.Close()
-		return nil, errors.Errorf("expected block 0, got block %d", blockNum)
+		return nil, fmt.Errorf("expected block 0, got block %d", blockNum)
 	}
 	stream.CloseSend()
 
@@ -379,7 +380,7 @@ func (p *BlockPuller) pullBlocks(seq uint64, reConnected bool) error {
 		seq := block.Header.Number
 		if seq != nextExpectedSequence {
 			p.Logger.Errorf("Expected to receive sequence %d but got %d instead", nextExpectedSequence, seq)
-			return errors.Errorf("got unexpected sequence from %s - (%d) instead of (%d)", p.endpoint, seq, nextExpectedSequence)
+			return fmt.Errorf("got unexpected sequence from %s - (%d) instead of (%d)", p.endpoint, seq, nextExpectedSequence)
 		}
 		size := blockSize(block)
 		totalSize += size
@@ -567,7 +568,7 @@ func (p *BlockPuller) fetchLastBlockSeq(minRequestedSequence uint64, endpoint st
 
 	seq := block.Header.Number
 	if seq < minRequestedSequence {
-		err = errors.Errorf("minimum requested sequence is %d but %s is at sequence %d", minRequestedSequence, endpoint, seq)
+		err = fmt.Errorf("minimum requested sequence is %d but %s is at sequence %d", minRequestedSequence, endpoint, seq)
 		p.Logger.Infof("Skipping pulling from %s: %v", endpoint, err)
 		return 0, nil, err
 	}
@@ -618,9 +619,9 @@ func extractBlockFromResponse(resp *orderer.DeliverResponse) (*common.Block, err
 		if t.Status == common.Status_SERVICE_UNAVAILABLE {
 			return nil, ErrServiceUnavailable
 		}
-		return nil, errors.Errorf("faulty node, received: %v", resp)
+		return nil, fmt.Errorf("faulty node, received: %v", resp)
 	default:
-		return nil, errors.Errorf("response is of type %v, but expected a block", reflect.TypeOf(resp.Type))
+		return nil, fmt.Errorf("response is of type %v, but expected a block", reflect.TypeOf(resp.Type))
 	}
 }
 
@@ -735,7 +736,7 @@ func (stream *ImpatientStream) Recv() (*orderer.DeliverResponse, error) {
 	select {
 	case <-timeout.C:
 		stream.cancelFunc()
-		return nil, errors.Errorf("didn't receive a response within %v", stream.waitTimeout)
+		return nil, fmt.Errorf("didn't receive a response within %v", stream.waitTimeout)
 	case respAndErr := <-responseChan:
 		return respAndErr.resp, respAndErr.err
 	}

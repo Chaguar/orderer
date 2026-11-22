@@ -7,9 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package comm
 
 import (
+	"errors"
 	"sync"
 
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 

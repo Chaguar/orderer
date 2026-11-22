@@ -12,6 +12,7 @@ import (
 	"crypto/x509"
 	"encoding/hex"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -31,7 +32,6 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/onsi/gomega"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -1207,7 +1207,7 @@ func TestBlockPullerBadBlocks(t *testing.T) {
 func TestImpatientStreamDetectSelf(t *testing.T) {
 	osn := newClusterNodeWithTLS(t)
 	osn.Lock()
-	osn.err = fmt.Errorf("service unavailable")
+	osn.err = errors.New("service unavailable")
 	osn.Unlock()
 
 	defer osn.stop()
