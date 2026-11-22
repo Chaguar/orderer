@@ -3,7 +3,7 @@ module github.com/Chaguar/orderer
 go 1.27.3
 
 require (
-	github.com/Chaguar/common v0.2.13
+	github.com/Chaguar/common v0.2.14
 	github.com/alecthomas/kingpin v2.2.6+incompatible
 	github.com/cockroachdb/errors v1.14.0
 	github.com/cockroachdb/pebble/v2 v2.1.7

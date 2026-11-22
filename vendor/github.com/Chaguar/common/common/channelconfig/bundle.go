@@ -92,7 +92,7 @@ func (b *Bundle) ValidateNew(nb Resources) error {
 				oc.ConsensusType(), noc.ConsensusType())
 		}
 
-		// In Fabric-X we insist on per Org endpoints for every org
+		// In Chaguar we insist on per Org endpoints for every org
 		for _, org := range noc.Organizations() {
 			if len(org.Endpoints()) == 0 {
 				return errors.Errorf(

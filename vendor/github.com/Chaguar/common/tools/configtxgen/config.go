@@ -63,13 +63,13 @@ const (
 	// includes only the sample MSP and is used to create a channel.
 	SampleSingleMSPChannelProfile = "SampleSingleMSPChannel"
 
-	// SampleFabricX references the sample profile used for
+	// SampleChaguar references the sample profile used for
 	// testing the arma-based ordering service and the scalable committer.
-	SampleFabricX = "SampleFabricX"
+	SampleChaguar = "SampleChaguar"
 
-	// TwoOrgsSampleFabricX references the sample two organizations profile used for
+	// TwoOrgsSampleChaguar references the sample two organizations profile used for
 	// testing the arma-based ordering service and the scalable committer.
-	TwoOrgsSampleFabricX = "TwoOrgsSampleFabricX"
+	TwoOrgsSampleChaguar = "TwoOrgsSampleChaguar"
 
 	// SampleConsortiumName is the sample consortium from the
 	// sample configtx.yaml.

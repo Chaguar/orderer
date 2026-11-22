@@ -1,6 +1,6 @@
 # Config ARMA via CLI
 
-This command-line tool provides a simple way to config an ARMA network, which is the ordering service in FabricX.
+This command-line tool provides a simple way to config an ARMA network, which is the ordering service in Chaguar.
 
 ## Building the tool
 1. Run from `ARMA` root folder

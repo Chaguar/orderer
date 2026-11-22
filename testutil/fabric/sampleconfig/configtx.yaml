@@ -653,7 +653,7 @@ Profiles:
                       Admins:
                           Type: Signature
                           Rule: "OR('SampleOrg.member')"
-    SampleFabricX:
+    SampleChaguar:
         <<: *ChannelDefaults
         Consortium: SampleConsortium
         Orderer:

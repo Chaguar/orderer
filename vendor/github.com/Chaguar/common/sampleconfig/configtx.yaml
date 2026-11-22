@@ -162,7 +162,7 @@ Application: &ApplicationDefaults
         # Users can override these defaults using the ACLs section in their channel definition
         peer/Propose: /Channel/Application/Writers
 
-        # Fabric-X committer's exposed resources, keyed by gRPC full-method name. The committer's
+        # Chaguar committer's exposed resources, keyed by gRPC full-method name. The committer's
         # auth service authorizes each call against the policy its method maps to here.
         # In the committer, access to each resource is governed by the
         # /Channel/Application/Readers policy unless otherwise specified here.
@@ -228,7 +228,7 @@ Application: &ApplicationDefaults
 Orderer: &OrdererDefaults
 
     # Orderer Type: The orderer implementation to start.
-    # Available types are "etcdraft", "BFT", and "arma" (Fabric-X).
+    # Available types are "etcdraft", "BFT", and "arma" (Chaguar).
     # Please note that "solo" and "kafka" are no longer supported.
     OrdererType: etcdraft
 
@@ -674,16 +674,16 @@ Profiles:
                           Type: Signature
                           Rule: OR('SampleOrg.member')
 
-    SampleFabricX:
+    SampleChaguar:
         <<: *ChannelDefaults
-        Orderer: &FabricXOrdererDefaults
+        Orderer: &ChaguarOrdererDefaults
             <<: *OrdererDefaults
             OrdererType: arma
             Policies: *DefaultOrdererPolicies
             Organizations:
                 - <<: *SampleOrg
                   OrdererEndpoints:
-                      # Fabric-X have separated endpoints for broadcast and deliver.
+                      # Chaguar has separate endpoints for broadcast and deliver.
                       # This requires explicitly identifying the API that each endpoint provides (broadcast, deliver).
                       # Since we may have multiple endpoints per party (one per API), the party ID of each endpoint
                       # must be specified.
@@ -729,15 +729,15 @@ Profiles:
                         port: 7050
                       - {id: 2, host: "orderer-3", port: 7050}
 
-        Application: &FabricXApplicationDefaults
+        Application: &ChaguarApplicationDefaults
             <<: *ApplicationDefaults
             Organizations:
                 - <<: *SampleOrg
 
-    TwoOrgsSampleFabricX:
+    TwoOrgsSampleChaguar:
         <<: *ChannelDefaults
         Orderer:
-            <<: *FabricXOrdererDefaults
+            <<: *ChaguarOrdererDefaults
             Organizations:
                 - <<: *Org1
                   OrdererEndpoints:
@@ -749,7 +749,7 @@ Profiles:
                       - id=1,deliver,localhost:7061
 
         Application:
-            <<: *FabricXApplicationDefaults
+            <<: *ChaguarApplicationDefaults
             Organizations:
                 - <<: *Org1
                 - <<: *Org2

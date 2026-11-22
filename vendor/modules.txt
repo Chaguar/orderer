@@ -1,4 +1,4 @@
-# github.com/Chaguar/common v0.2.13
+# github.com/Chaguar/common v0.2.14
 ## explicit; go 1.27.3
 github.com/Chaguar/common/api/msppb
 github.com/Chaguar/common/api/ordererpb

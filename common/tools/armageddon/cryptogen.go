@@ -157,7 +157,7 @@ func GenerateCryptoConfigWithProfile(
 
 	return cryptogen.CreateOrExtendProfileWithCrypto(&cryptogen.ConfigBlockParameters{
 		TargetPath:    targetPath,
-		BaseProfile:   configtxgen.SampleFabricX,
+		BaseProfile:   configtxgen.SampleChaguar,
 		ChannelID:     "arma",
 		Organizations: orgs,
 		EnableNodeOUs: enableNodeOUs,

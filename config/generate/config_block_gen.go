@@ -61,8 +61,8 @@ func CreateProfile(dir string, sharedConfigYaml *config.SharedConfigYaml, shared
 		consenterMapping = append(consenterMapping, consenter)
 	}
 
-	// load SampleFabricX profile
-	profile := configtxgen.Load(configtxgen.SampleFabricX, sampleConfigPath)
+	// load SampleChaguar profile
+	profile := configtxgen.Load(configtxgen.SampleChaguar, sampleConfigPath)
 
 	// update profile with some more relevant orderer information
 	profile.Orderer.Arma.Path = sharedConfigPath
