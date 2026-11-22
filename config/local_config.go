@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package config
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -288,7 +289,7 @@ type Cluster struct {
 func LoadLocalConfig(filePath string, logger *flogging.FabricLogger) (*LocalConfig, string, error) {
 	nodeLocalConfig, err := LoadLocalConfigYaml(filePath)
 	if err != nil {
-		return nil, "", fmt.Errorf("cannot load local node configuration, failed reading config yaml, err: %s", err)
+		return nil, "", fmt.Errorf("cannot load local node configuration, failed reading config yaml, err: %w", err)
 	}
 
 	role, err := validateLocalConfig(nodeLocalConfig)
@@ -304,14 +305,14 @@ func LoadLocalConfig(filePath string, logger *flogging.FabricLogger) (*LocalConf
 
 	tlsConfig, err := loadTLSCryptoConfig(&nodeLocalConfig.GeneralConfig.TLSConfig)
 	if err != nil {
-		return nil, "", fmt.Errorf("cannot load local tls config, err: %s", err)
+		return nil, "", fmt.Errorf("cannot load local tls config, err: %w", err)
 	}
 
 	// load cluster crypto config return cluster config with empty fields except for the consenter node
 	var clusterConfig *Cluster
 	clusterConfig, err = loadClusterCryptoConfig(&nodeLocalConfig.GeneralConfig.Cluster)
 	if err != nil {
-		return nil, "", fmt.Errorf("cannot load local cluster config for consenter, err: %s", err)
+		return nil, "", fmt.Errorf("cannot load local cluster config for consenter, err: %w", err)
 	}
 
 	return &LocalConfig{
@@ -336,33 +337,33 @@ func LoadLocalConfigYaml(filePath string) (*NodeLocalConfig, error) {
 
 func validateLocalConfig(nodeLocalConfig *NodeLocalConfig) (string, error) {
 	if nodeLocalConfig.PartyID == 0 {
-		return "", fmt.Errorf("node local config is not valid, party ID is missing")
+		return "", errors.New("node local config is not valid, party ID is missing")
 	}
 
 	if nodeLocalConfig.GeneralConfig == nil {
-		return "", fmt.Errorf("node local config is not valid, general config is missing")
+		return "", errors.New("node local config is not valid, general config is missing")
 	}
 
 	generalConfig := nodeLocalConfig.GeneralConfig
 
 	if generalConfig.ListenAddress == "" {
-		return "", fmt.Errorf("node local config is not valid, listen address is missing")
+		return "", errors.New("node local config is not valid, listen address is missing")
 	}
 
 	if generalConfig.ListenPort == 0 {
-		return "", fmt.Errorf("node local config is not valid, listen port is missing")
+		return "", errors.New("node local config is not valid, listen port is missing")
 	}
 
 	if generalConfig.TLSConfig.PrivateKey == "" {
-		return "", fmt.Errorf("node local config is not valid, TLS private key is missing")
+		return "", errors.New("node local config is not valid, TLS private key is missing")
 	}
 
 	if generalConfig.TLSConfig.Certificate == "" {
-		return "", fmt.Errorf("node local config is not valid, TLS certificate is missing")
+		return "", errors.New("node local config is not valid, TLS certificate is missing")
 	}
 
 	if generalConfig.Bootstrap.Method == "" {
-		return "", fmt.Errorf("node local config is not valid, bootstrap method is missing")
+		return "", errors.New("node local config is not valid, bootstrap method is missing")
 	}
 
 	if generalConfig.Bootstrap.Method != "block" {
@@ -370,27 +371,27 @@ func validateLocalConfig(nodeLocalConfig *NodeLocalConfig) (string, error) {
 	}
 
 	if generalConfig.Bootstrap.File == "" {
-		return "", fmt.Errorf("node local config is not valid, bootstrap file is missing")
+		return "", errors.New("node local config is not valid, bootstrap file is missing")
 	}
 
 	if generalConfig.LocalMSPDir == "" {
-		return "", fmt.Errorf("node local config is not valid, local MSP directory is missing")
+		return "", errors.New("node local config is not valid, local MSP directory is missing")
 	}
 
 	if generalConfig.LocalMSPID == "" {
-		return "", fmt.Errorf("node local config is not valid, local MSP ID is missing")
+		return "", errors.New("node local config is not valid, local MSP ID is missing")
 	}
 
 	if (generalConfig.Cluster.ClientCertificate == "") != (generalConfig.Cluster.ClientPrivateKey == "") {
-		return "", fmt.Errorf("node local config is not valid, cluster client certificate and private key must be configured together")
+		return "", errors.New("node local config is not valid, cluster client certificate and private key must be configured together")
 	}
 
 	if nodeLocalConfig.FileStore == nil {
-		return "", fmt.Errorf("node local config is not valid, file store config is missing")
+		return "", errors.New("node local config is not valid, file store config is missing")
 	}
 
 	if nodeLocalConfig.FileStore.Path == "" {
-		return "", fmt.Errorf("node local config is not valid, file store path is missing")
+		return "", errors.New("node local config is not valid, file store path is missing")
 	}
 
 	return detectNodeRole(nodeLocalConfig)
@@ -416,7 +417,7 @@ func detectNodeRole(nodeLocalConfig *NodeLocalConfig) (string, error) {
 	}
 
 	if len(roles) == 0 {
-		return "", fmt.Errorf("node local config is not valid, node params are missing")
+		return "", errors.New("node local config is not valid, node params are missing")
 	}
 
 	if len(roles) > 1 {
@@ -429,19 +430,19 @@ func detectNodeRole(nodeLocalConfig *NodeLocalConfig) (string, error) {
 func loadTLSCryptoConfig(tlsConfig *TLSConfigYaml) (*TLSConfig, error) {
 	privateKey, err := utils.ReadPem(tlsConfig.PrivateKey)
 	if err != nil {
-		return nil, fmt.Errorf("failed load private key: %s", err)
+		return nil, fmt.Errorf("failed load private key: %w", err)
 	}
 
 	cert, err := utils.ReadPem(tlsConfig.Certificate)
 	if err != nil {
-		return nil, fmt.Errorf("failed load TLS certificate: %s", err)
+		return nil, fmt.Errorf("failed load TLS certificate: %w", err)
 	}
 
 	var rootCAs [][]byte
 	for _, rootCAPath := range tlsConfig.RootCAs {
 		rootCACert, err := utils.ReadPem(rootCAPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed load root ca certificate: %s", err)
+			return nil, fmt.Errorf("failed load root ca certificate: %w", err)
 		}
 		rootCAs = append(rootCAs, rootCACert)
 	}
@@ -450,7 +451,7 @@ func loadTLSCryptoConfig(tlsConfig *TLSConfigYaml) (*TLSConfig, error) {
 	for _, clientRootCAPath := range tlsConfig.ClientRootCAs {
 		clientRootCACert, err := utils.ReadPem(clientRootCAPath)
 		if err != nil {
-			return nil, fmt.Errorf("failed load root ca certificate: %s", err)
+			return nil, fmt.Errorf("failed load root ca certificate: %w", err)
 		}
 		clientRootCAs = append(clientRootCAs, clientRootCACert)
 	}
@@ -471,7 +472,7 @@ func loadClusterCryptoConfig(cluster *ClusterYaml) (*Cluster, error) {
 	if cluster.ClientPrivateKey != "" {
 		clientPrivateKey, err = utils.ReadPem(cluster.ClientPrivateKey)
 		if err != nil {
-			return nil, fmt.Errorf("failed load client private key: %s", err)
+			return nil, fmt.Errorf("failed load client private key: %w", err)
 		}
 	}
 
@@ -479,7 +480,7 @@ func loadClusterCryptoConfig(cluster *ClusterYaml) (*Cluster, error) {
 	if cluster.ClientCertificate != "" {
 		clientCertificate, err = utils.ReadPem(cluster.ClientCertificate)
 		if err != nil {
-			return nil, fmt.Errorf("failed load client tls certificate: %s", err)
+			return nil, fmt.Errorf("failed load client tls certificate: %w", err)
 		}
 	}
 
@@ -704,76 +705,76 @@ func validateLocalConfigValues(nodeLocalConfig *NodeLocalConfig, role string) er
 	cluster := nodeLocalConfig.GeneralConfig.Cluster
 
 	if cluster.SendBufferSize < 0 {
-		return fmt.Errorf("node local config is not valid, General.Cluster.SendBufferSize must not be negative")
+		return errors.New("node local config is not valid, General.Cluster.SendBufferSize must not be negative")
 	}
 	if cluster.RPCTimeout < 0 {
-		return fmt.Errorf("node local config is not valid, General.Cluster.RPCTimeout must not be negative")
+		return errors.New("node local config is not valid, General.Cluster.RPCTimeout must not be negative")
 	}
 	if cluster.ReplicationBufferSize < 0 {
-		return fmt.Errorf("node local config is not valid, General.Cluster.ReplicationBufferSize must not be negative")
+		return errors.New("node local config is not valid, General.Cluster.ReplicationBufferSize must not be negative")
 	}
 	if cluster.ReplicationMinRetryInterval < 0 {
-		return fmt.Errorf("node local config is not valid, General.Cluster.ReplicationMinRetryInterval must not be negative")
+		return errors.New("node local config is not valid, General.Cluster.ReplicationMinRetryInterval must not be negative")
 	}
 	if cluster.ReplicationMaxRetryInterval < 0 {
-		return fmt.Errorf("node local config is not valid, General.Cluster.ReplicationMaxRetryInterval must not be negative")
+		return errors.New("node local config is not valid, General.Cluster.ReplicationMaxRetryInterval must not be negative")
 	}
 	if cluster.ReplicationMaxRetryDuration < 0 {
-		return fmt.Errorf("node local config is not valid, General.Cluster.ReplicationMaxRetryDuration must not be negative")
+		return errors.New("node local config is not valid, General.Cluster.ReplicationMaxRetryDuration must not be negative")
 	}
 	if cluster.CertExpirationWarningThreshold < 0 {
-		return fmt.Errorf("node local config is not valid, General.Cluster.CertExpirationWarningThreshold must not be negative")
+		return errors.New("node local config is not valid, General.Cluster.CertExpirationWarningThreshold must not be negative")
 	}
 	if cluster.TLSHandshakeTimeShift < 0 {
-		return fmt.Errorf("node local config is not valid, General.Cluster.TLSHandshakeTimeShift must not be negative")
+		return errors.New("node local config is not valid, General.Cluster.TLSHandshakeTimeShift must not be negative")
 	}
 	if cluster.ReplicationMinRetryInterval > cluster.ReplicationMaxRetryInterval {
-		return fmt.Errorf("node local config is not valid, General.Cluster.ReplicationMinRetryInterval must be less than or equal to General.Cluster.ReplicationMaxRetryInterval")
+		return errors.New("node local config is not valid, General.Cluster.ReplicationMinRetryInterval must be less than or equal to General.Cluster.ReplicationMaxRetryInterval")
 	}
 
 	profile := nodeLocalConfig.OperationsConfig.Profile
 
 	if profile.BlockProfileRate < 0 {
-		return fmt.Errorf("node local config is not valid, Operations.Profile.BlockProfileRate must not be negative")
+		return errors.New("node local config is not valid, Operations.Profile.BlockProfileRate must not be negative")
 	}
 	if profile.MutexProfileFraction < 0 {
-		return fmt.Errorf("node local config is not valid, Operations.Profile.MutexProfileFraction must not be negative")
+		return errors.New("node local config is not valid, Operations.Profile.MutexProfileFraction must not be negative")
 	}
 
 	if nodeLocalConfig.MetricsConfig.MetricsLogInterval < 0 {
-		return fmt.Errorf("node local config is not valid, Metrics.MetricsLogInterval must not be negative")
+		return errors.New("node local config is not valid, Metrics.MetricsLogInterval must not be negative")
 	}
 
 	switch role {
 	case RouterStr:
 		if nodeLocalConfig.RouterParams.NumberOfConnectionsPerBatcher < 0 {
-			return fmt.Errorf("node local config is not valid, Router.NumberOfConnectionsPerBatcher must not be negative")
+			return errors.New("node local config is not valid, Router.NumberOfConnectionsPerBatcher must not be negative")
 		}
 		if nodeLocalConfig.RouterParams.NumberOfStreamsPerConnection < 0 {
-			return fmt.Errorf("node local config is not valid, Router.NumberOfStreamsPerConnection must not be negative")
+			return errors.New("node local config is not valid, Router.NumberOfStreamsPerConnection must not be negative")
 		}
 	case BatcherStr:
 		if nodeLocalConfig.BatcherParams.SubmitTimeout < 0 {
-			return fmt.Errorf("node local config is not valid, Batcher.SubmitTimeout must not be negative")
+			return errors.New("node local config is not valid, Batcher.SubmitTimeout must not be negative")
 		}
 	case AssemblerStr:
 		if nodeLocalConfig.AssemblerParams.PrefetchBufferMemoryBytes < 0 {
-			return fmt.Errorf("node local config is not valid, Assembler.PrefetchBufferMemoryBytes must not be negative")
+			return errors.New("node local config is not valid, Assembler.PrefetchBufferMemoryBytes must not be negative")
 		}
 		if nodeLocalConfig.AssemblerParams.RestartLedgerScanTimeout < 0 {
-			return fmt.Errorf("node local config is not valid, Assembler.RestartLedgerScanTimeout must not be negative")
+			return errors.New("node local config is not valid, Assembler.RestartLedgerScanTimeout must not be negative")
 		}
 		if nodeLocalConfig.AssemblerParams.PrefetchEvictionTtl < 0 {
-			return fmt.Errorf("node local config is not valid, Assembler.PrefetchEvictionTtl must not be negative")
+			return errors.New("node local config is not valid, Assembler.PrefetchEvictionTtl must not be negative")
 		}
 		if nodeLocalConfig.AssemblerParams.PopWaitMonitorTimeout < 0 {
-			return fmt.Errorf("node local config is not valid, Assembler.PopWaitMonitorTimeout must not be negative")
+			return errors.New("node local config is not valid, Assembler.PopWaitMonitorTimeout must not be negative")
 		}
 		if nodeLocalConfig.AssemblerParams.ReplicationChannelSize < 0 {
-			return fmt.Errorf("node local config is not valid, Assembler.ReplicationChannelSize must not be negative")
+			return errors.New("node local config is not valid, Assembler.ReplicationChannelSize must not be negative")
 		}
 		if nodeLocalConfig.AssemblerParams.BatchRequestsChannelSize < 0 {
-			return fmt.Errorf("node local config is not valid, Assembler.BatchRequestsChannelSize must not be negative")
+			return errors.New("node local config is not valid, Assembler.BatchRequestsChannelSize must not be negative")
 		}
 	}
 

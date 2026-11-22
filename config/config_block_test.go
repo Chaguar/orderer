@@ -11,8 +11,10 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 
 	"github.com/Chaguar/common/api/ordererpb"
 	"github.com/Chaguar/orderer/config"
@@ -73,4 +75,29 @@ func TestReadGenesisBlock_Errors(t *testing.T) {
 	c, err := config.ReadSharedConfigFromBootstrapConfigBlock(configBlock, factory.GetDefault())
 	require.EqualError(t, err, "block data is nil")
 	require.Nil(t, c)
+}
+
+func TestReadConsensusMetadataFromConfigBlockWithoutOrderer(t *testing.T) {
+	dir := t.TempDir()
+
+	sharedConfigYaml, sharedConfigBinaryPath := testutil.PrepareSharedConfigBinary(t, dir)
+	configBlock, err := generate.CreateGenesisBlock(dir, dir, sharedConfigYaml, sharedConfigBinaryPath, fabric.GetDevConfigDir())
+	require.NoError(t, err)
+
+	// Remove the orderer group from the config.
+	envelope, err := protoutil.ExtractEnvelope(configBlock, 0)
+	require.NoError(t, err)
+	payload, err := protoutil.UnmarshalPayload(envelope.Payload)
+	require.NoError(t, err)
+	configEnvelope := &common.ConfigEnvelope{}
+	require.NoError(t, proto.Unmarshal(payload.Data, configEnvelope))
+	require.Contains(t, configEnvelope.Config.ChannelGroup.Groups, channelconfig.OrdererGroupKey)
+	delete(configEnvelope.Config.ChannelGroup.Groups, channelconfig.OrdererGroupKey)
+	payload.Data = protoutil.MarshalOrPanic(configEnvelope)
+	envelope.Payload = protoutil.MarshalOrPanic(payload)
+	configBlock.Data.Data[0] = protoutil.MarshalOrPanic(envelope)
+
+	metadata, err := config.ReadConsensusMetadataFromConfigBlock(configBlock, factory.GetDefault())
+	require.EqualError(t, err, "orderer entry in the config block is empty")
+	require.Nil(t, metadata)
 }

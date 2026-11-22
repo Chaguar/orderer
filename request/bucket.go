@@ -7,11 +7,11 @@ SPDX-License-Identifier: Apache-2.0
 package request
 
 import (
+	"errors"
+	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 // errBucketSealed is returned by tryInsert when the bucket was sealed concurrently.
@@ -89,18 +89,18 @@ func (b *bucket) tryInsert(reqID string, request []byte) error {
 	}
 
 	if _, known := b.reqID2Bucket.Load(reqID); known {
-		return errors.Errorf("request %s already inserted", reqID)
+		return fmt.Errorf("request %s already inserted", reqID)
 	}
 
 	if _, existed := b.requests.LoadOrStore(reqID, request); existed {
-		return errors.Errorf("request %s already inserted", reqID)
+		return fmt.Errorf("request %s already inserted", reqID)
 	}
 	atomic.AddUint32(&b.size, 1)
 
 	if _, existed := b.reqID2Bucket.LoadOrStore(reqID, b); existed {
 		b.requests.Delete(reqID)
 		atomic.AddUint32(&b.size, ^uint32(0))
-		return errors.Errorf("request %s already inserted", reqID)
+		return fmt.Errorf("request %s already inserted", reqID)
 	}
 
 	return nil

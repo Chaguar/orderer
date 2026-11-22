@@ -7,12 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package request
 
 import (
+	"errors"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/pkg/errors"
 )
 
 type PendingStore struct {
@@ -342,7 +342,7 @@ func (ps *PendingStore) Prune(predicate func([]byte) error) {
 
 func (ps *PendingStore) Submit(request []byte) error {
 	if ps.isClosed() {
-		return errors.Errorf("pending store closed, request rejected")
+		return errors.New("pending store closed, request rejected")
 	}
 
 	reqID := ps.Inspector.RequestID(request)

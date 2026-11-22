@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package config
 
 import (
+	"errors"
 	"fmt"
 	"net"
 	"os"
@@ -35,7 +36,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -69,11 +69,11 @@ func ReadConfig(configFilePath string, logger *flogging.FabricLogger) (*Configur
 	if nodeRole == RouterStr || nodeRole == BatcherStr {
 		configStore, err = configstore.NewStore(conf.LocalConfig.NodeLocalConfig.FileStore.Path)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed creating %s config store: %s", nodeRole, err)
+			return nil, nil, fmt.Errorf("failed creating %s config store: %w", nodeRole, err)
 		}
 		listBlockNumbers, err := configStore.ListBlockNumbers()
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to list blocks from %s config store: %s", nodeRole, err)
+			return nil, nil, fmt.Errorf("failed to list blocks from %s config store: %w", nodeRole, err)
 		}
 
 		if len(listBlockNumbers) > 0 {
@@ -81,7 +81,7 @@ func ReadConfig(configFilePath string, logger *flogging.FabricLogger) (*Configur
 			lastBlockNumber := listBlockNumbers[lastBlockNumberIdx]
 			lastStoredConfigBlock, err = configStore.GetByNumber(lastBlockNumber)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to retrieve the last block from %s config store: %s", nodeRole, err)
+				return nil, nil, fmt.Errorf("failed to retrieve the last block from %s config store: %w", nodeRole, err)
 			}
 			logger.Infof("last block number %d was retrieved from %s config store", lastBlockNumber, nodeRole)
 		}
@@ -92,13 +92,13 @@ func ReadConfig(configFilePath string, logger *flogging.FabricLogger) (*Configur
 		assemblerLedgerFactory := &node_ledger.DefaultAssemblerLedgerFactory{}
 		assemblerLedger, err := assemblerLedgerFactory.Create(logger, conf.LocalConfig.NodeLocalConfig.FileStore.Path)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create assembler ledger instance: %s", err)
+			return nil, nil, fmt.Errorf("failed to create assembler ledger instance: %w", err)
 		}
 		defer assemblerLedger.Close()
 		if assemblerLedger.LedgerReader().Height() > 0 {
 			lastStoredConfigBlock, err = node_ledger.GetLastConfigBlockFromAssemblerLedger(assemblerLedger)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to retrieve last config block from assembler ledger: %s", err)
+				return nil, nil, fmt.Errorf("failed to retrieve last config block from assembler ledger: %w", err)
 			}
 		}
 	}
@@ -107,13 +107,13 @@ func ReadConfig(configFilePath string, logger *flogging.FabricLogger) (*Configur
 	if nodeRole == ConsensusStr {
 		consensusLedger, err := node_ledger.NewConsensusLedger(conf.LocalConfig.NodeLocalConfig.FileStore.Path)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to create consensus ledger instance: %s", err)
+			return nil, nil, fmt.Errorf("failed to create consensus ledger instance: %w", err)
 		}
 		defer consensusLedger.Close()
 
 		lastStoredConfigBlock, err = GetLastConfigBlockFromConsensusLedger(consensusLedger, logger)
 		if err != nil {
-			return nil, nil, fmt.Errorf("failed to get the last config block from consensus ledger instance: %s", err)
+			return nil, nil, fmt.Errorf("failed to get the last config block from consensus ledger instance: %w", err)
 		}
 	}
 
@@ -121,12 +121,12 @@ func ReadConfig(configFilePath string, logger *flogging.FabricLogger) (*Configur
 	// block (fresh start), or an advanced config block for late join or rejoin.
 	bootstrapBlock, err := readBootstrapConfigBlock(conf.LocalConfig)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read bootstrap block from bootstrap file, err: %v", err)
+		return nil, nil, fmt.Errorf("failed to read bootstrap block from bootstrap file, err: %w", err)
 	}
 
 	bccsp, err := conf.GetBCCSP()
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed to initialize BCCSP from config")
+		return nil, nil, fmt.Errorf("failed to initialize BCCSP from config: %w", err)
 	}
 
 	// Select the more advanced block (by sequence number) between the last block in local storage and the bootstrap block.
@@ -154,7 +154,7 @@ func ReadConfig(configFilePath string, logger *flogging.FabricLogger) (*Configur
 		if configStore != nil {
 			err = configStore.Add(bootstrapBlock)
 			if err != nil {
-				return nil, nil, fmt.Errorf("failed to add the bootstrap block to the config store: %s", err)
+				return nil, nil, fmt.Errorf("failed to add the bootstrap block to the config store: %w", err)
 			}
 			logger.Infof("Append bootstrap block %d to the %s config store", bootstrapBlock.Header.Number, nodeRole)
 		}
@@ -162,7 +162,7 @@ func ReadConfig(configFilePath string, logger *flogging.FabricLogger) (*Configur
 
 	conf.SharedConfig, err = sharedConfigFromBlock(lastConfigBlock, bccsp)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed to read the shared configuration from block, err: %v", err)
+		return nil, nil, fmt.Errorf("failed to read the shared configuration from block, err: %w", err)
 	}
 
 	logConfiguration(logger, conf, nodeRole, lastConfigBlock.GetHeader().GetNumber())
@@ -198,7 +198,7 @@ func sharedConfigFromBlock(block *common.Block, bccsp bccsp.BCCSP) (*ordererpb.S
 	sharedConfig := &ordererpb.SharedConfig{}
 	err = proto.Unmarshal(consensusMetaData, sharedConfig)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal consensus metadata to a shared configuration")
+		return nil, fmt.Errorf("failed to unmarshal consensus metadata to a shared configuration: %w", err)
 	}
 
 	return sharedConfig, nil
@@ -211,31 +211,31 @@ func (config *Configuration) GetBFTConfig(partyID types.PartyID) (smartbft_types
 	var BFTConfig smartbft_types.Configuration
 
 	if BFTConfig.RequestBatchMaxInterval, err = time.ParseDuration(smartBFTConfigFetchedFromSharedConfig.RequestBatchMaxInterval); err != nil {
-		return BFTConfig, errors.Wrap(err, "bad config metadata option RequestBatchMaxInterval")
+		return BFTConfig, fmt.Errorf("bad config metadata option RequestBatchMaxInterval: %w", err)
 	}
 	if BFTConfig.RequestForwardTimeout, err = time.ParseDuration(smartBFTConfigFetchedFromSharedConfig.RequestForwardTimeout); err != nil {
-		return BFTConfig, errors.Wrap(err, "bad config metadata option RequestForwardTimeout")
+		return BFTConfig, fmt.Errorf("bad config metadata option RequestForwardTimeout: %w", err)
 	}
 	if BFTConfig.RequestComplainTimeout, err = time.ParseDuration(smartBFTConfigFetchedFromSharedConfig.RequestComplainTimeout); err != nil {
-		return BFTConfig, errors.Wrap(err, "bad config metadata option RequestComplainTimeout")
+		return BFTConfig, fmt.Errorf("bad config metadata option RequestComplainTimeout: %w", err)
 	}
 	if BFTConfig.RequestAutoRemoveTimeout, err = time.ParseDuration(smartBFTConfigFetchedFromSharedConfig.RequestAutoRemoveTimeout); err != nil {
-		return BFTConfig, errors.Wrap(err, "bad config metadata option RequestAutoRemoveTimeout")
+		return BFTConfig, fmt.Errorf("bad config metadata option RequestAutoRemoveTimeout: %w", err)
 	}
 	if BFTConfig.ViewChangeResendInterval, err = time.ParseDuration(smartBFTConfigFetchedFromSharedConfig.ViewChangeResendInterval); err != nil {
-		return BFTConfig, errors.Wrap(err, "bad config metadata option ViewChangeResendInterval")
+		return BFTConfig, fmt.Errorf("bad config metadata option ViewChangeResendInterval: %w", err)
 	}
 	if BFTConfig.ViewChangeTimeout, err = time.ParseDuration(smartBFTConfigFetchedFromSharedConfig.ViewChangeTimeout); err != nil {
-		return BFTConfig, errors.Wrap(err, "bad config metadata option ViewChangeTimeout")
+		return BFTConfig, fmt.Errorf("bad config metadata option ViewChangeTimeout: %w", err)
 	}
 	if BFTConfig.LeaderHeartbeatTimeout, err = time.ParseDuration(smartBFTConfigFetchedFromSharedConfig.LeaderHeartbeatTimeout); err != nil {
-		return BFTConfig, errors.Wrap(err, "bad config metadata option LeaderHeartbeatTimeout")
+		return BFTConfig, fmt.Errorf("bad config metadata option LeaderHeartbeatTimeout: %w", err)
 	}
 	if BFTConfig.CollectTimeout, err = time.ParseDuration(smartBFTConfigFetchedFromSharedConfig.CollectTimeout); err != nil {
-		return BFTConfig, errors.Wrap(err, "bad config metadata option CollectTimeout")
+		return BFTConfig, fmt.Errorf("bad config metadata option CollectTimeout: %w", err)
 	}
 	if BFTConfig.RequestPoolSubmitTimeout, err = time.ParseDuration(smartBFTConfigFetchedFromSharedConfig.RequestPoolSubmitTimeout); err != nil {
-		return BFTConfig, errors.Wrap(err, "bad config metadata option RequestPoolSubmitTimeout")
+		return BFTConfig, fmt.Errorf("bad config metadata option RequestPoolSubmitTimeout: %w", err)
 	}
 
 	BFTConfig.SelfID = uint64(partyID)
@@ -737,7 +737,7 @@ func GetLastConfigBlockFromConsensusLedger(consensusLedger ConsensusLedgerReader
 	lastBlockIdx := consensusLedger.Height() - 1
 	lastBlock, err := consensusLedger.RetrieveBlockByNumber(lastBlockIdx)
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve last block %d from consensus ledger: %s", lastBlockIdx, err)
+		return nil, fmt.Errorf("failed to retrieve last block %d from consensus ledger: %w", lastBlockIdx, err)
 	}
 
 	return GetLastConfigBlockUsingBlockFromConsensusLedger(lastBlock, consensusLedger, logger)
@@ -758,27 +758,27 @@ func GetLastConfigBlockUsingBlockFromConsensusLedger(block *common.Block, consen
 
 	proposal, err := state.BytesToProposal(block.Data.Data[0])
 	if err != nil {
-		return nil, fmt.Errorf("failed to read decision from block in consensus ledger: %s", err)
+		return nil, fmt.Errorf("failed to read decision from block in consensus ledger: %w", err)
 	}
 
 	header := &state.Header{}
 	if err := header.Deserialize(proposal.Header); err != nil {
-		return nil, fmt.Errorf("failed to deserialize decision header from block: %s", err)
+		return nil, fmt.Errorf("failed to deserialize decision header from block: %w", err)
 	}
 	// TODO get decisionNumOfLastConfigBlock from the metadata of the block instead of the header of the decision
 	decisionNumOfLastConfigBlock := header.DecisionNumOfLastConfigBlock
 	logger.Infof("Decision number of last config block: %d, in block: %d", decisionNumOfLastConfigBlock, block.Header.Number)
 	decisionOfLastConfigBlock, err := consensusLedger.RetrieveBlockByNumber(uint64(decisionNumOfLastConfigBlock))
 	if err != nil {
-		return nil, fmt.Errorf("failed to retrieve decision of the last config block from consensus ledger: %s", err)
+		return nil, fmt.Errorf("failed to retrieve decision of the last config block from consensus ledger: %w", err)
 	}
 	proposal, err = state.BytesToProposal(decisionOfLastConfigBlock.Data.Data[0])
 	if err != nil {
-		return nil, fmt.Errorf("failed to read proposal from last config block in consensus ledger: %s", err)
+		return nil, fmt.Errorf("failed to read proposal from last config block in consensus ledger: %w", err)
 	}
 	header = &state.Header{}
 	if err := header.Deserialize(proposal.Header); err != nil {
-		return nil, fmt.Errorf("failed to deserialize decision header from last block: %s", err)
+		return nil, fmt.Errorf("failed to deserialize decision header from last block: %w", err)
 	}
 	lastConfigBlock := header.AvailableCommonBlocks[len(header.AvailableCommonBlocks)-1]
 	return lastConfigBlock, nil
@@ -795,32 +795,32 @@ func (config *Configuration) CheckIfRouterNodeExistsInSharedConfig(localSignCert
 			}
 			equal, err := utils.AreCertificatesEqual(localSignCert, sharedPartyConfig.RouterConfig.GetNodeConfig().GetSignCert())
 			if err != nil {
-				return fmt.Errorf("error comparing sign cert of router of party%d to the shared configuration: %s", localPartyID, err)
+				return fmt.Errorf("error comparing sign cert of router of party%d to the shared configuration: %w", localPartyID, err)
 			}
 			if !equal {
 				localSignCertString, err := utils.CertificateBytesToString(localSignCert)
 				if err != nil {
-					return fmt.Errorf("error converting local sign cert of router of party%d to string: %s", localPartyID, err)
+					return fmt.Errorf("error converting local sign cert of router of party%d to string: %w", localPartyID, err)
 				}
 				sharedSignCertString, err := utils.CertificateBytesToString(sharedPartyConfig.RouterConfig.GetNodeConfig().GetSignCert())
 				if err != nil {
-					return fmt.Errorf("error converting shared sign cert of router of party%d to string: %s", localPartyID, err)
+					return fmt.Errorf("error converting shared sign cert of router of party%d to string: %w", localPartyID, err)
 				}
 				return fmt.Errorf("sign certificate mismatch: Router%d is attempting to load with sign certificate: %v that differs from the shared configuration sign certificate: %v", localPartyID, localSignCertString, sharedSignCertString)
 			}
 
 			equal, err = utils.AreCertificatesEqual(localTLSCert, sharedPartyConfig.RouterConfig.GetNodeConfig().GetServerTlsCert())
 			if err != nil {
-				return fmt.Errorf("error comparing TLS cert of router of party%d to the shared configuration: %s", localPartyID, err)
+				return fmt.Errorf("error comparing TLS cert of router of party%d to the shared configuration: %w", localPartyID, err)
 			}
 			if !equal {
 				localTLSCertString, err := utils.CertificateBytesToString(localTLSCert)
 				if err != nil {
-					return fmt.Errorf("error converting local TLS cert of router of party%d to string: %s", localPartyID, err)
+					return fmt.Errorf("error converting local TLS cert of router of party%d to string: %w", localPartyID, err)
 				}
 				sharedTLSCertString, err := utils.CertificateBytesToString(sharedPartyConfig.RouterConfig.GetNodeConfig().GetServerTlsCert())
 				if err != nil {
-					return fmt.Errorf("error converting shared TLS cert of router of party%d to string: %s", localPartyID, err)
+					return fmt.Errorf("error converting shared TLS cert of router of party%d to string: %w", localPartyID, err)
 				}
 				return fmt.Errorf("certificate mismatch: the router of party %d is attempting to load with TLS certificate: %v that differs from the shared configuration TLS certificate: %v", localPartyID, localTLSCertString, sharedTLSCertString)
 			}
@@ -861,28 +861,28 @@ func (config *Configuration) CheckIfBatcherNodeExistsInSharedConfig(localSignCer
 
 	equal, err := utils.AreCertificatesEqual(localTLSCert, sharedBatcherConfig.GetNodeConfig().GetServerTlsCert())
 	if err != nil {
-		return fmt.Errorf("error comparing TLS cert of batcher in shard%d of party%d to the shared configuration: %s", localShardID, localPartyID, err)
+		return fmt.Errorf("error comparing TLS cert of batcher in shard%d of party%d to the shared configuration: %w", localShardID, localPartyID, err)
 	}
 	if !equal {
 		localTLSCertString, err := utils.CertificateBytesToString(localTLSCert)
 		if err != nil {
-			return fmt.Errorf("error converting local TLS cert of batcher in shard%d of party%d to string: %s", localShardID, localPartyID, err)
+			return fmt.Errorf("error converting local TLS cert of batcher in shard%d of party%d to string: %w", localShardID, localPartyID, err)
 		}
 		sharedTLSCertString, err := utils.CertificateBytesToString(sharedBatcherConfig.GetNodeConfig().GetServerTlsCert())
 		if err != nil {
-			return fmt.Errorf("error converting shared TLS cert of batcher in shard%d of party%d to string: %s", localShardID, localPartyID, err)
+			return fmt.Errorf("error converting shared TLS cert of batcher in shard%d of party%d to string: %w", localShardID, localPartyID, err)
 		}
 		return fmt.Errorf("certificate mismatch: the batcher of party %d shard %d is attempting to load with TLS certificate: %v that differs from the shared configuration TLS certificate: %v", localPartyID, localShardID, localTLSCertString, sharedTLSCertString)
 	}
 
 	equal, err = utils.AreCertificatesEqual(localSignCert, sharedBatcherConfig.GetNodeConfig().GetSignCert())
 	if err != nil {
-		return fmt.Errorf("error comparing sign cert of batcher in shard%d of party%d to the shared configuration: %s", localShardID, localPartyID, err)
+		return fmt.Errorf("error comparing sign cert of batcher in shard%d of party%d to the shared configuration: %w", localShardID, localPartyID, err)
 	}
 	if !equal {
 		localSignCertString, err := utils.CertificateBytesToString(localSignCert)
 		if err != nil {
-			return fmt.Errorf("error converting local sign cert of batcher in shard%d of party%d to string: %s", localShardID, localPartyID, err)
+			return fmt.Errorf("error converting local sign cert of batcher in shard%d of party%d to string: %w", localShardID, localPartyID, err)
 		}
 		sharedSignCertString, err := utils.CertificateBytesToString(sharedBatcherConfig.GetNodeConfig().GetSignCert())
 		if err != nil {
@@ -909,32 +909,32 @@ func (config *Configuration) CheckIfConsenterNodeExistsInSharedConfig(localSignC
 
 		equal, err := utils.AreCertificatesEqual(localSignCert, sharedPartyConfig.ConsenterConfig.GetNodeConfig().GetSignCert())
 		if err != nil {
-			return fmt.Errorf("error comparing sign cert of consenter of party%d to the shared configuration: %s", localPartyID, err)
+			return fmt.Errorf("error comparing sign cert of consenter of party%d to the shared configuration: %w", localPartyID, err)
 		}
 		if !equal {
 			localSignCertString, err := utils.CertificateBytesToString(localSignCert)
 			if err != nil {
-				return fmt.Errorf("error converting local sign cert of consenter of party%d to string: %s", localPartyID, err)
+				return fmt.Errorf("error converting local sign cert of consenter of party%d to string: %w", localPartyID, err)
 			}
 			sharedSignCertString, err := utils.CertificateBytesToString(sharedPartyConfig.ConsenterConfig.GetNodeConfig().GetSignCert())
 			if err != nil {
-				return fmt.Errorf("error converting shared sign cert of consenter of party%d to string: %s", localPartyID, err)
+				return fmt.Errorf("error converting shared sign cert of consenter of party%d to string: %w", localPartyID, err)
 			}
 			return fmt.Errorf("sign certificate mismatch: Consenter%d is attempting to load with sign certificate: %v that differs from the shared configuration sign certificate: %v", localPartyID, localSignCertString, sharedSignCertString)
 		}
 
 		equal, err = utils.AreCertificatesEqual(localTLSCert, sharedPartyConfig.ConsenterConfig.GetNodeConfig().GetServerTlsCert())
 		if err != nil {
-			return fmt.Errorf("error comparing TLS cert of consenter of party%d to the shared configuration: %s", localPartyID, err)
+			return fmt.Errorf("error comparing TLS cert of consenter of party%d to the shared configuration: %w", localPartyID, err)
 		}
 		if !equal {
 			localTLSCertString, err := utils.CertificateBytesToString(localTLSCert)
 			if err != nil {
-				return fmt.Errorf("error converting local TLS cert of consenter of party%d to string: %s", localPartyID, err)
+				return fmt.Errorf("error converting local TLS cert of consenter of party%d to string: %w", localPartyID, err)
 			}
 			sharedTLSCertString, err := utils.CertificateBytesToString(sharedPartyConfig.ConsenterConfig.GetNodeConfig().GetServerTlsCert())
 			if err != nil {
-				return fmt.Errorf("error converting shared TLS cert of consenter of party%d to string: %s", localPartyID, err)
+				return fmt.Errorf("error converting shared TLS cert of consenter of party%d to string: %w", localPartyID, err)
 			}
 			return fmt.Errorf("certificate mismatch: the consenter of party %d is attempting to load with TLS certificate: %v that differs from the shared configuration TLS certificate: %v", localPartyID, localTLSCertString, sharedTLSCertString)
 		}
@@ -955,32 +955,32 @@ func (config *Configuration) CheckIfAssemblerNodeExistsInSharedConfig(localSignC
 			}
 			equal, err := utils.AreCertificatesEqual(localSignCert, sharedPartyConfig.AssemblerConfig.GetNodeConfig().GetSignCert())
 			if err != nil {
-				return fmt.Errorf("error comparing sign cert of assembler of party%d to the shared configuration: %s", localPartyID, err)
+				return fmt.Errorf("error comparing sign cert of assembler of party%d to the shared configuration: %w", localPartyID, err)
 			}
 			if !equal {
 				localSignCertString, err := utils.CertificateBytesToString(localSignCert)
 				if err != nil {
-					return fmt.Errorf("error converting local sign cert of assembler of party%d to string: %s", localPartyID, err)
+					return fmt.Errorf("error converting local sign cert of assembler of party%d to string: %w", localPartyID, err)
 				}
 				sharedSignCertString, err := utils.CertificateBytesToString(sharedPartyConfig.AssemblerConfig.GetNodeConfig().GetSignCert())
 				if err != nil {
-					return fmt.Errorf("error converting shared sign cert of assembler of party%d to string: %s", localPartyID, err)
+					return fmt.Errorf("error converting shared sign cert of assembler of party%d to string: %w", localPartyID, err)
 				}
 				return fmt.Errorf("sign certificate mismatch: Assembler%d is attempting to load with sign certificate: %v that differs from the shared configuration sign certificate: %v", localPartyID, localSignCertString, sharedSignCertString)
 			}
 
 			equal, err = utils.AreCertificatesEqual(localTLSCert, sharedPartyConfig.AssemblerConfig.GetNodeConfig().GetServerTlsCert())
 			if err != nil {
-				return fmt.Errorf("error comparing TLS cert of assembler of party%d to the shared configuration: %s", localPartyID, err)
+				return fmt.Errorf("error comparing TLS cert of assembler of party%d to the shared configuration: %w", localPartyID, err)
 			}
 			if !equal {
 				localTLSCertString, err := utils.CertificateBytesToString(localTLSCert)
 				if err != nil {
-					return fmt.Errorf("error converting local TLS cert of assembler of party%d to string: %s", localPartyID, err)
+					return fmt.Errorf("error converting local TLS cert of assembler of party%d to string: %w", localPartyID, err)
 				}
 				sharedTLSCertString, err := utils.CertificateBytesToString(sharedPartyConfig.AssemblerConfig.GetNodeConfig().GetServerTlsCert())
 				if err != nil {
-					return fmt.Errorf("error converting shared TLS cert of assembler of party%d to string: %s", localPartyID, err)
+					return fmt.Errorf("error converting shared TLS cert of assembler of party%d to string: %w", localPartyID, err)
 				}
 				return fmt.Errorf("certificate mismatch: the assembler of party %d is attempting to load with TLS certificate: %v that differs from the shared configuration TLS certificate: %v", localPartyID, localTLSCertString, sharedTLSCertString)
 			}
@@ -998,12 +998,12 @@ func (config *Configuration) NewUpdatedConfigurationFromBlock(block *common.Bloc
 
 	bccsp, err := config.GetBCCSP()
 	if err != nil {
-		return nil, 0, errors.Wrap(err, "failed to initialize BCCSP from config")
+		return nil, 0, fmt.Errorf("failed to initialize BCCSP from config: %w", err)
 	}
 
 	sharedConfig, err := sharedConfigFromBlock(block, bccsp)
 	if err != nil {
-		return nil, 0, errors.Wrapf(err, "failed applying new config, failed to read shared configuration from block number %d", block.GetHeader().GetNumber())
+		return nil, 0, fmt.Errorf("failed applying new config, failed to read shared configuration from block number %d: %w", block.GetHeader().GetNumber(), err)
 	}
 	newConfig := &Configuration{
 		LocalConfig:  config.LocalConfig,
@@ -1012,11 +1012,11 @@ func (config *Configuration) NewUpdatedConfigurationFromBlock(block *common.Bloc
 
 	env, err := protoutil.ExtractEnvelope(block, 0)
 	if err != nil {
-		return nil, 0, errors.Wrapf(err, "failed to extract envelope from new config block")
+		return nil, 0, fmt.Errorf("failed to extract envelope from new config block: %w", err)
 	}
 	bundle, err := channelconfig.NewBundleFromEnvelope(env, bccsp)
 	if err != nil {
-		return nil, 0, errors.Wrapf(err, "failed to extract bundle from new config block")
+		return nil, 0, fmt.Errorf("failed to extract bundle from new config block: %w", err)
 	}
 
 	return newConfig, bundle.ConfigtxValidator().Sequence(), nil
@@ -1026,7 +1026,7 @@ func (config *Configuration) GetBCCSP() (bccsp.BCCSP, error) {
 	opts := config.LocalConfig.NodeLocalConfig.GeneralConfig.BCCSP
 	cryptoProvider, err := factory.GetBCCSPFromOpts(opts)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to initialize BCCSP from config")
+		return nil, fmt.Errorf("failed to initialize BCCSP from config: %w", err)
 	}
 	return cryptoProvider, nil
 }
@@ -1035,7 +1035,7 @@ func extractConfigFromChannelConfig(ordererConfig channelconfig.Orderer) (*Confi
 	consensusMeta := ordererConfig.ConsensusMetadata()
 	sharedConfig := &ordererpb.SharedConfig{}
 	if err := proto.Unmarshal(consensusMeta, sharedConfig); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal consensus metadata")
+		return nil, fmt.Errorf("failed to unmarshal consensus metadata: %w", err)
 	}
 	return &Configuration{SharedConfig: sharedConfig}, nil
 }
@@ -1043,7 +1043,7 @@ func extractConfigFromChannelConfig(ordererConfig channelconfig.Orderer) (*Confi
 func ExtractConsenterAddresses(ordererConfig channelconfig.Orderer) (orderers.Party2Endpoint, error) {
 	conf, err := extractConfigFromChannelConfig(ordererConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to extract config from channel config")
+		return nil, fmt.Errorf("failed to extract config from channel config: %w", err)
 	}
 
 	cInfo := conf.ExtractConsenters()
@@ -1066,7 +1066,7 @@ func ExtractConsenterAddresses(ordererConfig channelconfig.Orderer) (orderers.Pa
 func ExtractAssemblerAddresses(ordererConfig channelconfig.Orderer) (orderers.Party2Endpoint, error) {
 	conf, err := extractConfigFromChannelConfig(ordererConfig)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to extract config from channel config")
+		return nil, fmt.Errorf("failed to extract config from channel config: %w", err)
 	}
 
 	aInfo := conf.ExtractAssemblers()

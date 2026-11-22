@@ -7,11 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package config
 
 import (
+	"errors"
+
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // ReadSharedConfigFromBootstrapConfigBlock reads the shared configuration which is encoded in the consensus metadata in a block.
@@ -51,7 +52,7 @@ func ReadConsensusMetadataFromConfigBlock(configBlock *common.Block, bccsp bccsp
 	}
 	orderer, exists := bundle.OrdererConfig()
 	if !exists {
-		return nil, errors.Wrapf(err, "orderer entry in the config block is empty")
+		return nil, errors.New("orderer entry in the config block is empty")
 	}
 
 	return orderer.ConsensusMetadata(), nil
