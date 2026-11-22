@@ -130,10 +130,7 @@ func (bp *BatchPuller) clientConfig(primary types.PartyID) comm.ClientConfig {
 
 	cc := comm.ClientConfig{
 		AsyncConnect: true,
-		KaOpts: comm.KeepaliveOptions{
-			ClientInterval: time.Hour,
-			ClientTimeout:  time.Hour,
-		},
+		KaOpts:       comm.DefaultKeepaliveOptions,
 		SecOpts: comm.SecureOptions{
 			Key:               bp.tlsKey,
 			Certificate:       bp.tlsCert,

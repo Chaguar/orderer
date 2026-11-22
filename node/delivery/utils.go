@@ -91,10 +91,7 @@ func clientConfig(TLSCACerts []config.RawBytes, tlsKey, tlsCert []byte) comm.Cli
 
 	cc := comm.ClientConfig{
 		AsyncConnect: true,
-		KaOpts: comm.KeepaliveOptions{
-			ClientInterval: time.Hour,
-			ClientTimeout:  time.Hour,
-		},
+		KaOpts:       comm.DefaultKeepaliveOptions,
 		SecOpts: comm.SecureOptions{
 			Key:               tlsKey,
 			Certificate:       tlsCert,

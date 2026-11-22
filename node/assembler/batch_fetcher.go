@@ -67,10 +67,7 @@ func fetcherClientConfig(config *config.AssemblerNodeConfig) comm.ClientConfig {
 
 	cc := comm.ClientConfig{
 		AsyncConnect: true,
-		KaOpts: comm.KeepaliveOptions{
-			ClientInterval: time.Hour,
-			ClientTimeout:  time.Hour,
-		},
+		KaOpts:       comm.DefaultKeepaliveOptions,
 		SecOpts: comm.SecureOptions{
 			Key:               config.TLSPrivateKeyFile,
 			Certificate:       config.TLSCertificateFile,
