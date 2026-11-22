@@ -46,7 +46,9 @@ func AssemblerBlockMetadataToBytes(batchID types.BatchID, orderingInfo *state.Or
 }
 
 // AssemblerBlockMetadataFromBytes deserializes batch metadata from bytes using protobuf.
-func AssemblerBlockMetadataFromBytes(metadata []byte) (primary types.PartyID, shard types.ShardID, seq types.BatchSequence, num types.DecisionNum, batchIndex, batchCount uint32, transactionCount uint64, err error) {
+// It returns, in order: the primary, the shard, the batch sequence, the decision number,
+// the batch index, the batch count, and the transaction count.
+func AssemblerBlockMetadataFromBytes(metadata []byte) (types.PartyID, types.ShardID, types.BatchSequence, types.DecisionNum, uint32, uint32, uint64, error) {
 	if metadata == nil {
 		return 0, 0, 0, 0, 0, 0, 0, errors.New("nil bytes")
 	}
