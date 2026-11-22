@@ -8,9 +8,10 @@ package state
 
 import (
 	"encoding/asn1"
+	"errors"
+	"fmt"
 
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
-	"github.com/pkg/errors"
 )
 
 // CompoundSig is a signature that includes 1+numBlocks signatures, by the same party.
@@ -25,20 +26,20 @@ func (cSig CompoundSig) UnPack() ([]smartbft_types.Signature, error) {
 	}
 	var values [][]byte
 	if _, err := asn1.Unmarshal(cSig.Value, &values); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal values")
+		return nil, fmt.Errorf("failed to unmarshal values: %w", err)
 	}
 	if len(values) == 0 {
 		return nil, errors.New("zero signature values")
 	}
 	var msgs [][]byte
 	if _, err := asn1.Unmarshal(cSig.Msg, &msgs); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal msgs")
+		return nil, fmt.Errorf("failed to unmarshal msgs: %w", err)
 	}
 	if len(msgs) == 0 {
 		return nil, errors.New("zero signature msgs")
 	}
 	if len(msgs) != len(values) {
-		return nil, errors.Errorf("number of msgs (%d) does not match number of values (%d)", len(msgs), len(values))
+		return nil, fmt.Errorf("number of msgs (%d) does not match number of values (%d)", len(msgs), len(values))
 	}
 
 	var sigs []smartbft_types.Signature
@@ -76,10 +77,10 @@ func UnpackBlockHeaderSigs(compoundSigs []smartbft_types.Signature, numBlocks in
 	for partyIdx, cSig := range compoundSigs {
 		partySigs, err := CompoundSig(cSig).UnPack()
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to Unpack compound sig: %+v", cSig)
+			return nil, fmt.Errorf("failed to Unpack compound sig: %+v: %w", cSig, err)
 		}
 		if len(partySigs) != numBlocks+1 {
-			return nil, errors.Errorf("extracted %d signatures but expected %d, compound sig: %+v", len(partySigs), numBlocks+1, cSig)
+			return nil, fmt.Errorf("extracted %d signatures but expected %d, compound sig: %+v", len(partySigs), numBlocks+1, cSig)
 		}
 
 		for blockIdx, sig := range partySigs {

@@ -7,9 +7,11 @@ SPDX-License-Identifier: Apache-2.0
 package state
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/Chaguar/orderer/common/utils"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // ConsenterConfigBlockOperations implements ConfigBlockOperations for consenter decision blocks.
@@ -55,13 +57,13 @@ func (c *ConsenterConfigBlockOperations) extractFabricConfigBlock(block *common.
 	// Extract the proposal from the consenter block
 	proposal, err := ConsenterBlockToProposal(block)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to extract proposal from consenter block")
+		return nil, fmt.Errorf("failed to extract proposal from consenter block: %w", err)
 	}
 
 	// Deserialize the header to access AvailableCommonBlocks
 	header := &Header{}
 	if err := header.Deserialize(proposal.Header); err != nil {
-		return nil, errors.Wrap(err, "failed to deserialize header")
+		return nil, fmt.Errorf("failed to deserialize header: %w", err)
 	}
 
 	// The last available common block in a config decision is the Fabric config block
@@ -85,7 +87,7 @@ func (c *ConsenterConfigBlockOperations) ConfigFromBlock(block *common.Block) (*
 
 	commonOps := &utils.CommonConfigBlockOperations{}
 	if !commonOps.IsConfigBlock(fabricConfigBlock) {
-		return nil, errors.New("Consenter decision block does not contain a config block")
+		return nil, errors.New("consenter decision block does not contain a config block")
 	}
 	// Now extract config from the Fabric block using common block operations
 	return commonOps.ConfigFromBlock(fabricConfigBlock)
@@ -102,7 +104,7 @@ func (c *ConsenterConfigBlockOperations) ConfigBlockNumFromBlock(block *common.B
 
 	commonOps := &utils.CommonConfigBlockOperations{}
 	if !commonOps.IsConfigBlock(fabricConfigBlock) {
-		return 0, errors.New("Consenter decision block does not contain a config block")
+		return 0, errors.New("consenter decision block does not contain a config block")
 	}
 
 	if fabricConfigBlock.Header == nil {

@@ -7,13 +7,14 @@ SPDX-License-Identifier: Apache-2.0
 package consensus
 
 import (
+	"errors"
+
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/orderer/config"
 	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/Chaguar/orderer/node/delivery"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // ConsenterSupportAdapter adapts a Consenter to satisfy the

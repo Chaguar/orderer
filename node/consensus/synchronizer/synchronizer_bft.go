@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"errors"
 	"fmt"
 	"maps"
 	"slices"
@@ -25,7 +26,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 type BFTSynchronizer struct {
@@ -139,18 +139,18 @@ func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 	// TODO make the target height detection stoppable
 	targetHeight, _, err := s.detectTargetHeight()
 	if err != nil {
-		return nil, errors.Wrapf(err, "cannot get detect target height")
+		return nil, fmt.Errorf("cannot get detect target height: %w", err)
 	}
 
 	startHeight := s.Support.Height()
 	if startHeight >= targetHeight {
-		return nil, errors.Errorf("already at target height of %d", targetHeight)
+		return nil, fmt.Errorf("already at target height of %d", targetHeight)
 	}
 
 	if startHeight == 0 {
 		genesisBlock, err := s.fetchGenesisBlock()
 		if err != nil {
-			s.Logger.Panicf("Cannot join the cluster: %s", errors.Wrap(err, "failed to fetch genesis block"))
+			s.Logger.Panicf("Cannot join the cluster: %s", fmt.Errorf("failed to fetch genesis block: %w", err))
 		}
 		s.Support.WriteConfigBlock(genesisBlock)
 		startHeight = s.Support.Height()
@@ -174,7 +174,7 @@ func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 	// === Create the BFT block deliverer and start a go-routine that fetches block and inserts them into the syncBuffer.
 	bftDeliverer, err := s.createBFTDeliverer(startHeight, arma_types.PartyID(s.selfID))
 	if err != nil {
-		return nil, errors.Wrapf(err, "cannot create BFT block deliverer")
+		return nil, fmt.Errorf("cannot create BFT block deliverer: %w", err)
 	}
 
 	go bftDeliverer.DeliverBlocks()
@@ -183,12 +183,12 @@ func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 	// === Loop on sync-buffer and pull blocks, writing them to the ledger, returning the last block pulled.
 	lastPulledBlock, err := s.getBlocksFromSyncBuffer(startHeight, targetHeight)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to get any blocks from SyncBuffer")
+		return nil, fmt.Errorf("failed to get any blocks from SyncBuffer: %w", err)
 	}
 
 	decision, err := s.BlockToDecision(lastPulledBlock)
 	if err != nil {
-		return nil, errors.Wrapf(err, "cannot get decision from block")
+		return nil, fmt.Errorf("cannot get decision from block: %w", err)
 	}
 
 	// TODO add a short string representation of the decision for better logging.
@@ -201,13 +201,13 @@ func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 func (s *BFTSynchronizer) detectTargetHeight() (uint64, string, error) {
 	blockPuller, err := s.BlockPullerFactory.CreateHeightDetector(arma_types.PartyID(s.selfID), s.Support, s.ClusterDialer, s.LocalConfigCluster, s.CryptoProvider, s.Logger)
 	if err != nil {
-		return 0, "", errors.Wrap(err, "cannot create HeightDetector")
+		return 0, "", fmt.Errorf("cannot create HeightDetector: %w", err)
 	}
 	defer blockPuller.Close()
 
 	heightByEndpoint, myEndpoint, err := blockPuller.HeightsByEndpoints()
 	if err != nil {
-		return 0, "", errors.Wrap(err, "cannot get HeightsByEndpoints")
+		return 0, "", fmt.Errorf("cannot get HeightsByEndpoints: %w", err)
 	}
 
 	s.Logger.Infof("HeightsByEndpoints: %+v, my endpoint: %s", heightByEndpoint, myEndpoint)
@@ -254,7 +254,7 @@ func (s *BFTSynchronizer) createBFTDeliverer(startHeight uint64, myParty arma_ty
 	lastDecision := s.Support.Block(startHeight - 1)
 	ledgerLastConfigBlock, err := s.Support.LastConfigBlock(lastDecision)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to retrieve last config block")
+		return nil, fmt.Errorf("failed to retrieve last config block: %w", err)
 	}
 	if s.JoinConfigBlock == nil {
 		return nil, errors.New("join config block is nil")
@@ -273,12 +273,12 @@ func (s *BFTSynchronizer) createBFTDeliverer(startHeight uint64, myParty arma_ty
 	blockOps := &utils.CommonConfigBlockOperations{}
 	currentConfigEnv, err := blockOps.ConfigFromBlock(delivererInitializationBlock)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to retrieve envelope from config block")
+		return nil, fmt.Errorf("failed to retrieve envelope from config block: %w", err)
 	}
 
 	updatableVerifier, err := s.VerifierFactory.CreateBlockVerifier(ledgerLastConfigBlock, lastDecision, s.CryptoProvider, s.Logger)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to create BlockVerificationAssistant")
+		return nil, fmt.Errorf("failed to create BlockVerificationAssistant: %w", err)
 	}
 
 	clientConfig := s.ClusterDialer.Config // The cluster and block puller use slightly different options
@@ -287,7 +287,7 @@ func (s *BFTSynchronizer) createBFTDeliverer(startHeight uint64, myParty arma_ty
 
 	tlsCertHash, err := protoutil.HashTLSCertificate(clientConfig.SecOpts.Certificate)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed hashing the TLS certificate")
+		return nil, fmt.Errorf("failed hashing the TLS certificate: %w", err)
 	}
 
 	// The maximal amount of time to wait before retrying to connect.
@@ -336,13 +336,13 @@ func (s *BFTSynchronizer) fetchGenesisBlock() (*common.Block, error) {
 	s.Logger.Infof("Fetching genesis block, party: %d", s.selfID)
 	blockPuller, err := s.BlockPullerFactory.CreateHeightDetector(arma_types.PartyID(s.selfID), s.Support, s.ClusterDialer, s.LocalConfigCluster, s.CryptoProvider, s.Logger)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot create HeightDetector")
+		return nil, fmt.Errorf("cannot create HeightDetector: %w", err)
 	}
 	defer blockPuller.Close()
 
 	genesisByEndpoint, err := blockPuller.GenesisByEndpoints()
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot get GenesisByEndpoints")
+		return nil, fmt.Errorf("cannot get GenesisByEndpoints: %w", err)
 	}
 
 	s.Logger.Infof("Received genesis blocks from %d endpoints: %v", len(genesisByEndpoint), slices.Collect(maps.Keys(genesisByEndpoint)))
@@ -385,7 +385,7 @@ func (s *BFTSynchronizer) getBlocksFromSyncBuffer(startHeight, targetHeight uint
 	s.syncBuff.Stop()
 
 	if lastPulledBlock == nil {
-		return nil, errors.Errorf("failed pulling block %d", seq)
+		return nil, fmt.Errorf("failed pulling block %d", seq)
 	}
 
 	s.Logger.Infof("Finished synchronizing with cluster, fetched %d blocks, starting from block [%d], up until and including block [%d]",

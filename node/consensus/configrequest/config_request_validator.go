@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package configrequest
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Chaguar/common/common/channelconfig"
@@ -16,7 +17,6 @@ import (
 	"github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -39,7 +39,7 @@ func (vc *DefaultValidateConfigRequest) ValidateConfigRequest(envelope *common.E
 	// 1. take configEnvelope.LastUpdate which is the CONFIG_UPDATE and produce the corresponding configEnvelope, which is the expected ConfigEnvelope produced by the update
 	// 2. check that original configEnvelope.Config == expectedConfigEnvelope.Config
 	if err := vc.verifyRequest(envelope, common.HeaderType_CONFIG); err != nil {
-		return errors.Wrap(err, "config envelope")
+		return fmt.Errorf("config envelope: %w", err)
 	}
 	payload, err := protoutil.UnmarshalPayload(envelope.Payload)
 	if err != nil {
@@ -59,7 +59,7 @@ func (vc *DefaultValidateConfigRequest) ValidateConfigRequest(envelope *common.E
 	// Byzantine leader could put another client's creator, nonce and TxID on it, and have that client's update dropped
 	// as a duplicate.
 	if err = vc.verifyRequest(configEnvelope.LastUpdate, common.HeaderType_CONFIG_UPDATE); err != nil {
-		return errors.Wrap(err, "last update")
+		return fmt.Errorf("last update: %w", err)
 	}
 
 	var expectedConfigEnvelope *common.ConfigEnvelope
@@ -69,7 +69,7 @@ func (vc *DefaultValidateConfigRequest) ValidateConfigRequest(envelope *common.E
 	}
 
 	if !proto.Equal(configEnvelope.Config, expectedConfigEnvelope.Config) {
-		return errors.Errorf("pending last update does not match calculated expected config")
+		return fmt.Errorf("pending last update does not match calculated expected config")
 	}
 
 	return nil
@@ -82,7 +82,7 @@ func (vc *DefaultValidateConfigRequest) verifyRequest(envelope *common.Envelope,
 		return err
 	}
 	if reqType != expectedType {
-		return errors.Errorf("unexpected type %s, expected %s", reqType, expectedType)
+		return fmt.Errorf("unexpected type %s, expected %s", reqType, expectedType)
 	}
 	return nil
 }

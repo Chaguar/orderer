@@ -8,10 +8,9 @@ package state
 
 import (
 	"encoding/binary"
+	"fmt"
 
 	"github.com/Chaguar/orderer/common/types"
-
-	"github.com/pkg/errors"
 )
 
 type AvailableBatch struct {
@@ -82,10 +81,10 @@ func (ab *AvailableBatch) Serialize() []byte {
 
 func (ab *AvailableBatch) Deserialize(bytes []byte) error {
 	if bytes == nil {
-		return errors.Errorf("nil bytes")
+		return fmt.Errorf("nil bytes")
 	}
 	if len(bytes) != availableBatchSerializedSize {
-		return errors.Errorf("len of bytes %d does not equal the available batch size %d", len(bytes), availableBatchSerializedSize)
+		return fmt.Errorf("len of bytes %d does not equal the available batch size %d", len(bytes), availableBatchSerializedSize)
 	}
 	ab.primary = types.PartyID(binary.BigEndian.Uint16(bytes[0:2]))
 	ab.shard = types.ShardID(binary.BigEndian.Uint16(bytes[2:4]))

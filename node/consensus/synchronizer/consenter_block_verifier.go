@@ -9,6 +9,8 @@ package synchronizer
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
+	"fmt"
 	"sync"
 
 	"github.com/Chaguar/common/common/configtx"
@@ -19,7 +21,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // ConsenterBlockVerifierCreator creates a block verifier that verifies consenter blocks and can be used by the synchronizer
@@ -35,20 +36,20 @@ func (*ConsenterBlockVerifierCreator) CreateBlockVerifier(
 	lg *flogging.FabricLogger,
 ) (deliverclient.CloneableUpdatableBlockVerifier, error) {
 	if configBlock == nil {
-		return nil, errors.Errorf("config block is nil")
+		return nil, fmt.Errorf("config block is nil")
 	}
 	if configBlock.Header == nil {
-		return nil, errors.Errorf("config block header is nil")
+		return nil, fmt.Errorf("config block header is nil")
 	}
 	if !protoutil.IsConfigBlock(configBlock) {
 		return nil, errors.New("config block parameter does not carry a config block")
 	}
 	configIndex, err := protoutil.GetLastConfigIndexFromBlock(configBlock)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed getting config index from config block")
+		return nil, fmt.Errorf("failed getting config index from config block: %w", err)
 	}
 	if configIndex != configBlock.Header.Number {
-		return nil, errors.Errorf("config block number [%d] is different than its own config index [%d]", configBlock.Header.Number, configIndex)
+		return nil, fmt.Errorf("config block number [%d] is different than its own config index [%d]", configBlock.Header.Number, configIndex)
 	}
 
 	if lastBlock == nil {
@@ -60,11 +61,11 @@ func (*ConsenterBlockVerifierCreator) CreateBlockVerifier(
 
 	configTx, err := protoutil.ExtractEnvelope(configBlock, 0)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error extracting envelope")
+		return nil, fmt.Errorf("error extracting envelope: %w", err)
 	}
 	payload, err := protoutil.UnmarshalPayload(configTx.Payload)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error unmarshaling envelope to payload")
+		return nil, fmt.Errorf("error unmarshaling envelope to payload: %w", err)
 	}
 
 	if payload.Header == nil {
@@ -77,29 +78,29 @@ func (*ConsenterBlockVerifierCreator) CreateBlockVerifier(
 
 	chdr, err := protoutil.UnmarshalChannelHeader(payload.Header.ChannelHeader)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error unmarshaling channel header")
+		return nil, fmt.Errorf("error unmarshaling channel header: %w", err)
 	}
 
 	configEnvelope, err := configtx.UnmarshalConfigEnvelope(payload.Data)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error unmarshaling config envelope from payload data")
+		return nil, fmt.Errorf("error unmarshaling config envelope from payload data: %w", err)
 	}
 
 	// check last block against the config block
 	_, ordInfo, _, err := ledger.AssemblerBatchIdOrderingInfoAndTxCountFromBlock(configBlock)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to extract ordering info from last config block")
+		return nil, fmt.Errorf("failed to extract ordering info from last config block: %w", err)
 	}
 	configBlockDecisionNum := ordInfo.DecisionNum
 	if lastBlock.Header.Number < uint64(configBlockDecisionNum) {
-		return nil, errors.Errorf("config block decision number %d is greater than last block decision number %d", configBlockDecisionNum, lastBlock.Header.Number)
+		return nil, fmt.Errorf("config block decision number %d is greater than last block decision number %d", configBlockDecisionNum, lastBlock.Header.Number)
 	}
 	lastBlockConfigDecisionNum, err := state.GetLastConfigIndexFromConsenterBlock(lastBlock)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to get last config index from last block")
+		return nil, fmt.Errorf("failed to get last config index from last block: %w", err)
 	}
 	if lastBlockConfigDecisionNum != uint64(configBlockDecisionNum) {
-		return nil, errors.Errorf("config block decision number %d is not equal to last block config index decision number %d", configBlockDecisionNum, lastBlockConfigDecisionNum)
+		return nil, fmt.Errorf("config block decision number %d is not equal to last block config index decision number %d", configBlockDecisionNum, lastBlockConfigDecisionNum)
 	}
 
 	svc := &SigVerifierCreator{
@@ -108,7 +109,7 @@ func (*ConsenterBlockVerifierCreator) CreateBlockVerifier(
 	}
 	sigVerifierFunc, err := svc.SigVerifierFromConfig(configEnvelope, chdr.GetChannelId(), configBlock.Header.Number)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error creating sig verifier function")
+		return nil, fmt.Errorf("error creating sig verifier function: %w", err)
 	}
 
 	cbv := &ConsenterBlockVerifier{
@@ -163,12 +164,12 @@ func (c *ConsenterBlockVerifier) UpdateConfig(consenterConfigBlock *common.Block
 	blockOps := &state.ConsenterConfigBlockOperations{}
 	configEnvelope, err := blockOps.ConfigFromBlock(consenterConfigBlock)
 	if err != nil {
-		return errors.Wrap(err, "failed to extract config from block")
+		return fmt.Errorf("failed to extract config from block: %w", err)
 	}
 
 	configBlockNum, err := blockOps.ConfigBlockNumFromBlock(consenterConfigBlock)
 	if err != nil {
-		return errors.Wrap(err, "failed to extract config block number from block")
+		return fmt.Errorf("failed to extract config block number from block: %w", err)
 	}
 
 	channelID := c.channelID
@@ -178,7 +179,7 @@ func (c *ConsenterBlockVerifier) UpdateConfig(consenterConfigBlock *common.Block
 
 	sigVerifierFunc, err := c.sigVerifierCreator.SigVerifierFromConfig(configEnvelope, channelID, configBlockNum)
 	if err != nil {
-		return errors.WithMessage(err, "error creating verifier function")
+		return fmt.Errorf("error creating verifier function: %w", err)
 	}
 
 	c.lock.Lock()
@@ -204,10 +205,10 @@ func (c *ConsenterBlockVerifier) VerifyBlock(consenterBlock *common.Block) error
 	}
 
 	if consenterBlock.Data == nil {
-		return errors.Errorf("block with id [%d] on channel [%s] does not have data", consenterBlock.Header.Number, c.channelID)
+		return fmt.Errorf("block with id [%d] on channel [%s] does not have data", consenterBlock.Header.Number, c.channelID)
 	}
 	if len(consenterBlock.Data.Data) == 0 {
-		return errors.Errorf("block with id [%d] on channel [%s] data length is zero", consenterBlock.Header.Number, c.channelID)
+		return fmt.Errorf("block with id [%d] on channel [%s] data length is zero", consenterBlock.Header.Number, c.channelID)
 	}
 	// TODO something like protoutil.VerifyTransactionsAreWellFormed that is called by the Fabric block verifier
 
@@ -215,13 +216,13 @@ func (c *ConsenterBlockVerifier) VerifyBlock(consenterBlock *common.Block) error
 	// This is to ensure that the header is consistent with the data carried by this block
 	dataHash := protoutil.ComputeBlockDataHash(consenterBlock.Data)
 	if !bytes.Equal(dataHash, consenterBlock.Header.DataHash) {
-		return errors.Errorf("Header.DataHash is different from Hash(block.Data) for block with id [%d] on channel [%s]; Header: %s, Data: %s",
+		return fmt.Errorf("Header.DataHash is different from Hash(block.Data) for block with id [%d] on channel [%s]; Header: %s, Data: %s",
 			consenterBlock.Header.Number, c.channelID, hex.EncodeToString(consenterBlock.Header.DataHash), hex.EncodeToString(dataHash))
 	}
 
 	err := c.sigVerifierFunc(consenterBlock, true)
 	if err != nil {
-		return errors.Wrapf(err, "failed to verify signatures of block with id [%d] on channel [%s]", consenterBlock.Header.Number, c.channelID)
+		return fmt.Errorf("failed to verify signatures of block with id [%d] on channel [%s]: %w", consenterBlock.Header.Number, c.channelID, err)
 	}
 
 	c.lastBlockHeader = consenterBlock.Header
@@ -247,7 +248,7 @@ func (c *ConsenterBlockVerifier) VerifyBlockAttestation(consenterBlock *common.B
 
 	err := c.sigVerifierFunc(consenterBlock, false)
 	if err != nil {
-		return errors.Wrapf(err, "failed to verify signatures of block attestation with id [%d] on channel [%s]", consenterBlock.Header.Number, c.channelID)
+		return fmt.Errorf("failed to verify signatures of block attestation with id [%d] on channel [%s]: %w", consenterBlock.Header.Number, c.channelID, err)
 	}
 
 	c.lastBlockHeader = consenterBlock.Header
@@ -256,7 +257,7 @@ func (c *ConsenterBlockVerifier) VerifyBlockAttestation(consenterBlock *common.B
 
 func (c *ConsenterBlockVerifier) verifyMetadata(consenterBlock *common.Block) error {
 	if consenterBlock.Metadata == nil || len(consenterBlock.Metadata.Metadata) < len(common.BlockMetadataIndex_name) {
-		return errors.Errorf("block with id [%d] on channel [%s] does not have metadata or contains too few entries", consenterBlock.Header.Number, c.channelID)
+		return fmt.Errorf("block with id [%d] on channel [%s] does not have metadata or contains too few entries", consenterBlock.Header.Number, c.channelID)
 	}
 
 	return nil
@@ -264,21 +265,21 @@ func (c *ConsenterBlockVerifier) verifyMetadata(consenterBlock *common.Block) er
 
 func (c *ConsenterBlockVerifier) verifyHeader(consenterBlock *common.Block) error {
 	if consenterBlock == nil {
-		return errors.Errorf("block must be different from nil, channel=%s", c.channelID)
+		return fmt.Errorf("block must be different from nil, channel=%s", c.channelID)
 	}
 	if consenterBlock.Header == nil {
-		return errors.Errorf("invalid block, header must be different from nil, channel=%s", c.channelID)
+		return fmt.Errorf("invalid block, header must be different from nil, channel=%s", c.channelID)
 	}
 
 	expectedBlockNum := c.lastBlockHeader.Number + 1
 	if expectedBlockNum != consenterBlock.Header.Number {
-		return errors.Errorf("expected block number is [%d] but actual block number inside block is [%d]", expectedBlockNum, consenterBlock.Header.Number)
+		return fmt.Errorf("expected block number is [%d] but actual block number inside block is [%d]", expectedBlockNum, consenterBlock.Header.Number)
 	}
 
 	lastBlockHeaderHash := protoutil.BlockHeaderHash(c.lastBlockHeader)
 
 	if !bytes.Equal(consenterBlock.Header.PreviousHash, lastBlockHeaderHash) {
-		return errors.Errorf("Header.PreviousHash of block [%d] is different from Hash(block.Header) of previous block, on channel [%s], received: %s, expected: %s",
+		return fmt.Errorf("Header.PreviousHash of block [%d] is different from Hash(block.Header) of previous block, on channel [%s], received: %s, expected: %s",
 			consenterBlock.Header.Number, c.channelID, hex.EncodeToString(consenterBlock.Header.PreviousHash), hex.EncodeToString(lastBlockHeaderHash))
 	}
 

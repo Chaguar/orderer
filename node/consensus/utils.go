@@ -9,6 +9,7 @@ package consensus
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 
 	"github.com/Chaguar/common/protoutil"
@@ -16,7 +17,6 @@ import (
 	"github.com/Chaguar/orderer/node/consensus/state"
 	"github.com/Chaguar/orderer/node/ledger"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -45,7 +45,7 @@ func CreateDataCommonBlock(blockNum uint64, prevHash []byte, batchID arma_types.
 	block.Header.DataHash = batchID.Digest()
 	blockMetadata, err := ledger.AssemblerBlockMetadataToBytes(batchID, &state.OrderingInformation{DecisionNum: decisionNum, BatchCount: batchCount, BatchIndex: batchIndex}, txCount)
 	if err != nil {
-		return nil, errors.Errorf("Failed to invoke AssemblerBlockMetadataToBytes: %s", err)
+		return nil, fmt.Errorf("failed to invoke AssemblerBlockMetadataToBytes: %s", err)
 	}
 	block.Metadata.Metadata[common.BlockMetadataIndex_ORDERER] = blockMetadata
 	block.Metadata.Metadata[common.BlockMetadataIndex_LAST_CONFIG] = protoutil.MarshalOrPanic(&common.Metadata{
@@ -61,7 +61,7 @@ func CreateConfigCommonBlock(blockNum uint64, prevHash []byte, txCount uint64, d
 	configBlock.Header.DataHash = batchedConfigReq.Digest()
 	blockMetadata, err := ledger.AssemblerBlockMetadataToBytes(arma_types.NewSimpleBatch(arma_types.ShardIDConsensus, 0, 0, nil, 0, nil), &state.OrderingInformation{DecisionNum: decisionNum, BatchCount: batchCount, BatchIndex: batchIndex}, txCount)
 	if err != nil {
-		return nil, errors.Errorf("Failed to invoke AssemblerBlockMetadataToBytes: %s", err)
+		return nil, fmt.Errorf("failed to invoke AssemblerBlockMetadataToBytes: %s", err)
 	}
 	configBlock.Metadata.Metadata[common.BlockMetadataIndex_ORDERER] = blockMetadata
 	configBlock.Metadata.Metadata[common.BlockMetadataIndex_LAST_CONFIG] = protoutil.MarshalOrPanic(&common.Metadata{
@@ -78,22 +78,22 @@ func VerifyDataCommonBlock(block *common.Block, blockNum uint64, prevHash []byte
 	// A data block carries no data; its batch is fetched from the batchers by its digest. Data, if set,
 	// could make protoutil.IsConfigBlock take the block for a config block.
 	if n := len(block.GetData().GetData()); n != 0 {
-		return errors.Errorf("proposed data block carries %d data entries instead of none", n)
+		return fmt.Errorf("proposed data block carries %d data entries instead of none", n)
 	}
 
 	// verify hash chain
 	if !bytes.Equal(block.Header.PreviousHash, prevHash) {
-		return errors.Errorf("proposed block header prev hash %s isn't equal to computed prev hash %s", hex.EncodeToString(block.Header.PreviousHash), hex.EncodeToString(prevHash))
+		return fmt.Errorf("proposed block header prev hash %s isn't equal to computed prev hash %s", hex.EncodeToString(block.Header.PreviousHash), hex.EncodeToString(prevHash))
 	}
 
 	// verify data hash
 	if !bytes.Equal(block.Header.DataHash, batchID.Digest()) {
-		return errors.Errorf("proposed block data hash isn't equal to computed digest %s", arma_types.BatchIDToString(batchID))
+		return fmt.Errorf("proposed block data hash isn't equal to computed digest %s", arma_types.BatchIDToString(batchID))
 	}
 
 	// verify block number
 	if block.Header.Number != blockNum {
-		return errors.Errorf("proposed block header number %d isn't equal to computed number %d", block.Header.Number, blockNum)
+		return fmt.Errorf("proposed block header number %d isn't equal to computed number %d", block.Header.Number, blockNum)
 	}
 
 	// verify orderer metadata
@@ -103,20 +103,20 @@ func VerifyDataCommonBlock(block *common.Block, blockNum uint64, prevHash []byte
 	}
 
 	if !bytes.Equal(computedBlockMetadata, block.Metadata.Metadata[common.BlockMetadataIndex_ORDERER]) {
-		return errors.Errorf("proposed block metadata isn't equal to computed metadata")
+		return fmt.Errorf("proposed block metadata isn't equal to computed metadata")
 	}
 
 	// verify last config
 	rawLastConfig, err := protoutil.GetMetadataFromBlock(block, common.BlockMetadataIndex_LAST_CONFIG)
 	if err != nil {
-		return errors.Wrap(err, "failed getting proposed block metadata last config")
+		return fmt.Errorf("failed getting proposed block metadata last config: %w", err)
 	}
 	lastConf := &common.LastConfig{}
 	if err := proto.Unmarshal(rawLastConfig.Value, lastConf); err != nil {
-		return errors.Wrap(err, "failed unmarshaling proposed block metadata last config")
+		return fmt.Errorf("failed unmarshaling proposed block metadata last config: %w", err)
 	}
 	if lastConf.Index != lastConfigBlockNum {
-		return errors.Errorf("last config in block metadata points to %d but our persisted last config is %d", lastConf.Index, lastConfigBlockNum)
+		return fmt.Errorf("last config in block metadata points to %d but our persisted last config is %d", lastConf.Index, lastConfigBlockNum)
 	}
 
 	return nil
@@ -129,12 +129,12 @@ func VerifyConfigCommonBlock(configBlock *common.Block, blockNum uint64, prevHas
 
 	// verify block number
 	if configBlock.Header.Number != blockNum {
-		return errors.Errorf("proposed config block header number %d isn't equal to computed number %d", configBlock.Header.Number, blockNum)
+		return fmt.Errorf("proposed config block header number %d isn't equal to computed number %d", configBlock.Header.Number, blockNum)
 	}
 
 	// verify hash chain
 	if !bytes.Equal(configBlock.Header.PreviousHash, prevHash) {
-		return errors.Errorf("proposed config block header prev hash %s isn't equal to computed prev hash %s", hex.EncodeToString(configBlock.Header.PreviousHash), hex.EncodeToString(prevHash))
+		return fmt.Errorf("proposed config block header prev hash %s isn't equal to computed prev hash %s", hex.EncodeToString(configBlock.Header.PreviousHash), hex.EncodeToString(prevHash))
 	}
 
 	// verify data
@@ -149,11 +149,11 @@ func VerifyConfigCommonBlock(configBlock *common.Block, blockNum uint64, prevHas
 	// verify data hash
 	data := arma_types.BatchedRequests(configBlock.Data.Data)
 	if !bytes.Equal(configBlock.Header.DataHash, data.Digest()) {
-		return errors.Errorf("proposed config block data hash isn't equal to computed data digest %s", data.Digest())
+		return fmt.Errorf("proposed config block data hash isn't equal to computed data digest %s", data.Digest())
 	}
 
 	if !bytes.Equal(configBlock.Header.DataHash, dataHash) {
-		return errors.Errorf("proposed config block data hash isn't equal to computed data hash %s", dataHash)
+		return fmt.Errorf("proposed config block data hash isn't equal to computed data hash %s", dataHash)
 	}
 
 	// verify orderer metadata
@@ -163,20 +163,20 @@ func VerifyConfigCommonBlock(configBlock *common.Block, blockNum uint64, prevHas
 	}
 
 	if !bytes.Equal(computedBlockMetadata, configBlock.Metadata.Metadata[common.BlockMetadataIndex_ORDERER]) {
-		return errors.Errorf("proposed config block metadata isn't equal to computed metadata")
+		return fmt.Errorf("proposed config block metadata isn't equal to computed metadata")
 	}
 
 	// verify last config
 	rawLastConfig, err := protoutil.GetMetadataFromBlock(configBlock, common.BlockMetadataIndex_LAST_CONFIG)
 	if err != nil {
-		return errors.Wrap(err, "failed getting proposed config block metadata last config")
+		return fmt.Errorf("failed getting proposed config block metadata last config: %w", err)
 	}
 	lastConf := &common.LastConfig{}
 	if err := proto.Unmarshal(rawLastConfig.Value, lastConf); err != nil {
-		return errors.Wrap(err, "failed unmarshaling proposed config block metadata last config")
+		return fmt.Errorf("failed unmarshaling proposed config block metadata last config: %w", err)
 	}
 	if lastConf.Index != blockNum {
-		return errors.Errorf("last config in block metadata points to %d instead of the config block number %d", lastConf.Index, blockNum)
+		return fmt.Errorf("last config in block metadata points to %d instead of the config block number %d", lastConf.Index, blockNum)
 	}
 
 	return nil
@@ -194,7 +194,7 @@ func checkBlockShape(block *common.Block) error {
 		return errors.New("block has no header")
 	}
 	if n := len(block.GetMetadata().GetMetadata()); n < len(common.BlockMetadataIndex_name) {
-		return errors.Errorf("block metadata has %d entries instead of at least %d", n, len(common.BlockMetadataIndex_name))
+		return fmt.Errorf("block metadata has %d entries instead of at least %d", n, len(common.BlockMetadataIndex_name))
 	}
 	return nil
 }

@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/Chaguar/common/protoutil"
@@ -14,7 +15,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

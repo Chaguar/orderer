@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package consensus
 
 import (
+	"errors"
+	"fmt"
 	"slices"
 
 	"github.com/Chaguar/common/api/ordererpb"
@@ -18,7 +20,6 @@ import (
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -48,7 +49,7 @@ func (ca *DefaultConfigApplier) ApplyConfigToState(state *state.State, configReq
 	consensusMetadata := ordererConfig.ConsensusMetadata()
 	sharedConfig := &ordererpb.SharedConfig{}
 	if err := proto.Unmarshal(consensusMetadata, sharedConfig); err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal consensus metadata to a shared configuration")
+		return nil, fmt.Errorf("failed to unmarshal consensus metadata to a shared configuration: %w", err)
 	}
 
 	newState := state.Clone()
@@ -80,11 +81,11 @@ func (ca *DefaultConfigApplier) ExtractSmartBFTConfigFromBlock(configBlock *comm
 	}
 	configReqEnv, err := protoutil.ExtractEnvelope(configBlock, 0)
 	if err != nil {
-		return nil, smartbft_types.Configuration{}, errors.Wrap(err, "unable to extract config req env")
+		return nil, smartbft_types.Configuration{}, fmt.Errorf("unable to extract config req env: %w", err)
 	}
 	bundle, err := channelconfig.NewBundleFromEnvelope(configReqEnv, ca.bccsp)
 	if err != nil {
-		return nil, smartbft_types.Configuration{}, errors.Wrap(err, "unable to create bundle from the config req env")
+		return nil, smartbft_types.Configuration{}, fmt.Errorf("unable to create bundle from the config req env: %w", err)
 	}
 	ordererConfig, exists := bundle.OrdererConfig()
 	if !exists {
@@ -93,12 +94,12 @@ func (ca *DefaultConfigApplier) ExtractSmartBFTConfigFromBlock(configBlock *comm
 	consensusMetadata := ordererConfig.ConsensusMetadata()
 	sharedConfig := &ordererpb.SharedConfig{}
 	if err := proto.Unmarshal(consensusMetadata, sharedConfig); err != nil {
-		return nil, smartbft_types.Configuration{}, errors.Wrapf(err, "failed to unmarshal consensus metadata to a shared configuration")
+		return nil, smartbft_types.Configuration{}, fmt.Errorf("failed to unmarshal consensus metadata to a shared configuration: %w", err)
 	}
 	conf := &config.Configuration{SharedConfig: sharedConfig}
 	smartBFTConfig, err := conf.GetBFTConfig(selfID)
 	if err != nil {
-		return nil, smartbft_types.Configuration{}, errors.Wrapf(err, "failed to extract bft config")
+		return nil, smartbft_types.Configuration{}, fmt.Errorf("failed to extract bft config: %w", err)
 	}
 	var partyIDs []uint64
 	for _, party := range sharedConfig.PartiesConfig {
