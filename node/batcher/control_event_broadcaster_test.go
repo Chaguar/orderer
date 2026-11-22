@@ -69,7 +69,7 @@ func TestBroadcastControlEventQuorumScenarios(t *testing.T) {
 			defer cancel()
 			err := b.BroadcastControlEvent(state.ControlEvent{}, ctx)
 			if tt.expectError {
-				require.Error(t, err)
+				require.ErrorIs(t, err, context.Canceled)
 			} else {
 				require.NoError(t, err)
 			}

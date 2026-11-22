@@ -8,7 +8,6 @@ package batcher
 
 import (
 	"context"
-	"encoding/hex"
 	"errors"
 	"fmt"
 	"slices"
@@ -576,7 +575,7 @@ func (b *BatcherRole) verifyBatch(batch types.Batch) ([]string, error) {
 	computedDigest := br.Digest()
 	b.Metrics.batchHashingLatency.Observe(time.Since(digestStart).Seconds())
 	if !slices.Equal(batch.Digest(), computedDigest) {
-		return nil, fmt.Errorf("batch digest (%s) is not equal to calculated digest (%s)", hex.EncodeToString(batch.Digest()), hex.EncodeToString(computedDigest))
+		return nil, fmt.Errorf("batch digest (%x) is not equal to calculated digest (%x)", batch.Digest(), computedDigest)
 	}
 	primaryBAF := types.NewSimpleBatchAttestationFragment(batch.Shard(), batch.Primary(), batch.Seq(), batch.Digest(), batch.Primary(), batch.ConfigSequence(), uint64(len(batch.Requests())), nil)
 	if err := b.SigVerifier.VerifySignature(types.NewBatcherIdentity(batch.Primary(), batch.Shard()), primaryBAF.ToBeSigned(), batch.PrimarySignature()); err != nil {

@@ -68,12 +68,14 @@ func (b *ControlEventBroadcaster) BroadcastControlEvent(ce state.ControlEvent, c
 		select {
 		case <-ctx.Done():
 			timer.Stop()
-			b.logger.Infof("broadcast cancelled by input context, %s", ctx.Err())
-			return fmt.Errorf("broadcast cancelled by input context: %w", ctx.Err())
+			err := fmt.Errorf("broadcast cancelled by input context: %w", ctx.Err())
+			b.logger.Info(err)
+			return err
 		case <-b.ctx.Done():
 			timer.Stop()
-			b.logger.Infof("broadcast cancelled by object context, %s", b.ctx.Err())
-			return fmt.Errorf("broadcast cancelled by object context: %w", b.ctx.Err())
+			err := fmt.Errorf("broadcast cancelled by object context: %w", b.ctx.Err())
+			b.logger.Info(err)
+			return err
 		case <-timer.C:
 		}
 
