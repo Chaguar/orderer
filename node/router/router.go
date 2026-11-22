@@ -77,6 +77,10 @@ type Router struct {
 	drainChan        chan struct{}
 	drainOnce        sync.Once
 	opsSystem        *operations.System
+
+	// lastDecision is the last decision applied, or, before the first one, the decision the feed resumes from: a
+	// decision older than it is skipped.
+	lastDecision types.DecisionNum
 }
 
 func NewRouter(config *nodeconfig.RouterNodeConfig, configuration *config.Configuration, logger *flogging.FabricLogger, signer identity.SignerSerializer, mainExitChan chan struct{}, configUpdateProposer policy.ConfigUpdateProposer, configRulesVerifier verify.OrdererRules) *Router {
@@ -115,14 +119,14 @@ func NewRouter(config *nodeconfig.RouterNodeConfig, configuration *config.Config
 	}
 	r.wal = routerWAL
 
-	seekInfo := delivery.NextSeekInfo(uint64(getNextDecisionNumber(r.configStore, walInitState, r.logger)))
+	nextDecision := getNextDecisionNumber(r.configStore, walInitState, r.logger)
 
-	r.initFromConfig(config, configuration, configUpdateProposer, configRulesVerifier, seekInfo)
+	r.initFromConfig(config, configuration, configUpdateProposer, configRulesVerifier, nextDecision)
 
 	return r
 }
 
-func (r *Router) initFromConfig(rconfig *nodeconfig.RouterNodeConfig, configuration *config.Configuration, configUpdateProposer policy.ConfigUpdateProposer, configRulesVerifier verify.OrdererRules, seekInfo *orderer.SeekInfo) {
+func (r *Router) initFromConfig(rconfig *nodeconfig.RouterNodeConfig, configuration *config.Configuration, configUpdateProposer policy.ConfigUpdateProposer, configRulesVerifier verify.OrdererRules, nextDecision types.DecisionNum) {
 	r.lock.Lock()
 	defer r.lock.Unlock()
 
@@ -185,7 +189,8 @@ func (r *Router) initFromConfig(rconfig *nodeconfig.RouterNodeConfig, configurat
 	}
 
 	// TODO - pull decisions from all consenter nodes, not only the one in party
-	r.decisionPuller = CreateConsensusDecisionReplicator(rconfig, seekInfo, r.signer, r.logger)
+	r.decisionPuller = CreateConsensusDecisionReplicator(rconfig, delivery.NextSeekInfo(uint64(nextDecision)), r.signer, r.logger)
+	r.lastDecision = nextDecision
 
 	r.opsSystem = operations.NewOperationsSystem(*rconfig.Operations, *rconfig.Metrics)
 
@@ -658,6 +663,13 @@ func (r *Router) pullAndProcessDecisions() {
 				return
 			}
 
+			// An older decision would move the WAL back.
+			if decision.Num < r.lastDecision {
+				r.logger.Warnf("Skipping decision %d, older than %d, the last decision applied or resumed from", decision.Num, r.lastDecision)
+				continue
+			}
+			r.lastDecision = decision.Num
+
 			// store the decision in WAL, keeping only the last decision
 			err := r.wal.Append(decision.Serialize(), true)
 			if err != nil {
@@ -778,9 +790,9 @@ func (r *Router) ApplyConfig(configBlock *common.Block) (bool, error) {
 	newConfigSeq := newRouterNodeConfig.Bundle.ConfigtxValidator().Sequence()
 	r.logger.Infof("Applying new config with sequence %d (current: %d), router will be restarted dynamically", newConfigSeq, r.configSeq)
 
-	seekInfo := delivery.NextSeekInfo(uint64(getDecisionNumberFromConfigBlock(configBlock, r.logger)))
+	nextDecision := getDecisionNumberFromConfigBlock(configBlock, r.logger)
 
-	r.initFromConfig(newRouterNodeConfig, newConfiguration, &policy.DefaultConfigUpdateProposer{}, &verify.DefaultOrdererRules{}, seekInfo)
+	r.initFromConfig(newRouterNodeConfig, newConfiguration, &policy.DefaultConfigUpdateProposer{}, &verify.DefaultOrdererRules{}, nextDecision)
 	r.StartRouterService()
 	r.logger.Infof("Router started with new config sequence %d, listening on %s", newConfigSeq, r.Address())
 	return false, nil

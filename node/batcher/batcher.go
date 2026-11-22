@@ -90,6 +90,8 @@ type Batcher struct {
 	term            uint64
 	primaryID       types.PartyID
 
+	lastDecision types.DecisionNum
+
 	metrics   *BatcherMetrics
 	opsSystem *operations.System
 }
@@ -235,6 +237,12 @@ func (b *Batcher) replicateDecision() {
 	for {
 		select {
 		case header := <-headerChan:
+			// An older decision would move the WAL and the term back.
+			if header.Num < b.lastDecision {
+				b.logger.Warnf("Skipping decision %d, older than the last decision applied, %d", header.Num, b.lastDecision)
+				continue
+			}
+			b.lastDecision = header.Num
 			rawHeader := header.Serialize()
 			b.wal.Append(rawHeader, true)
 			// check if decision contains a config block, and if so, append it to the batcher config store, skip the genesis block.
