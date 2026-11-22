@@ -137,13 +137,16 @@ func startConsensusNodesAndRegisterGRPCServers(t *testing.T, parties []types.Par
 
 	ledgerListeners := make([]*storageListener, 0, len(parties))
 	for _, consensusNode := range consensusNodes {
-		if err := consensusNode.Start(); err != nil {
-			panic(fmt.Sprintf("failed to start consensus node: %v", err))
-		}
+		// Register the listener before Start: a recovering node may sync and
+		// append blocks right away, and the ledger reads the listener without
+		// synchronization.
 		ledgerListener := &storageListener{c: make(chan *common.Block, 100)}
 		consensusNode.Storage.(*ledger.ConsensusLedger).RegisterAppendListener(ledgerListener)
 		ledgerListeners = append(ledgerListeners, ledgerListener)
 		t.Logf(">>> startConsensusNodesAndRegisterGRPCServers registered ledger listener: party: %d", consensusNode.Config.PartyId)
+		if err := consensusNode.Start(); err != nil {
+			panic(fmt.Sprintf("failed to start consensus node: %v", err))
+		}
 	}
 
 	time.Sleep(5 * time.Second)
