@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package state
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Chaguar/common/common/configtx"
@@ -14,7 +15,6 @@ import (
 	"github.com/Chaguar/orderer/common/types"
 	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -25,12 +25,12 @@ type ConfigRequest struct {
 func (c *ConfigRequest) ConfigSequence() (types.ConfigSequence, error) {
 	payload, err := protoutil.UnmarshalPayload(c.Envelope.Payload)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to unmarshal payload")
+		return 0, fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
 	configEnvelope, err := configtx.UnmarshalConfigEnvelope(payload.Data)
 	if err != nil {
-		return 0, errors.Wrap(err, "failed to unmarshal config envelope")
+		return 0, fmt.Errorf("failed to unmarshal config envelope: %w", err)
 	}
 
 	if configEnvelope.Config == nil {
@@ -45,12 +45,12 @@ func (c *ConfigRequest) ConfigSequence() (types.ConfigSequence, error) {
 func (c *ConfigRequest) ID() (string, error) {
 	payload, err := protoutil.UnmarshalPayload(c.Envelope.Payload)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to unmarshal payload")
+		return "", fmt.Errorf("failed to unmarshal payload: %w", err)
 	}
 
 	configEnvelope, err := configtx.UnmarshalConfigEnvelope(payload.Data)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to unmarshal config envelope")
+		return "", fmt.Errorf("failed to unmarshal config envelope: %w", err)
 	}
 
 	if configEnvelope.LastUpdate == nil {
@@ -59,7 +59,7 @@ func (c *ConfigRequest) ID() (string, error) {
 
 	lastUpdatePayload, err := protoutil.UnmarshalPayload(configEnvelope.LastUpdate.Payload)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to unmarshal last update payload")
+		return "", fmt.Errorf("failed to unmarshal last update payload: %w", err)
 	}
 
 	if lastUpdatePayload.Header == nil {
@@ -68,11 +68,11 @@ func (c *ConfigRequest) ID() (string, error) {
 
 	channelHeader, err := protoutil.UnmarshalChannelHeader(lastUpdatePayload.Header.ChannelHeader)
 	if err != nil {
-		return "", errors.Wrap(err, "failed to unmarshal channel header")
+		return "", fmt.Errorf("failed to unmarshal channel header: %w", err)
 	}
 
 	if channelHeader.Type != int32(common.HeaderType_CONFIG_UPDATE) {
-		return "", errors.Errorf("unexpected channel header type %d", channelHeader.Type)
+		return "", fmt.Errorf("unexpected channel header type %d", channelHeader.Type)
 	}
 
 	// The SigFilter already rejects an empty TxID, on submit and on the followers' validation of a proposed config,
@@ -97,7 +97,7 @@ func (c *ConfigRequest) toProto() *stateprotos.ConfigRequest {
 func (c *ConfigRequest) fromProto(pc *stateprotos.ConfigRequest) error {
 	envelope, err := protoutil.UnmarshalEnvelope(pc.Envelope)
 	if err != nil {
-		return errors.Wrap(err, "failed to unmarshal envelope")
+		return fmt.Errorf("failed to unmarshal envelope: %w", err)
 	}
 	c.Envelope = envelope
 	return nil
@@ -115,7 +115,7 @@ func (c *ConfigRequest) Bytes() []byte {
 func (c *ConfigRequest) FromBytes(bytes []byte) error {
 	protoConfigRequest := &stateprotos.ConfigRequest{}
 	if err := proto.Unmarshal(bytes, protoConfigRequest); err != nil {
-		return errors.Wrap(err, "failed to unmarshal config request")
+		return fmt.Errorf("failed to unmarshal config request: %w", err)
 	}
 	return c.fromProto(protoConfigRequest)
 }

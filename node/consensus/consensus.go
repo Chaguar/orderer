@@ -11,6 +11,7 @@ import (
 	"context"
 	"encoding/asn1"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"io"
 	"slices"
@@ -44,7 +45,6 @@ import (
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 
-	"github.com/pkg/errors"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/proto"
@@ -328,7 +328,7 @@ func (c *Consensus) OnConsensus(channel string, sender uint64, request *orderer.
 	msg := &smartbftprotos.Message{}
 	if err := proto.Unmarshal(request.Payload, msg); err != nil {
 		c.Logger.Warnf("Malformed message: %v", err)
-		return errors.Wrap(err, "malformed message")
+		return fmt.Errorf("malformed message: %w", err)
 	}
 	c.BFT.HandleMessage(sender, msg)
 	return nil
@@ -382,19 +382,19 @@ func (c *Consensus) SubmitConfig(ctx context.Context, request *protos.Request) (
 	}
 
 	if err := c.validateRouterFromContext(ctx); err != nil {
-		return nil, errors.Wrap(err, "failed to validate router from context")
+		return nil, fmt.Errorf("failed to validate router from context: %w", err)
 	}
 
 	c.Logger.Infof("Received config request from router %s with config sequence %d", c.Config.Router.Endpoint, request.ConfigSeq)
 
 	verificationSeq := c.VerificationSequence()
 	if request.ConfigSeq != uint32(verificationSeq) {
-		return nil, errors.Errorf("config sequence mismatch: expected %d, got %d", verificationSeq, request.ConfigSeq)
+		return nil, fmt.Errorf("config sequence mismatch: expected %d, got %d", verificationSeq, request.ConfigSeq)
 	}
 
 	configRequest, err := c.verifyAndClassifyRequest(request)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to verify and classify request")
+		return nil, fmt.Errorf("failed to verify and classify request: %w", err)
 	}
 
 	ce := &state.ControlEvent{
@@ -440,11 +440,11 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 	}
 	var requests arma_types.BatchedRequests
 	if err := requests.Deserialize(proposal.Payload); err != nil {
-		return nil, errors.Wrap(err, "failed to deserialize proposal payload")
+		return nil, fmt.Errorf("failed to deserialize proposal payload: %w", err)
 	}
 	var hdr state.Header
 	if err := hdr.Deserialize(proposal.Header); err != nil {
-		return nil, errors.Wrap(err, "failed to deserialize proposal header")
+		return nil, fmt.Errorf("failed to deserialize proposal header: %w", err)
 	}
 
 	if hdr.State == nil {
@@ -453,7 +453,7 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 
 	md := &smartbftprotos.ViewMetadata{}
 	if err := proto.Unmarshal(proposal.Metadata, md); err != nil {
-		return nil, errors.Wrap(err, "failed to unmarshal proposal metadata")
+		return nil, fmt.Errorf("failed to unmarshal proposal metadata: %w", err)
 	}
 
 	if md.LatestSequence != uint64(hdr.Num) {
@@ -463,7 +463,7 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 	// The verification sequence is read once, so that the whole proposal is verified against one config.
 	verificationSeq := c.VerificationSequence()
 	if verificationSeq != uint64(proposal.VerificationSequence) {
-		return nil, errors.Errorf("expected verification sequence %d, but proposal has %d", verificationSeq, proposal.VerificationSequence)
+		return nil, fmt.Errorf("expected verification sequence %d, but proposal has %d", verificationSeq, proposal.VerificationSequence)
 	}
 
 	// The requests are verified before the state transition is simulated, because the payload comes from
@@ -480,14 +480,14 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 	// belongs to the config the requests were verified against.
 	if currentSeq := c.verificationSequence(); currentSeq != verificationSeq {
 		c.lock.Unlock()
-		return nil, errors.Errorf("verification sequence changed from %d to %d while verifying the proposal", verificationSeq, currentSeq)
+		return nil, fmt.Errorf("verification sequence changed from %d to %d while verifying the proposal", verificationSeq, currentSeq)
 	}
 	parties := c.parties()
 	computedState, attestations, configRequests := c.Arma.SimulateStateTransition(c.State, arma_types.ConfigSequence(verificationSeq), parties, requests)
 	if configRequests != nil {
 		if computedState, err = c.ConfigApplier.ApplyConfigToState(computedState, configRequests[0], parties); err != nil {
 			c.lock.Unlock()
-			return nil, fmt.Errorf("failed applying config to state, err: %s", err)
+			return nil, fmt.Errorf("failed applying config to state, err: %w", err)
 		}
 	}
 	lastConfigBlockNum := c.lastConfigBlockNum
@@ -499,7 +499,7 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 	// Every consenter signs the header's PrevHash, but appends the decision after its own last block, so the
 	// two must match for the signatures to verify against the appended block.
 	if !bytes.Equal(hdr.PrevHash, lastDecisionHash) {
-		return nil, errors.Errorf("proposed prev hash %s isn't equal to the hash of the last decision %s", hex.EncodeToString(hdr.PrevHash), hex.EncodeToString(lastDecisionHash))
+		return nil, fmt.Errorf("proposed prev hash %s isn't equal to the hash of the last decision %s", hex.EncodeToString(hdr.PrevHash), hex.EncodeToString(lastDecisionHash))
 	}
 
 	numOfAvailableBlocks := len(attestations)
@@ -517,7 +517,7 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 	// checked before the blocks are indexed: a short list would otherwise panic, and an extra block would
 	// otherwise be signed and delivered without being verified.
 	if len(hdr.AvailableCommonBlocks) != numOfAvailableBlocks {
-		return nil, errors.Errorf("proposal has %d blocks but its requests yield %d", len(hdr.AvailableCommonBlocks), numOfAvailableBlocks)
+		return nil, fmt.Errorf("proposal has %d blocks but its requests yield %d", len(hdr.AvailableCommonBlocks), numOfAvailableBlocks)
 	}
 
 	computedCommonBlocksHeaders := make([]*common.BlockHeader, numOfAvailableBlocks)
@@ -534,7 +534,7 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 		lastBlockNumber++
 		currentTXCount += ba[0].TXCount()
 		if err := VerifyDataCommonBlock(hdr.AvailableCommonBlocks[i], lastBlockNumber, prevHash, ba[0], currentTXCount, arma_types.DecisionNum(md.LatestSequence), numOfAvailableBlocks, i, lastConfigBlockNum); err != nil {
-			return nil, errors.Wrapf(err, "failed verifying proposed block num %d in index %d", lastBlockNumber, i)
+			return nil, fmt.Errorf("failed verifying proposed block num %d in index %d: %w", lastBlockNumber, i, err)
 		}
 
 		computedCommonBlocksHeaders[i] = &common.BlockHeader{Number: lastBlockNumber, PreviousHash: prevHash, DataHash: ba[0].Digest()}
@@ -563,7 +563,7 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 		computedCommonBlocksHeaders[numOfAvailableBlocks-1] = computedConfigBlockHeader
 		currentTXCount++
 		if err := VerifyConfigCommonBlock(hdr.AvailableCommonBlocks[numOfAvailableBlocks-1], lastBlockNumber+1, prevHash, computedConfigBlockHeader.DataHash, currentTXCount, arma_types.DecisionNum(md.LatestSequence), numOfAvailableBlocks, numOfAvailableBlocks-1); err != nil {
-			return nil, errors.Wrapf(err, "failed verifying proposed config block num %d", lastBlockNumber+1)
+			return nil, fmt.Errorf("failed verifying proposed config block num %d: %w", lastBlockNumber+1, err)
 		}
 	}
 
@@ -589,7 +589,7 @@ func (c *Consensus) verifyProposalRequests(requests arma_types.BatchedRequests, 
 	for _, rawReq := range requests {
 		configSeq, isBAF, err := c.getReqConfigSeq(rawReq)
 		if err != nil {
-			return nil, fmt.Errorf("invalid request %s: %v", rawReq, err)
+			return nil, fmt.Errorf("invalid request %s: %w", rawReq, err)
 		}
 		// Only requests that affect the computed state are verified here: those at the current config
 		// sequence, and BAFs any number of configs behind (which consensus surfaces for revival). A
@@ -600,7 +600,7 @@ func (c *Consensus) verifyProposalRequests(requests arma_types.BatchedRequests, 
 		var reqInfo smartbft_types.RequestInfo
 		if configSeq == verificationSeq || (isBAF && configSeq < verificationSeq) {
 			if reqInfo, _, err = c.verifyProposalCE(rawReq, proposalNum); err != nil {
-				return nil, fmt.Errorf("invalid request %s: %v", rawReq, err)
+				return nil, fmt.Errorf("invalid request %s: %w", rawReq, err)
 			}
 		} else {
 			reqInfo = c.RequestID(rawReq)
@@ -621,7 +621,7 @@ func (c *Consensus) VerifyRequest(req []byte) (smartbft_types.RequestInfo, error
 	reqID, _, err := c.verifyCE(req)
 	if err != nil && reqID.ID != "" {
 		// SmartBFT logs only the error of an invalid request it drops, so the error carries the request ID.
-		err = errors.Wrapf(err, "request %s", reqID.String())
+		err = fmt.Errorf("request %s: %w", reqID.String(), err)
 	}
 	return reqID, err
 }
@@ -637,7 +637,7 @@ func (c *Consensus) VerifyConsenterSig(signature smartbft_types.Signature, prop 
 
 	var values [][]byte
 	if _, err := asn1.Unmarshal(signature.Value, &values); err != nil {
-		return nil, errors.Wrap(err, "failed unmarshaling signature value")
+		return nil, fmt.Errorf("failed unmarshaling signature value: %w", err)
 	}
 
 	// Validate signature.Msg is not nil to prevent panic in asn1.Unmarshal
@@ -647,14 +647,14 @@ func (c *Consensus) VerifyConsenterSig(signature smartbft_types.Signature, prop 
 
 	var msgs [][]byte
 	if _, err := asn1.Unmarshal(signature.Msg, &msgs); err != nil {
-		return nil, errors.Wrap(err, "failed unmarshaling signature msg")
+		return nil, fmt.Errorf("failed unmarshaling signature msg: %w", err)
 	}
 
 	decisionNumOfLastConfigBlock, lastConfigBlockNum := c.getBothDecisionNumAndLastConfigBlockNum()
 
 	var hdr state.Header
 	if err := hdr.Deserialize(prop.Header); err != nil {
-		return nil, errors.Wrap(err, "failed deserializing proposal header")
+		return nil, fmt.Errorf("failed deserializing proposal header: %w", err)
 	}
 
 	if hdr.Num == hdr.DecisionNumOfLastConfigBlock {
@@ -664,7 +664,7 @@ func (c *Consensus) VerifyConsenterSig(signature smartbft_types.Signature, prop 
 	// The signature carries one message and one value for the proposal and one for each of its blocks.
 	// Both come from the signer, so their count is checked before they are indexed by block.
 	if expected := len(hdr.AvailableCommonBlocks) + 1; len(msgs) != expected || len(values) != expected {
-		return nil, errors.Errorf("signature has %d messages and %d values, but the proposal has %d blocks", len(msgs), len(values), len(hdr.AvailableCommonBlocks))
+		return nil, fmt.Errorf("signature has %d messages and %d values, but the proposal has %d blocks", len(msgs), len(values), len(hdr.AvailableCommonBlocks))
 	}
 
 	proposalMsgBytes := msgs[0]
@@ -674,21 +674,21 @@ func (c *Consensus) VerifyConsenterSig(signature smartbft_types.Signature, prop 
 	}
 
 	if err := verifyProposalMessageToSign(proposalMsg, proposalMsgBytes, signature.ID, prop, uint64(hdr.Num), decisionNumOfLastConfigBlock, hdr.PrevHash); err != nil {
-		return nil, errors.Wrap(err, "failed verifying proposal msg")
+		return nil, fmt.Errorf("failed verifying proposal msg: %w", err)
 	}
 	if err := c.VerifySignature(smartbft_types.Signature{
 		Value: values[0],
 		Msg:   proposalMsgBytes,
 		ID:    signature.ID,
 	}); err != nil {
-		return nil, errors.Wrap(err, "failed verifying signature over proposal")
+		return nil, fmt.Errorf("failed verifying signature over proposal: %w", err)
 	}
 
 	for i, ab := range hdr.AvailableCommonBlocks {
 		// The proposal may come from another node (in a view change) without having passed VerifyProposal,
 		// so the block's shape is checked before it is read.
 		if err := checkBlockShape(ab); err != nil {
-			return nil, errors.Wrapf(err, "malformed block in index %d", i)
+			return nil, fmt.Errorf("malformed block in index %d: %w", i, err)
 		}
 		msgBytes := msgs[i+1]
 		msg := &protoutil.MessageToSign{}
@@ -696,14 +696,14 @@ func (c *Consensus) VerifyConsenterSig(signature smartbft_types.Signature, prop 
 			return nil, err
 		}
 		if err := verifyBlockMessageToSign(msg, msgBytes, signature.ID, ab, lastConfigBlockNum); err != nil {
-			return nil, errors.Wrapf(err, "failed verifying msg over block in index %d", i)
+			return nil, fmt.Errorf("failed verifying msg over block in index %d: %w", i, err)
 		}
 		if err := c.VerifySignature(smartbft_types.Signature{
 			Value: values[i+1],
 			Msg:   msgBytes,
 			ID:    signature.ID,
 		}); err != nil {
-			return nil, errors.Wrapf(err, "failed verifying signature over block in index %d", i)
+			return nil, fmt.Errorf("failed verifying signature over block in index %d: %w", i, err)
 		}
 	}
 
@@ -713,10 +713,10 @@ func (c *Consensus) VerifyConsenterSig(signature smartbft_types.Signature, prop 
 func verifyProposalMessageToSign(proposalMsg *protoutil.MessageToSign, proposalMsgBytes []byte, signatureID uint64, proposal smartbft_types.Proposal, num uint64, decisionNumOfLastConfigBlock uint64, prevHash []byte) error {
 	idHeader, err := protoutil.UnmarshalIdentifierHeader(proposalMsg.IdentifierHeader)
 	if err != nil {
-		return errors.Wrap(err, "failed to unmarshal identifier header from proposal message")
+		return fmt.Errorf("failed to unmarshal identifier header from proposal message: %w", err)
 	}
 	if uint64(idHeader.GetIdentifier()) != signatureID {
-		return errors.Errorf("signature ID %d does not match identifier header ID %d in proposal message", signatureID, idHeader.GetIdentifier())
+		return fmt.Errorf("signature ID %d does not match identifier header ID %d in proposal message", signatureID, idHeader.GetIdentifier())
 	}
 
 	proposalBytes := state.ProposalToBytes(proposal)
@@ -758,10 +758,10 @@ func verifyProposalMessageToSign(proposalMsg *protoutil.MessageToSign, proposalM
 func verifyBlockMessageToSign(msg *protoutil.MessageToSign, msgBytes []byte, signatureID uint64, block *common.Block, lastConfigBlockNum uint64) error {
 	idHeader, err := protoutil.UnmarshalIdentifierHeader(msg.IdentifierHeader)
 	if err != nil {
-		return errors.Wrapf(err, "failed to unmarshal identifier header from message")
+		return fmt.Errorf("failed to unmarshal identifier header from message: %w", err)
 	}
 	if uint64(idHeader.GetIdentifier()) != signatureID {
-		return errors.Errorf("signature ID %d does not match identifier header ID %d in message", signatureID, idHeader.GetIdentifier())
+		return fmt.Errorf("signature ID %d does not match identifier header ID %d in message", signatureID, idHeader.GetIdentifier())
 	}
 	if protoutil.IsConfigBlock(block) {
 		lastConfigBlockNum = block.Header.Number
@@ -1195,7 +1195,7 @@ func (c *Consensus) ApplyConfig(lastBlock *common.Block) (bool, error) {
 
 	newConfig, configSeq, err := currentFullConfig.NewUpdatedConfigurationFromBlock(lastBlock)
 	if err != nil {
-		return true, errors.Wrapf(err, "failed to build new configuration")
+		return true, fmt.Errorf("failed to build new configuration: %w", err)
 	}
 
 	// wait for acks
@@ -1228,7 +1228,7 @@ func (c *Consensus) ApplyConfig(lastBlock *common.Block) (bool, error) {
 	// check if party is removed
 	isPartyEvicted, err := config.IsPartyEvicted(partyID, newConfig)
 	if err != nil {
-		return true, errors.Wrapf(err, "failed to detect if party is evicted")
+		return true, fmt.Errorf("failed to detect if party is evicted: %w", err)
 	}
 	if isPartyEvicted {
 		c.Logger.Warnf("Consensus's party %d was evicted in the new configuration", partyID)
@@ -1238,15 +1238,15 @@ func (c *Consensus) ApplyConfig(lastBlock *common.Block) (bool, error) {
 	// check if consensus identity (address or certificates) is changed
 	currPartyConfig, err := config.FindParty(partyID, currentFullConfig)
 	if err != nil {
-		return true, errors.Wrapf(err, "failed to find current consensus config")
+		return true, fmt.Errorf("failed to find current consensus config: %w", err)
 	}
 	newPartyConfig, err := config.FindParty(partyID, newConfig)
 	if err != nil {
-		return true, errors.Wrapf(err, "failed to find new consensus config")
+		return true, fmt.Errorf("failed to find new consensus config: %w", err)
 	}
 	isRestartRequired, err := config.IsNodeConfigChangeRestartRequired(currPartyConfig.GetConsenterConfig(), newPartyConfig.GetConsenterConfig(), c.Logger)
 	if err != nil {
-		return true, errors.Wrapf(err, "failed to detect if config change requires an admin restart")
+		return true, fmt.Errorf("failed to detect if config change requires an admin restart: %w", err)
 	}
 
 	if isRestartRequired {
@@ -1397,7 +1397,7 @@ func (c *Consensus) verifyControlEvent(req []byte, proposalNum arma_types.Decisi
 
 	if ce.Complaint != nil {
 		if ce.Complaint.ConfigSeq != configSeq {
-			return reqID, ce, errors.Errorf("mismatch config sequence; the complaint's config seq is %d while the config seq should be %d", ce.Complaint.ConfigSeq, configSeq)
+			return reqID, ce, fmt.Errorf("mismatch config sequence; the complaint's config seq is %d while the config seq should be %d", ce.Complaint.ConfigSeq, configSeq)
 		}
 		return reqID, ce, sigVerifier.VerifySignature(arma_types.NewBatcherIdentity(ce.Complaint.Signer, ce.Complaint.Shard), ce.Complaint.ToBeSigned(), ce.Complaint.Signature)
 	} else if ce.BAF != nil {
@@ -1406,7 +1406,7 @@ func (c *Consensus) verifyControlEvent(req []byte, proposalNum arma_types.Decisi
 		// in State.StaleConfigBAFs for one decision and the batcher revives the batch's requests. Its
 		// signature is still verified below.
 		if ce.BAF.ConfigSequence() > configSeq {
-			return reqID, ce, errors.Errorf("config sequence ahead; the BAF's config seq is %d while it should be at most %d", ce.BAF.ConfigSequence(), configSeq)
+			return reqID, ce, fmt.Errorf("config sequence ahead; the BAF's config seq is %d while it should be at most %d", ce.BAF.ConfigSequence(), configSeq)
 		}
 		if ce.BAF.Primary() != ce.BAF.Signer() {
 			if len(ce.BAF.PrimarySignature()) == 0 {
@@ -1414,34 +1414,34 @@ func (c *Consensus) verifyControlEvent(req []byte, proposalNum arma_types.Decisi
 			}
 			dupBAF := duplicateBAFSetSigner(ce.BAF, ce.BAF.Primary())
 			if err := sigVerifier.VerifySignature(arma_types.NewBatcherIdentity(ce.BAF.Primary(), ce.BAF.Shard()), toBeSignedBAF(dupBAF), ce.BAF.PrimarySignature()); err != nil {
-				return reqID, ce, errors.Wrap(err, "failed to verify primary signature")
+				return reqID, ce, fmt.Errorf("failed to verify primary signature: %w", err)
 			}
 		}
 		return reqID, ce, sigVerifier.VerifySignature(arma_types.NewBatcherIdentity(ce.BAF.Signer(), ce.BAF.Shard()), toBeSignedBAF(ce.BAF), ce.BAF.Signature())
 	} else if ce.ConfigRequest != nil {
 		reqConfigSeq, err := ce.ConfigRequest.ConfigSequence()
 		if err != nil {
-			return reqID, ce, errors.Wrap(err, "failed getting config request's config seq")
+			return reqID, ce, fmt.Errorf("failed getting config request's config seq: %w", err)
 		}
 		if reqConfigSeq != configSeq+1 {
-			return reqID, ce, errors.Errorf("mismatch config sequence; the config request's config seq is %d while the config seq should be %d", reqConfigSeq, configSeq+1)
+			return reqID, ce, fmt.Errorf("mismatch config sequence; the config request's config seq is %d while the config seq should be %d", reqConfigSeq, configSeq+1)
 		}
 		err = configRequestValidator.ValidateConfigRequest(ce.ConfigRequest.Envelope)
 		if err != nil {
-			return reqID, ce, errors.Wrapf(err, "failed to verify and classify request")
+			return reqID, ce, fmt.Errorf("failed to verify and classify request: %w", err)
 		}
 		if err := configRulesVerifier.ValidateNewConfig(ce.ConfigRequest.Envelope, cfg.BCCSP, c.PartyID); err != nil {
-			return reqID, ce, errors.Wrap(err, "failed to validate rules in new config")
+			return reqID, ce, fmt.Errorf("failed to validate rules in new config: %w", err)
 		}
 		if err := configRulesVerifier.ValidateTransition(cfg.Bundle, ce.ConfigRequest.Envelope, cfg.BCCSP); err != nil {
-			return reqID, ce, errors.Wrap(err, "failed to validate config transition rules")
+			return reqID, ce, fmt.Errorf("failed to validate config transition rules: %w", err)
 		}
 		// TODO: revisit this return
 		return reqID, ce, nil
 	} else if ce.AssemblerReport != nil {
 		report := ce.AssemblerReport
 		if report.ConfigSeq != configSeq {
-			return reqID, ce, errors.Errorf(
+			return reqID, ce, fmt.Errorf(
 				"mismatch config sequence; the assembler decision report's config seq is %d while the config seq should be %d",
 				report.ConfigSeq, configSeq,
 			)
@@ -1455,7 +1455,7 @@ func (c *Consensus) verifyControlEvent(req []byte, proposalNum arma_types.Decisi
 		// Bound the signature before verifying it, so an oversized junk signature is not copied into
 		// the verification error and logged.
 		if len(report.Signature) > maxAssemblerReportSignatureSize {
-			return reqID, ce, errors.Errorf("assembler decision report signature too large (%d > %d bytes)",
+			return reqID, ce, fmt.Errorf("assembler decision report signature too large (%d > %d bytes)",
 				len(report.Signature), maxAssemblerReportSignatureSize)
 		}
 		// Verify the signature against the reporting party's assembler identity. An unknown party has
@@ -1463,11 +1463,11 @@ func (c *Consensus) verifyControlEvent(req []byte, proposalNum arma_types.Decisi
 		// known party.
 		reporter := arma_types.NewAssemblerIdentity(report.Party)
 		if err := sigVerifier.VerifySignature(reporter, report.ToBeSigned(), report.Signature); err != nil {
-			return reqID, ce, errors.Wrap(err, "invalid assembler decision report signature")
+			return reqID, ce, fmt.Errorf("invalid assembler decision report signature: %w", err)
 		}
 		return reqID, ce, nil
 	} else {
-		return smartbft_types.RequestInfo{}, ce, fmt.Errorf("empty control event")
+		return smartbft_types.RequestInfo{}, ce, errors.New("empty control event")
 	}
 }
 
@@ -1479,17 +1479,17 @@ func verifyReportDecisionNum(storage Storage, report *state.AssemblerDecisionRep
 	if proposalNum == 0 {
 		height := storage.Height()
 		if height == 0 {
-			return errors.Wrapf(ErrReportNotCommitted, "assembler decision report of decision %d received before any decision is committed",
-				report.DecisionNum)
+			return fmt.Errorf("assembler decision report of decision %d received before any decision is committed: %w",
+				report.DecisionNum, ErrReportNotCommitted)
 		}
 		if lastCommitted := arma_types.DecisionNum(height - 1); report.DecisionNum > lastCommitted {
-			return errors.Wrapf(ErrReportNotCommitted, "assembler decision report of decision %d is ahead of the last committed decision %d",
-				report.DecisionNum, lastCommitted)
+			return fmt.Errorf("assembler decision report of decision %d is ahead of the last committed decision %d: %w",
+				report.DecisionNum, lastCommitted, ErrReportNotCommitted)
 		}
 		return nil
 	}
 	if report.DecisionNum >= proposalNum {
-		return errors.Errorf("assembler decision report of decision %d is not below the proposed decision %d",
+		return fmt.Errorf("assembler decision report of decision %d is not below the proposed decision %d",
 			report.DecisionNum, proposalNum)
 	}
 	return nil
@@ -1527,7 +1527,7 @@ func (c *Consensus) validateBatcherFromContext(ctx context.Context, shardID arma
 // certificate from the configuration. expectedRawCert is the TLS cert from ConsenterNodeConfig.
 func validateClientFromContext(ctx context.Context, expectedRawCert []byte, name string, logger *flogging.FabricLogger) error {
 	if err := utils.ValidateClientCertFromContext(ctx, expectedRawCert); err != nil {
-		err = errors.Wrapf(err, "access denied; only the %s of the consenter's own party is served", name)
+		err = fmt.Errorf("access denied; only the %s of the consenter's own party is served: %w", name, err)
 		logger.Errorf("Rejecting a request from a %s: %s", name, err)
 		return err
 	}
@@ -1539,13 +1539,13 @@ func (c *Consensus) verifyAndClassifyRequest(request *protos.Request) (*protos.R
 
 	if err := c.RequestVerifier.Verify(request); err != nil {
 		c.Logger.Debugf("request is invalid: %s", err)
-		return nil, fmt.Errorf("request verification error: %s", err)
+		return nil, fmt.Errorf("request verification error: %w", err)
 	}
 
 	reqType, err := c.RequestVerifier.VerifyStructureAndClassify(request)
 	if err != nil {
 		c.Logger.Debugf("request structure is invalid: %s", err)
-		return nil, fmt.Errorf("request structure verification error: %s", err)
+		return nil, fmt.Errorf("request structure verification error: %w", err)
 	}
 
 	// if the request comes from the Router then we expect reqType = HeaderType_CONFIG_UPDATE
@@ -1557,11 +1557,11 @@ func (c *Consensus) verifyAndClassifyRequest(request *protos.Request) (*protos.R
 
 	configRequest, err := c.ConfigUpdateProposer.ProposeConfigUpdate(request, c.Config.Bundle, c.Signer, c.RequestVerifier, c.Config.BCCSP)
 	if err != nil {
-		return nil, fmt.Errorf("propose config update error: %s", err)
+		return nil, fmt.Errorf("propose config update error: %w", err)
 	}
 
 	if configRequest == nil {
-		return nil, errors.Errorf("unexpected config request was verified and proposed")
+		return nil, errors.New("unexpected config request was verified and proposed")
 	}
 
 	return configRequest, nil

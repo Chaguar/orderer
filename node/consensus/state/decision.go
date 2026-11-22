@@ -8,11 +8,12 @@ package state
 
 import (
 	"encoding/asn1"
+	"errors"
+	"fmt"
 
 	"github.com/Chaguar/common/protoutil"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -33,15 +34,15 @@ type asn1Proposal struct {
 // The proposal is extracted from the block's Data field.
 func ConsenterBlockToProposal(block *common.Block) (*smartbft_types.Proposal, error) {
 	if block == nil {
-		return nil, errors.Errorf("block is nil")
+		return nil, errors.New("block is nil")
 	}
 
 	if block.Header == nil {
-		return nil, errors.Errorf("block header is nil")
+		return nil, errors.New("block header is nil")
 	}
 
 	if block.Data == nil || len(block.Data.Data) == 0 {
-		return nil, errors.Errorf("data is empty for block: %d", block.Header.Number)
+		return nil, fmt.Errorf("data is empty for block: %d", block.Header.Number)
 	}
 
 	// Extract proposal from block data
@@ -56,26 +57,26 @@ func ConsenterBlockToProposal(block *common.Block) (*smartbft_types.Proposal, er
 func ConsenterBlockToDecision(block *common.Block) (*smartbft_types.Decision, error) {
 	proposal, err := ConsenterBlockToProposal(block)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to deserialize proposal for block")
+		return nil, fmt.Errorf("failed to deserialize proposal for block: %w", err)
 	}
 
 	if block.Metadata == nil || len(block.Metadata.Metadata) == 0 {
-		return nil, errors.Errorf("metadata is empty for block: %d", block.Header.Number)
+		return nil, fmt.Errorf("metadata is empty for block: %d", block.Header.Number)
 	}
 
 	if int(common.BlockMetadataIndex_SIGNATURES) >= len(block.Metadata.Metadata) {
-		return nil, errors.Errorf("block metadata index %d is out of range (length: %d) for block: %d",
+		return nil, fmt.Errorf("block metadata index %d is out of range (length: %d) for block: %d",
 			common.BlockMetadataIndex_SIGNATURES, len(block.Metadata.Metadata), block.Header.Number)
 	}
 
 	// Extract signatures from block metadata
 	signaturesBytes := block.Metadata.Metadata[common.BlockMetadataIndex_SIGNATURES]
 	if len(signaturesBytes) == 0 {
-		return nil, errors.Errorf("signatures metadata is empty for block: %d", block.Header.Number)
+		return nil, fmt.Errorf("signatures metadata is empty for block: %d", block.Header.Number)
 	}
 	signatures, err := BytesToDecisionSignatures(signaturesBytes)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to deserialize signatures for block: %d", block.Header.Number)
+		return nil, fmt.Errorf("failed to deserialize signatures for block: %d: %w", block.Header.Number, err)
 	}
 
 	return &smartbft_types.Decision{Proposal: *proposal, Signatures: signatures}, nil

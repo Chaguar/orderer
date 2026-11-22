@@ -9,6 +9,8 @@ package synchronizer
 import (
 	"bytes"
 	"encoding/asn1"
+	"errors"
+	"fmt"
 
 	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/common/channelconfig"
@@ -18,14 +20,14 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 type SigVerifierFunc func(block *common.Block, verifyData bool) error
 
 func createErrorFunc(err error) SigVerifierFunc {
+	err = fmt.Errorf("failed to initialize sig verifier function: %w", err)
 	return func(_ *common.Block, _ bool) error {
-		return errors.Wrap(err, "failed to initialize sig verifier function")
+		return err
 	}
 }
 
@@ -38,7 +40,8 @@ type SigVerifierCreator struct {
 // SigVerifierFromConfig creates a SigVerifier from the given configuration.
 func (svc *SigVerifierCreator) SigVerifierFromConfig(configuration *common.ConfigEnvelope, channel string, configBlockNum uint64) (SigVerifierFunc, error) {
 	if configuration == nil {
-		return createErrorFunc(errors.New("nil configuration")), errors.New("nil configuration")
+		err := errors.New("nil configuration")
+		return createErrorFunc(err), err
 	}
 
 	bundle, err := channelconfig.NewBundle(channel, configuration.Config, svc.BCCSP)
@@ -48,7 +51,7 @@ func (svc *SigVerifierCreator) SigVerifierFromConfig(configuration *common.Confi
 
 	policy, exists := bundle.PolicyManager().GetPolicy(policies.BlockValidation)
 	if !exists {
-		err := errors.Errorf("no `%s` policy in config block", policies.BlockValidation)
+		err := fmt.Errorf("no `%s` policy in config block", policies.BlockValidation)
 		return createErrorFunc(err), err
 	}
 
@@ -110,7 +113,7 @@ func (v *BlockSigVerifier) Verify(consenterBlock *common.Block, verifyData bool)
 	sigsBytes := consenterBlock.Metadata.Metadata[common.BlockMetadataIndex_SIGNATURES]
 	sigs, err := state.BytesToDecisionSignatures(sigsBytes)
 	if err != nil {
-		return errors.Wrap(err, "failed to deserialize signatures from metadata")
+		return fmt.Errorf("failed to deserialize signatures from metadata: %w", err)
 	}
 
 	// Pre-calculate the header bytes for proposal signature
@@ -120,7 +123,7 @@ func (v *BlockSigVerifier) Verify(consenterBlock *common.Block, verifyData bool)
 	proposalMetadata := consenterBlock.Metadata.Metadata[common.BlockMetadataIndex_ORDERER]
 	lastConfigIndex, err := state.GetLastConfigIndexFromConsenterBlock(consenterBlock)
 	if err != nil {
-		return errors.Wrap(err, "failed to get last config index from consenter block")
+		return fmt.Errorf("failed to get last config index from consenter block: %w", err)
 	}
 	proposalOrdererBlockMetadata := protoutil.MarshalOrPanic(&common.OrdererBlockMetadata{
 		LastConfig:        &common.LastConfig{Index: lastConfigIndex},
@@ -134,16 +137,16 @@ func (v *BlockSigVerifier) Verify(consenterBlock *common.Block, verifyData bool)
 		proposalBytes := consenterBlock.Data.Data[0]
 		proposal, err := state.BytesToProposal(proposalBytes)
 		if err != nil {
-			return errors.Wrap(err, "failed to deserialize proposal from block data")
+			return fmt.Errorf("failed to deserialize proposal from block data: %w", err)
 		}
 		if err := hdr.Deserialize(proposal.Header); err != nil {
-			return errors.Wrap(err, "failed deserializing proposal header")
+			return fmt.Errorf("failed deserializing proposal header: %w", err)
 		}
 		// Pre-calculate the available common blocks block header bytes
 		availableCommonBlocksHeaderBytes = make([][]byte, 0, len(hdr.AvailableCommonBlocks))
 		for i, availableBlock := range hdr.AvailableCommonBlocks {
 			if availableBlock.Header == nil {
-				return errors.Errorf("available common block header is nil at index %d", i)
+				return fmt.Errorf("available common block header is nil at index %d", i)
 			}
 			availableCommonBlocksHeaderBytes = append(availableCommonBlocksHeaderBytes, protoutil.BlockHeaderBytes(availableBlock.GetHeader()))
 		}
@@ -153,10 +156,10 @@ func (v *BlockSigVerifier) Verify(consenterBlock *common.Block, verifyData bool)
 		lastConfigNum := v.ConfigBlockNum
 		for i, availableBlock := range hdr.AvailableCommonBlocks {
 			if availableBlock.Metadata == nil {
-				return errors.Errorf("available common block metadata is nil at index %d", i)
+				return fmt.Errorf("available common block metadata is nil at index %d", i)
 			}
 			if len(availableBlock.Metadata.Metadata) <= int(common.BlockMetadataIndex_ORDERER) {
-				return errors.Errorf("available common block metadata is missing ORDERER entry at index %d", i)
+				return fmt.Errorf("available common block metadata is missing ORDERER entry at index %d", i)
 			}
 			if protoutil.IsConfigBlock(availableBlock) {
 				lastConfigNum = availableBlock.Header.Number
@@ -247,13 +250,13 @@ func (v *BlockSigVerifier) Verify(consenterBlock *common.Block, verifyData bool)
 	}
 
 	if err := v.Policy.EvaluateSignedData(signatureSets[0]); err != nil {
-		return errors.Wrapf(err, "failed to evaluate signature set of the first (proposal) signature for block ID %d", consenterBlock.GetHeader().GetNumber())
+		return fmt.Errorf("failed to evaluate signature set of the first (proposal) signature for block ID %d: %w", consenterBlock.GetHeader().GetNumber(), err)
 	}
 
 	if verifyData {
 		for i := range len(hdr.AvailableCommonBlocks) {
 			if err := v.Policy.EvaluateSignedData(signatureSets[i+1]); err != nil {
-				return errors.Wrapf(err, "failed to evaluate signature set in index %d for block ID %d", i, consenterBlock.GetHeader().GetNumber())
+				return fmt.Errorf("failed to evaluate signature set in index %d for block ID %d: %w", i, consenterBlock.GetHeader().GetNumber(), err)
 			}
 		}
 	}
@@ -272,25 +275,25 @@ func (v *BlockSigVerifier) searchConsenterIdentityByID(identifier uint32) *msppb
 
 func (v *BlockSigVerifier) collectBlocksSignatures(msgs, values, blockHeaderBytes, ordererBlockMetadata [][]byte, id uint64) ([]*protoutil.SignedData, error) {
 	if len(msgs) != len(values) || len(msgs) != len(blockHeaderBytes) || len(msgs) != len(ordererBlockMetadata) {
-		return nil, errors.Errorf("the length of the msgs, values, blockHeaderBytes and ordererBlockMetadata slices are not equal for signature id %d", id)
+		return nil, fmt.Errorf("the length of the msgs, values, blockHeaderBytes and ordererBlockMetadata slices are not equal for signature id %d", id)
 	}
 	signatureSet := make([]*protoutil.SignedData, 0, len(msgs))
 	for i, msg := range msgs {
 		signedMsg := &protoutil.MessageToSign{}
 		if err := signedMsg.ASN1Unmarshal(msg); err != nil {
-			return nil, errors.Wrapf(err, "failed to unmarshal the signature msg in index %d with id %d", i, id)
+			return nil, fmt.Errorf("failed to unmarshal the signature msg in index %d with id %d: %w", i, id, err)
 		}
 		// verify message identifier header
 		idHeader, err := protoutil.UnmarshalIdentifierHeader(signedMsg.IdentifierHeader)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed to unmarshal identifier header from the signature msg in index %d with id %d", i, id)
+			return nil, fmt.Errorf("failed to unmarshal identifier header from the signature msg in index %d with id %d: %w", i, id, err)
 		}
 		if uint64(idHeader.GetIdentifier()) != id {
-			return nil, errors.Errorf("signature ID %d does not match identifier header ID %d in signature msg in index %d", id, idHeader.GetIdentifier(), i)
+			return nil, fmt.Errorf("signature ID %d does not match identifier header ID %d in signature msg in index %d", id, idHeader.GetIdentifier(), i)
 		}
 		signerIdentity := v.searchConsenterIdentityByID(idHeader.GetIdentifier())
 		if signerIdentity == nil {
-			return nil, errors.Errorf("signature with id %d has unknown consenter identity", id)
+			return nil, fmt.Errorf("signature with id %d has unknown consenter identity", id)
 		}
 		computedMsg := &protoutil.MessageToSign{
 			IdentifierHeader:     signedMsg.IdentifierHeader,
@@ -299,7 +302,7 @@ func (v *BlockSigVerifier) collectBlocksSignatures(msgs, values, blockHeaderByte
 		}
 		marshaledComputedMsg := computedMsg.ASN1MarshalOrPanic()
 		if !bytes.Equal(marshaledComputedMsg, msg) {
-			return nil, errors.Errorf("signature msg in index %d with id %d does not match computed message", i, id)
+			return nil, fmt.Errorf("signature msg in index %d with id %d does not match computed message", i, id)
 		}
 		signatureSet = append(signatureSet, &protoutil.SignedData{
 			Identity:  signerIdentity,

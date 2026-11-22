@@ -7,11 +7,11 @@ SPDX-License-Identifier: Apache-2.0
 package state
 
 import (
+	"fmt"
 	"math"
 
 	"github.com/Chaguar/orderer/common/types"
 	stateprotos "github.com/Chaguar/orderer/node/protos/state"
-	"github.com/pkg/errors"
 )
 
 // AssemblerHeight is the highest committed decision number an assembler party reported.
@@ -29,7 +29,7 @@ func (h *AssemblerHeight) toProto() *stateprotos.AssemblerHeight {
 
 func (h *AssemblerHeight) fromProto(ph *stateprotos.AssemblerHeight) error {
 	if ph.GetParty() > math.MaxUint16 {
-		return errors.Errorf("the AssemblerHeight Party value %d exceeds uint16 maximum %d", ph.Party, math.MaxUint16)
+		return fmt.Errorf("the AssemblerHeight Party value %d exceeds uint16 maximum %d", ph.Party, math.MaxUint16)
 	}
 	h.Party = types.PartyID(ph.GetParty())
 	h.DecisionNum = types.DecisionNum(ph.GetDecisionNum())
@@ -54,10 +54,10 @@ func (p *PrunePoint) toProto() *stateprotos.PrunePoint {
 
 func (p *PrunePoint) fromProto(pp *stateprotos.PrunePoint) error {
 	if pp.GetShard() > math.MaxUint16 {
-		return errors.Errorf("the PrunePoint Shard value %d exceeds uint16 maximum %d", pp.Shard, math.MaxUint16)
+		return fmt.Errorf("the PrunePoint Shard value %d exceeds uint16 maximum %d", pp.Shard, math.MaxUint16)
 	}
 	if pp.GetPrimary() > math.MaxUint16 {
-		return errors.Errorf("the PrunePoint Primary value %d exceeds uint16 maximum %d", pp.Primary, math.MaxUint16)
+		return fmt.Errorf("the PrunePoint Primary value %d exceeds uint16 maximum %d", pp.Primary, math.MaxUint16)
 	}
 	p.Shard = types.ShardID(pp.GetShard())
 	p.Primary = types.PartyID(pp.GetPrimary())

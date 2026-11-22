@@ -7,12 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package state
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Chaguar/orderer/common/types"
 	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -87,7 +87,7 @@ func (h *Header) Deserialize(rawBytes []byte) error {
 
 	var protoHeader stateprotos.Header
 	if err := proto.Unmarshal(rawBytes, &protoHeader); err != nil {
-		return errors.Wrap(err, "failed to unmarshal header")
+		return fmt.Errorf("failed to unmarshal header: %w", err)
 	}
 
 	h.Num = types.DecisionNum(protoHeader.Num)
@@ -101,7 +101,7 @@ func (h *Header) Deserialize(rawBytes []byte) error {
 		for i, rawBlock := range protoHeader.AvailableCommonBlocks {
 			block := &common.Block{}
 			if err := proto.Unmarshal(rawBlock, block); err != nil {
-				return errors.Wrapf(err, "failed to unmarshal available common block at index %d", i)
+				return fmt.Errorf("failed to unmarshal available common block at index %d: %w", i, err)
 			}
 			h.AvailableCommonBlocks[i] = block
 		}
@@ -113,7 +113,7 @@ func (h *Header) Deserialize(rawBytes []byte) error {
 	} else {
 		h.State = &State{}
 		if err := h.State.Deserialize(protoHeader.State); err != nil {
-			return errors.Wrap(err, "failed to deserialize state")
+			return fmt.Errorf("failed to deserialize state: %w", err)
 		}
 	}
 

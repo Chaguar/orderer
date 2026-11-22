@@ -8,6 +8,7 @@ package synchronizer_test
 
 import (
 	"encoding/asn1"
+	"errors"
 	"fmt"
 	"testing"
 
@@ -19,7 +20,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp/sw"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -18,7 +18,6 @@ import (
 	"github.com/Chaguar/orderer/common/utils"
 	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -233,7 +232,7 @@ func (s *State) Deserialize(rawBytes []byte) error {
 		for _, bafProto := range ps.Pending {
 			baf := &types.SimpleBatchAttestationFragment{}
 			if err := baf.FromProto(bafProto); err != nil {
-				return fmt.Errorf("failed loading batch attestation fragment: %v", err)
+				return fmt.Errorf("failed loading batch attestation fragment: %w", err)
 			}
 			s.Pending = append(s.Pending, baf)
 		}
@@ -244,7 +243,7 @@ func (s *State) Deserialize(rawBytes []byte) error {
 		s.Complaints = make([]Complaint, len(ps.Complaints))
 		for i, protoComplaint := range ps.Complaints {
 			if err := s.Complaints[i].fromProto(protoComplaint); err != nil {
-				return fmt.Errorf("failed loading complaint at index %d: %v", i, err)
+				return fmt.Errorf("failed loading complaint at index %d: %w", i, err)
 			}
 		}
 	}
@@ -255,7 +254,7 @@ func (s *State) Deserialize(rawBytes []byte) error {
 		for _, bafProto := range ps.StaleConfigBafs {
 			baf := &types.SimpleBatchAttestationFragment{}
 			if err := baf.FromProto(bafProto); err != nil {
-				return fmt.Errorf("failed loading stale config batch attestation fragment: %v", err)
+				return fmt.Errorf("failed loading stale config batch attestation fragment: %w", err)
 			}
 			s.StaleConfigBAFs = append(s.StaleConfigBAFs, baf)
 		}
@@ -266,7 +265,7 @@ func (s *State) Deserialize(rawBytes []byte) error {
 		s.AssemblerHeights = make([]AssemblerHeight, len(ps.AssemblerHeights))
 		for i, protoHeight := range ps.AssemblerHeights {
 			if err := s.AssemblerHeights[i].fromProto(protoHeight); err != nil {
-				return errors.Wrapf(err, "failed loading assembler height at index %d", i)
+				return fmt.Errorf("failed loading assembler height at index %d: %w", i, err)
 			}
 		}
 	}
@@ -276,7 +275,7 @@ func (s *State) Deserialize(rawBytes []byte) error {
 		s.PrunePoints = make([]PrunePoint, len(ps.PrunePoints))
 		for i, protoPrunePoint := range ps.PrunePoints {
 			if err := s.PrunePoints[i].fromProto(protoPrunePoint); err != nil {
-				return errors.Wrapf(err, "failed loading prune point at index %d", i)
+				return fmt.Errorf("failed loading prune point at index %d: %w", i, err)
 			}
 		}
 	}

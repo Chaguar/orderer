@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer_test
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"sync"
 	"sync/atomic"
@@ -27,7 +29,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -337,11 +338,11 @@ func TestBFTSynchronizer(t *testing.T) {
 			// get last config index
 			rawLastConfig, err := protoutil.GetMetadataFromBlock(b, cb.BlockMetadataIndex_LAST_CONFIG)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed getting proposed block metadata last config")
+				return nil, fmt.Errorf("failed getting proposed block metadata last config: %w", err)
 			}
 			lastConf := &cb.LastConfig{}
 			if err := proto.Unmarshal(rawLastConfig.Value, lastConf); err != nil {
-				return nil, errors.Wrap(err, "failed unmarshaling proposed block metadata last config")
+				return nil, fmt.Errorf("failed unmarshaling proposed block metadata last config: %w", err)
 			}
 			lastConfigBlock := ledger[lastConf.Index]
 
@@ -838,11 +839,11 @@ func TestBFTSynchronizer(t *testing.T) {
 			// get last config index
 			rawLastConfig, err := protoutil.GetMetadataFromBlock(b, cb.BlockMetadataIndex_LAST_CONFIG)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed getting proposed block metadata last config")
+				return nil, fmt.Errorf("failed getting proposed block metadata last config: %w", err)
 			}
 			lastConf := &cb.LastConfig{}
 			if err := proto.Unmarshal(rawLastConfig.Value, lastConf); err != nil {
-				return nil, errors.Wrap(err, "failed unmarshaling proposed block metadata last config")
+				return nil, fmt.Errorf("failed unmarshaling proposed block metadata last config: %w", err)
 			}
 			lastConfigBlock := ledger[lastConf.Index]
 
@@ -992,11 +993,11 @@ func TestBFTSynchronizer(t *testing.T) {
 			// get last config index
 			rawLastConfig, err := protoutil.GetMetadataFromBlock(b, cb.BlockMetadataIndex_LAST_CONFIG)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed getting proposed block metadata last config")
+				return nil, fmt.Errorf("failed getting proposed block metadata last config: %w", err)
 			}
 			lastConf := &cb.LastConfig{}
 			if err := proto.Unmarshal(rawLastConfig.Value, lastConf); err != nil {
-				return nil, errors.Wrap(err, "failed unmarshaling proposed block metadata last config")
+				return nil, fmt.Errorf("failed unmarshaling proposed block metadata last config: %w", err)
 			}
 			lastConfigBlock := ledger[lastConf.Index]
 
@@ -1164,11 +1165,11 @@ func TestBFTSynchronizer(t *testing.T) {
 			// get last config index
 			rawLastConfig, err := protoutil.GetMetadataFromBlock(b, cb.BlockMetadataIndex_LAST_CONFIG)
 			if err != nil {
-				return nil, errors.Wrap(err, "failed getting proposed block metadata last config")
+				return nil, fmt.Errorf("failed getting proposed block metadata last config: %w", err)
 			}
 			lastConf := &cb.LastConfig{}
 			if err := proto.Unmarshal(rawLastConfig.Value, lastConf); err != nil {
-				return nil, errors.Wrap(err, "failed unmarshaling proposed block metadata last config")
+				return nil, fmt.Errorf("failed unmarshaling proposed block metadata last config: %w", err)
 			}
 
 			ledgerLock.Lock()
