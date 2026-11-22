@@ -114,12 +114,12 @@ func (s *RPC) SendConsensus(destination uint64, msg *orderer.ConsensusRequest) e
 	s.consensusLock.Lock()
 	defer s.consensusLock.Unlock()
 
-	err = stream.Send(req)
-	if err != nil {
+	if err := stream.Send(req); err != nil {
 		s.unMapStream(destination, ConsensusOperation, stream.ID)
+		return fmt.Errorf("failed to send consensus request: %w", err)
 	}
 
-	return fmt.Errorf("failed to send consensus request: %w", err)
+	return nil
 }
 
 // SendSubmit sends a SubmitRequest to the given destination node.
