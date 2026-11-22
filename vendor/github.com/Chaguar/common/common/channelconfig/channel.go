@@ -190,7 +190,7 @@ func (cc *ChannelConfig) Validate(channelCapabilities ChannelCapabilities) error
 		}
 	}
 
-	// We validate no global endpoints in Fabric-X, as we insist on per Org endpoints for every org.
+	// We validate no global endpoints in Chaguar, as we insist on per Org endpoints for every org.
 	return cc.validateNoOrdererAddresses()
 }
 

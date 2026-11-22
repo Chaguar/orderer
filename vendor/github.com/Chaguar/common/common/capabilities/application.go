@@ -70,7 +70,7 @@ func (ap *ApplicationProvider) Type() string {
 }
 
 // ACLs returns whether ACLs may be specified in the channel application config.
-// In Fabric-X, ACLs are always allowed regardless of capability version.
+// In Chaguar, ACLs are always allowed regardless of capability version.
 func (ap *ApplicationProvider) ACLs() bool {
 	return true
 }

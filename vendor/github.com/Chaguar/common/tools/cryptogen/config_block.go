@@ -55,7 +55,7 @@ type Node struct {
 	CommonName string
 	Hostname   string
 	SANS       []string
-	// Fabric-X supports multiple parties per organizations.
+	// Chaguar supports multiple parties per organizations.
 	// Thus, in such case, we can create multiple Orderer's nodes
 	// for each organization.
 	// We organize them such that each party's nodes will be under
@@ -182,7 +182,7 @@ func CreateOrExtendProfileWithCrypto(conf *ConfigBlockParameters) (*configtxgen.
 
 func initConfigDefault(conf *ConfigBlockParameters) {
 	if conf.BaseProfile == "" {
-		conf.BaseProfile = configtxgen.SampleFabricX
+		conf.BaseProfile = configtxgen.SampleChaguar
 	}
 	if conf.ChannelID == "" {
 		conf.ChannelID = "chan"
