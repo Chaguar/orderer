@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package delivery
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Chaguar/orderer/common/types"
@@ -16,7 +18,6 @@ import (
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 func extractHeaderFromBlock(block *common.Block, logger *flogging.FabricLogger) *state.Header {
@@ -54,12 +55,12 @@ func extractHeaderAndSigsFromBlock(block *common.Block) (*state.Header, [][]smar
 	}
 	decision, err := state.ConsenterBlockToDecision(block)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to extract decision from consenter block: %d", block.GetHeader().GetNumber())
+		return nil, nil, fmt.Errorf("failed to extract decision from consenter block: %d: %w", block.GetHeader().GetNumber(), err)
 	}
 
 	header := &state.Header{}
 	if err := header.Deserialize(decision.Proposal.Header); err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to deserialize proposal header from block: %d", block.GetHeader().GetNumber())
+		return nil, nil, fmt.Errorf("failed to deserialize proposal header from block: %d: %w", block.GetHeader().GetNumber(), err)
 	}
 
 	if block.Header.Number == 0 { // this is the genesis block
@@ -69,7 +70,7 @@ func extractHeaderAndSigsFromBlock(block *common.Block) (*state.Header, [][]smar
 
 	sigs, err := state.UnpackBlockHeaderSigs(decision.Signatures, len(header.AvailableCommonBlocks))
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to extract header signatures from compound signature, block %d", block.GetHeader().GetNumber())
+		return nil, nil, fmt.Errorf("failed to extract header signatures from compound signature, block %d: %w", block.GetHeader().GetNumber(), err)
 	}
 
 	return header, sigs, nil

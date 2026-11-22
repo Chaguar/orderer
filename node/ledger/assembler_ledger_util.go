@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package ledger
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"sort"
@@ -18,7 +19,6 @@ import (
 	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -26,10 +26,10 @@ import (
 // This metadata is stored in the ORDERER metadata index of Fabric blocks created by the assembler.
 func AssemblerBlockMetadataToBytes(batchID types.BatchID, orderingInfo *state.OrderingInformation, transactionCount uint64) ([]byte, error) {
 	if batchID == nil {
-		return nil, errors.Errorf("nil batchID")
+		return nil, errors.New("nil batchID")
 	}
 	if orderingInfo == nil {
-		return nil, errors.Errorf("nil orderingInfo")
+		return nil, errors.New("nil orderingInfo")
 	}
 
 	md := &stateprotos.AssemblerBlockMetadata{
@@ -48,24 +48,24 @@ func AssemblerBlockMetadataToBytes(batchID types.BatchID, orderingInfo *state.Or
 // AssemblerBlockMetadataFromBytes deserializes batch metadata from bytes using protobuf.
 func AssemblerBlockMetadataFromBytes(metadata []byte) (primary types.PartyID, shard types.ShardID, seq types.BatchSequence, num types.DecisionNum, batchIndex, batchCount uint32, transactionCount uint64, err error) {
 	if metadata == nil {
-		return 0, 0, 0, 0, 0, 0, 0, errors.Errorf("nil bytes")
+		return 0, 0, 0, 0, 0, 0, 0, errors.New("nil bytes")
 	}
 
 	if len(metadata) == 0 {
-		return 0, 0, 0, 0, 0, 0, 0, errors.Errorf("empty bytes")
+		return 0, 0, 0, 0, 0, 0, 0, errors.New("empty bytes")
 	}
 
 	md := &stateprotos.AssemblerBlockMetadata{}
 	if err := proto.Unmarshal(metadata, md); err != nil {
-		return 0, 0, 0, 0, 0, 0, 0, errors.Wrap(err, "failed to unmarshal assembler block metadata")
+		return 0, 0, 0, 0, 0, 0, 0, fmt.Errorf("failed to unmarshal assembler block metadata: %w", err)
 	}
 
 	if md.Shard > math.MaxUint16 {
-		return 0, 0, 0, 0, 0, 0, 0, errors.Wrapf(err, "the shard value %d exceeds uint16 maximum %d", md.Shard, math.MaxUint16)
+		return 0, 0, 0, 0, 0, 0, 0, fmt.Errorf("the shard value %d exceeds uint16 maximum %d", md.Shard, math.MaxUint16)
 	}
 
 	if md.Primary > math.MaxUint16 {
-		return 0, 0, 0, 0, 0, 0, 0, errors.Wrapf(err, "the primary value %d exceeds uint16 maximum %d", md.Primary, math.MaxUint16)
+		return 0, 0, 0, 0, 0, 0, 0, fmt.Errorf("the primary value %d exceeds uint16 maximum %d", md.Primary, math.MaxUint16)
 	}
 
 	return types.PartyID(md.Primary),
@@ -82,36 +82,36 @@ func AssemblerBlockMetadataFromBytes(metadata []byte) (primary types.PartyID, sh
 // and header of the block.
 func AssemblerBatchIdOrderingInfoAndTxCountFromBlock(block *common.Block) (types.BatchID, *state.OrderingInformation, uint64, error) {
 	if block == nil {
-		return nil, nil, 0, errors.Errorf("nil block")
+		return nil, nil, 0, errors.New("nil block")
 	}
 
 	if block.Header == nil {
-		return nil, nil, 0, errors.Errorf("nil block header")
+		return nil, nil, 0, errors.New("nil block header")
 	}
 
 	if block.Metadata == nil || len(block.Metadata.Metadata) == 0 {
-		return nil, nil, 0, errors.Errorf("missing block metadata")
+		return nil, nil, 0, errors.New("missing block metadata")
 	}
 
 	if len(block.Metadata.Metadata) < int(common.BlockMetadataIndex_ORDERER)+1 {
-		return nil, nil, 0, errors.Errorf("missing block ORDERER metadata")
+		return nil, nil, 0, errors.New("missing block ORDERER metadata")
 	}
 
 	pr, sh, seq, num, bI, bC, tC, err := AssemblerBlockMetadataFromBytes(block.Metadata.Metadata[common.BlockMetadataIndex_ORDERER])
 	if err != nil {
-		return nil, nil, 0, errors.Wrap(err, "failed to extract AssemblerBlockMetadata")
+		return nil, nil, 0, fmt.Errorf("failed to extract AssemblerBlockMetadata: %w", err)
 	}
 
 	mdSigs, err := protoutil.GetMetadataFromBlock(block, common.BlockMetadataIndex_SIGNATURES)
 	if err != nil {
-		return nil, nil, 0, errors.Wrap(err, "failed to extract signatures")
+		return nil, nil, 0, fmt.Errorf("failed to extract signatures: %w", err)
 	}
 
 	var bftSigs []smartbft_types.Signature
 	for _, sig := range mdSigs.Signatures {
 		identifierHeader, err := protoutil.UnmarshalIdentifierHeader(sig.IdentifierHeader)
 		if err != nil {
-			return nil, nil, 0, errors.Wrap(err, "failed to extract signature identifier")
+			return nil, nil, 0, fmt.Errorf("failed to extract signature identifier: %w", err)
 		}
 		bftSigs = append(bftSigs, smartbft_types.Signature{
 			ID:    uint64(identifierHeader.GetIdentifier()),
@@ -188,15 +188,15 @@ func BatchFrontierToString(frontier BatchFrontier) string {
 func GetLastConfigIndexFromAssemblerLedger(assemblerLedger AssemblerLedgerReaderWriter) (uint64, error) {
 	ledgerHeight := assemblerLedger.LedgerReader().Height()
 	if ledgerHeight == 0 {
-		return 0, fmt.Errorf("assembler ledger is empty")
+		return 0, errors.New("assembler ledger is empty")
 	}
 	lastBlock, err := assemblerLedger.LedgerReader().RetrieveBlockByNumber(ledgerHeight - 1)
 	if err != nil {
-		return 0, fmt.Errorf("failed to retrieve last block from assembler ledger: %s", err)
+		return 0, fmt.Errorf("failed to retrieve last block from assembler ledger: %w", err)
 	}
 	lastConfigIndex, err := protoutil.GetLastConfigIndexFromBlock(lastBlock)
 	if err != nil {
-		return 0, fmt.Errorf("failed to get last config index from assebmler's last block: %s", err)
+		return 0, fmt.Errorf("failed to get last config index from assembler's last block: %w", err)
 	}
 	return lastConfigIndex, nil
 }
@@ -204,11 +204,11 @@ func GetLastConfigIndexFromAssemblerLedger(assemblerLedger AssemblerLedgerReader
 func GetLastConfigBlockFromAssemblerLedger(assemblerLedger AssemblerLedgerReaderWriter) (*common.Block, error) {
 	lastConfigIndex, err := GetLastConfigIndexFromAssemblerLedger(assemblerLedger)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get last config block: %s", err)
+		return nil, fmt.Errorf("failed to get last config block: %w", err)
 	}
 	lastConfigBlock, err := assemblerLedger.LedgerReader().RetrieveBlockByNumber(lastConfigIndex)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get last config block: %s", err)
+		return nil, fmt.Errorf("failed to get last config block: %w", err)
 	}
 	return lastConfigBlock, nil
 }

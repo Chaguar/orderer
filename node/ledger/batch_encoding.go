@@ -8,6 +8,7 @@ package ledger
 
 import (
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -16,7 +17,6 @@ import (
 
 	"github.com/Chaguar/common/common/configtx"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // BlockMetadataIndex_PartyShardConfigSequence is the location where we encode the ShardID, primary PartyID, and config sequence.
@@ -168,33 +168,33 @@ func ShardPartyChannelIDToChannelName(shardID types.ShardID, partyID types.Party
 func ChannelNameToShardPartyChannelID(channelName string) (types.ShardID, types.PartyID, string, error) {
 	s, ok := strings.CutPrefix(channelName, "shard")
 	if !ok {
-		return 0, 0, "", errors.Errorf("channel name does not start with 'shard': %s", channelName)
+		return 0, 0, "", fmt.Errorf("channel name does not start with 'shard': %s", channelName)
 	}
 
 	shard, rest, found := strings.Cut(s, "party")
 	if !found {
-		return 0, 0, "", errors.Errorf("channel name does not contain 'party': %s", channelName)
+		return 0, 0, "", fmt.Errorf("channel name does not contain 'party': %s", channelName)
 	}
 
 	// ShardID and PartyID are uint16, so parse directly into 16 bits to reject overflow and negatives.
 	shardID, err := strconv.ParseUint(shard, 10, 16)
 	if err != nil {
-		return 0, 0, "", errors.Errorf("cannot extract 'shardID' from channel name: %s, err: %s", channelName, err)
+		return 0, 0, "", fmt.Errorf("cannot extract 'shardID' from channel name: %s, err: %w", channelName, err)
 	}
 
 	// The remainder is "<partyID>-<channelID>"; the channelID itself may contain further '-'.
 	partyStr, channelID, found := strings.Cut(rest, "-")
 	if !found {
-		return 0, 0, "", errors.Errorf("channel name does not contain the '-<channelID>' suffix: %s", channelName)
+		return 0, 0, "", fmt.Errorf("channel name does not contain the '-<channelID>' suffix: %s", channelName)
 	}
 
 	partyID, err := strconv.ParseUint(partyStr, 10, 16)
 	if err != nil {
-		return 0, 0, "", errors.Errorf("cannot extract 'partyID' from channel name: %s, err: %s", channelName, err)
+		return 0, 0, "", fmt.Errorf("cannot extract 'partyID' from channel name: %s, err: %w", channelName, err)
 	}
 
 	if err := configtx.ValidateChannelID(channelID); err != nil {
-		return 0, 0, "", errors.Errorf("cannot extract 'channelID' from channel name: %s, err: %s", channelName, err)
+		return 0, 0, "", fmt.Errorf("cannot extract 'channelID' from channel name: %s, err: %w", channelName, err)
 	}
 
 	return types.ShardID(shardID), types.PartyID(partyID), channelID, nil
