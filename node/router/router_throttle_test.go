@@ -15,7 +15,7 @@ import (
 	"time"
 
 	"github.com/Chaguar/orderer/common/types"
-	fabricx_config "github.com/Chaguar/orderer/config"
+	orderer_config "github.com/Chaguar/orderer/config"
 	"github.com/Chaguar/orderer/node/config"
 	protos "github.com/Chaguar/orderer/node/protos/comm"
 	node_utils "github.com/Chaguar/orderer/node/utils"
@@ -37,7 +37,7 @@ func withThrottling(policy string, rate, burst int) func(*config.RouterNodeConfi
 // rejections carrying the throttle message while the initial burst succeeds, and
 // that the router_requests_throttled metric is incremented.
 func TestBroadcastThrottled(t *testing.T) {
-	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false, withThrottling(fabricx_config.ThrottlingPolicyGlobal, 1, 1))
+	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false, withThrottling(orderer_config.ThrottlingPolicyGlobal, 1, 1))
 	err := createServerTLSClientConnection(testSetup, testSetup.ca)
 	require.NoError(t, err)
 	require.NotNil(t, testSetup.clientConn)
@@ -61,7 +61,7 @@ func TestBroadcastThrottled(t *testing.T) {
 // are rejected with the throttle error, and that each throttled response carries
 // its ReqID for client correlation.
 func TestSubmitThrottled(t *testing.T) {
-	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false, withThrottling(fabricx_config.ThrottlingPolicyGlobal, 1, 1))
+	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false, withThrottling(orderer_config.ThrottlingPolicyGlobal, 1, 1))
 	err := createServerTLSClientConnection(testSetup, testSetup.ca)
 	require.NoError(t, err)
 	require.NotNil(t, testSetup.clientConn)
@@ -90,7 +90,7 @@ func TestSubmitThrottled(t *testing.T) {
 // rate limit are rejected with the throttle error, and that each throttled
 // response carries its ReqID so a client can correlate it on the stream.
 func TestSubmitStreamThrottled(t *testing.T) {
-	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false, withThrottling(fabricx_config.ThrottlingPolicyGlobal, 1, 1))
+	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false, withThrottling(orderer_config.ThrottlingPolicyGlobal, 1, 1))
 	err := createServerTLSClientConnection(testSetup, testSetup.ca)
 	require.NoError(t, err)
 	require.NotNil(t, testSetup.clientConn)
@@ -129,7 +129,7 @@ func TestSubmitStreamThrottled(t *testing.T) {
 // TestThrottlingDisabledPassThrough verifies that with the disabled policy, all
 // requests pass through and none are throttled.
 func TestThrottlingDisabledPassThrough(t *testing.T) {
-	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false, withThrottling(fabricx_config.ThrottlingPolicyDisabled, 0, 0))
+	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false, withThrottling(orderer_config.ThrottlingPolicyDisabled, 0, 0))
 	err := createServerTLSClientConnection(testSetup, testSetup.ca)
 	require.NoError(t, err)
 	require.NotNil(t, testSetup.clientConn)
@@ -144,9 +144,9 @@ func TestThrottlingDisabledPassThrough(t *testing.T) {
 // withRouterThrottling returns a local-config mutator that turns on the router's global request
 // throttling. It is applied to the generated router local config before it is loaded, so the real
 // router boots with the throttler installed.
-func withRouterThrottling(policy string, rate, burst int) func(*fabricx_config.NodeLocalConfig) {
-	return func(nlc *fabricx_config.NodeLocalConfig) {
-		nlc.RouterParams.Throttling = &fabricx_config.ThrottlingParams{Policy: policy, Rate: rate, Burst: burst}
+func withRouterThrottling(policy string, rate, burst int) func(*orderer_config.NodeLocalConfig) {
+	return func(nlc *orderer_config.NodeLocalConfig) {
+		nlc.RouterParams.Throttling = &orderer_config.ThrottlingParams{Policy: policy, Rate: rate, Burst: burst}
 	}
 }
 
@@ -161,7 +161,7 @@ func TestRouterThrottling(t *testing.T) {
 	partyId := types.PartyID(1)
 
 	dir := t.TempDir()
-	testSetup := createReconfigTestSetup(t, dir, partyId, withRouterThrottling(fabricx_config.ThrottlingPolicyGlobal, 100, 10))
+	testSetup := createReconfigTestSetup(t, dir, partyId, withRouterThrottling(orderer_config.ThrottlingPolicyGlobal, 100, 10))
 	testSetup.Start()
 	defer testSetup.Stop()
 

@@ -26,7 +26,7 @@ import (
 	"github.com/Chaguar/orderer/common/tools/armageddon"
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/Chaguar/orderer/common/utils"
-	fabricx_config "github.com/Chaguar/orderer/config"
+	orderer_config "github.com/Chaguar/orderer/config"
 	"github.com/Chaguar/orderer/config/generate"
 	ordererRulesMocks "github.com/Chaguar/orderer/config/verify/mocks"
 	"github.com/Chaguar/orderer/node/comm"
@@ -878,7 +878,7 @@ func TestRouterSendConfigUpdateToConsenterStub(t *testing.T) {
 
 	routerNodeInfo := netInfo[testutil.NodeName{PartyID: types.PartyID(1), NodeType: testutil.Router}]
 	routerNodeConfigPath := filepath.Join(dir, "config", "party1", "local_config_router.yaml")
-	localConfig, _, err := fabricx_config.LoadLocalConfig(routerNodeConfigPath, testutil.CreateLoggerForModule(t, "LoadLocalConfigRouter", zap.DebugLevel))
+	localConfig, _, err := orderer_config.LoadLocalConfig(routerNodeConfigPath, testutil.CreateLoggerForModule(t, "LoadLocalConfigRouter", zap.DebugLevel))
 	require.NoError(t, err)
 
 	localConfig.NodeLocalConfig.FileStore.Path = configStoreDir
@@ -1268,8 +1268,8 @@ func createAndStartRouter(t *testing.T, partyID types.PartyID, ca tlsgen.CA, bat
 		ClientAuthRequired:                  clientAuthRequired,
 		Shards:                              shards,
 		Consenter:                           stubConsenterInfo,
-		NumOfConnectionsForBatcher:          fabricx_config.DefaultRouterParams.NumberOfConnectionsPerBatcher,
-		NumOfgRPCStreamsPerConnection:       fabricx_config.DefaultRouterParams.NumberOfStreamsPerConnection,
+		NumOfConnectionsForBatcher:          orderer_config.DefaultRouterParams.NumberOfConnectionsPerBatcher,
+		NumOfgRPCStreamsPerConnection:       orderer_config.DefaultRouterParams.NumberOfStreamsPerConnection,
 		RequestMaxBytes:                     1 << 10,
 		ClientSignatureVerificationRequired: false,
 		Bundle:                              bundle,
