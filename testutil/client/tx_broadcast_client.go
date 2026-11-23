@@ -72,13 +72,13 @@ func (c *BroadcastTxClient) SendTxTo(envelope *common.Envelope, partyID types.Pa
 	err = sInfo.stream.Send(envelope)
 	if err != nil {
 		sInfo.stream = nil
-		return fmt.Errorf("failed to send tx to %s: %s", sInfo.endpoint, err.Error())
+		return fmt.Errorf("failed to send tx to %s: %w", sInfo.endpoint, err)
 	}
 	resp, err := sInfo.stream.Recv()
 	if err != nil {
 		if err != io.EOF {
 			sInfo.stream = nil
-			return fmt.Errorf("received error response from %s: %s", sInfo.endpoint, err.Error())
+			return fmt.Errorf("received error response from %s: %w", sInfo.endpoint, err)
 		}
 		return nil
 	}
