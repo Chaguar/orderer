@@ -11,6 +11,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"testing"
 	"time"
 
@@ -23,7 +24,6 @@ import (
 	"github.com/Chaguar/orderer/common/utils"
 	"github.com/Chaguar/orderer/test/mocks"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 

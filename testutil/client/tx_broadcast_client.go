@@ -8,6 +8,7 @@ package client
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"strings"
@@ -59,7 +60,7 @@ func (c *BroadcastTxClient) SendTxTo(envelope *common.Envelope, partyID types.Pa
 	}
 
 	if len(c.streamRoutersMap) == 0 {
-		return fmt.Errorf("failed to create a gRPC client connection to routers")
+		return errors.New("failed to create a gRPC client connection to routers")
 	}
 
 	// RouterEndpoints are ordered by PartyID, where RouterEndpoints[0] corresponds to PartyID 1
@@ -71,13 +72,13 @@ func (c *BroadcastTxClient) SendTxTo(envelope *common.Envelope, partyID types.Pa
 	err = sInfo.stream.Send(envelope)
 	if err != nil {
 		sInfo.stream = nil
-		return fmt.Errorf("failed to send tx to %s: %s", sInfo.endpoint, err.Error())
+		return fmt.Errorf("failed to send tx to %s: %w", sInfo.endpoint, err)
 	}
 	resp, err := sInfo.stream.Recv()
 	if err != nil {
 		if err != io.EOF {
 			sInfo.stream = nil
-			return fmt.Errorf("received error response from %s: %s", sInfo.endpoint, err.Error())
+			return fmt.Errorf("received error response from %s: %w", sInfo.endpoint, err)
 		}
 		return nil
 	}
@@ -100,7 +101,7 @@ func (c *BroadcastTxClient) SendTx(envelope *common.Envelope) error {
 	}
 
 	if len(c.streamRoutersMap) == 0 {
-		return fmt.Errorf("failed to create a gRPC client connection to routers")
+		return errors.New("failed to create a gRPC client connection to routers")
 	}
 
 	var errorsAccumulator strings.Builder
@@ -207,7 +208,7 @@ func (c *BroadcastTxClient) createSendStreams() error {
 	serverRootCAs := append([][]byte{}, userConfig.TLSCACerts...)
 
 	if c.streamRoutersMap == nil {
-		return fmt.Errorf("broadcast client is stopped")
+		return errors.New("broadcast client is stopped")
 	}
 
 	// create gRPC clients and streams to the routers

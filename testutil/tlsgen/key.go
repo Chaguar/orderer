@@ -15,11 +15,10 @@ import (
 	"crypto/x509"
 	"crypto/x509/pkix"
 	"encoding/pem"
+	"fmt"
 	"math/big"
 	"net"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
 func newPrivKey() (*ecdsa.PrivateKey, []byte, error) {
@@ -97,7 +96,7 @@ func newCertKeyPair(isCA bool, isServer bool, certSigner crypto.Signer, parent *
 
 	block, _ := pem.Decode(pubKey)
 	if block == nil { // Never comes unless x509 or pem has bug
-		return nil, errors.Errorf("%s: wrong PEM encoding", pubKey)
+		return nil, fmt.Errorf("%s: wrong PEM encoding", pubKey)
 	}
 	cert, err := x509.ParseCertificate(block.Bytes)
 	if err != nil {

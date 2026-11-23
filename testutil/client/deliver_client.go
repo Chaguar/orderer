@@ -9,6 +9,7 @@ package client
 import (
 	"context"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"io"
 	"time"
@@ -21,7 +22,6 @@ import (
 	"github.com/Chaguar/orderer/node/comm"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 
@@ -46,7 +46,7 @@ type response struct {
 func (c *DeliverClient) PullBlocks(ctx context.Context, assemblerId types.PartyID, startBlock uint64, endBlock uint64, handler BlockHandler, signer identity.SignerSerializer) (common.Status, error) {
 	client, gRPCAssemblerClientConn, err := c.createClientAndSendRequest(startBlock, endBlock, assemblerId, signer)
 	if err != nil {
-		return common.Status(0), errors.Wrapf(err, "failed to create client to assembler: %d", assemblerId)
+		return common.Status(0), fmt.Errorf("failed to create client to assembler: %d: %w", assemblerId, err)
 	}
 
 	stopChan := make(chan response)
@@ -80,7 +80,7 @@ func (c *DeliverClient) PullBlocks(ctx context.Context, assemblerId types.PartyI
 				if status == common.Status_SUCCESS {
 					fmt.Printf("Pulling blocks from assembler: %d completed successfully \n", assemblerId)
 				} else if block != nil {
-					err = errors.Errorf("expected Status_SUCCESS when reaching endBlock: %d, but got block", endBlock)
+					err = fmt.Errorf("expected Status_SUCCESS when reaching endBlock: %d, but got block", endBlock)
 				} else {
 					fmt.Printf("Failed to pull status: %v error: %v \n", status, err)
 				}
@@ -96,11 +96,11 @@ func (c *DeliverClient) PullBlocks(ctx context.Context, assemblerId types.PartyI
 	case <-ctx.Done():
 		cleanUp() // we call cleanUp here so that the goroutine would exit.
 		errCanceled := <-stopChan
-		return errCanceled.status, errors.Errorf("cancelled pull from assembler: %d; pull ended: %s", assemblerId, errCanceled.err)
+		return errCanceled.status, fmt.Errorf("cancelled pull from assembler: %d; pull ended: %w", assemblerId, errCanceled.err)
 	case resp := <-stopChan:
 		defer cleanUp()
 		if resp.err != nil {
-			resp.err = errors.Wrapf(resp.err, "pull from assembler: %d ended", assemblerId)
+			resp.err = fmt.Errorf("pull from assembler: %d ended: %w", assemblerId, resp.err)
 		}
 		return resp.status, resp.err
 	}
@@ -129,7 +129,7 @@ func (c *DeliverClient) createClientAndSendRequest(startBlock uint64, endBlock u
 	if c.userConfig.UseTLSAssembler == "mTLS" {
 		block, _ := pem.Decode(c.userConfig.TLSCertificate)
 		if block == nil || block.Type != "CERTIFICATE" {
-			return nil, nil, errors.Errorf("failed to decode PEM certificate")
+			return nil, nil, errors.New("failed to decode PEM certificate")
 		}
 		tlsCertHash = util.ComputeSHA256(block.Bytes)
 	}
@@ -145,7 +145,7 @@ func (c *DeliverClient) createClientAndSendRequest(startBlock uint64, endBlock u
 		tlsCertHash,
 	)
 	if err != nil {
-		return nil, nil, errors.Wrap(err, "failed create a request envelope")
+		return nil, nil, fmt.Errorf("failed create a request envelope: %w", err)
 	}
 
 	var client ab.AtomicBroadcast_DeliverClient
@@ -154,7 +154,7 @@ func (c *DeliverClient) createClientAndSendRequest(startBlock uint64, endBlock u
 
 	gRPCAssemblerClientConn, err = gRPCAssemblerClient.Dial(endpointToPullFrom)
 	if err != nil {
-		return nil, nil, errors.Wrapf(err, "failed to create a gRPC client connection to assembler: %d", assemblerId)
+		return nil, nil, fmt.Errorf("failed to create a gRPC client connection to assembler: %d: %w", assemblerId, err)
 	}
 
 	abc := ab.NewAtomicBroadcastClient(gRPCAssemblerClientConn)
@@ -163,7 +163,7 @@ func (c *DeliverClient) createClientAndSendRequest(startBlock uint64, endBlock u
 	client, err = abc.Deliver(context.TODO())
 	if err != nil {
 		_ = gRPCAssemblerClientConn.Close()
-		return nil, nil, errors.Wrapf(err, "failed to create a deliver client to assembler: %d", assemblerId)
+		return nil, nil, fmt.Errorf("failed to create a deliver client to assembler: %d: %w", assemblerId, err)
 	}
 
 	// send request envelope
@@ -171,7 +171,7 @@ func (c *DeliverClient) createClientAndSendRequest(startBlock uint64, endBlock u
 	if err != nil {
 		_ = client.CloseSend()
 		_ = gRPCAssemblerClientConn.Close()
-		return nil, nil, errors.Wrapf(err, "failed to send a request envelope to assembler: %d", assemblerId)
+		return nil, nil, fmt.Errorf("failed to send a request envelope to assembler: %d: %w", assemblerId, err)
 	}
 
 	return client, gRPCAssemblerClientConn, nil
@@ -183,7 +183,7 @@ func pullBlock(client ab.AtomicBroadcast_DeliverClient) (*common.Block, common.S
 		return nil, common.Status(0), err
 	}
 	if err != nil {
-		return nil, common.Status(0), errors.Wrap(err, "failed to receive a deliver response")
+		return nil, common.Status(0), fmt.Errorf("failed to receive a deliver response: %w", err)
 	}
 
 	block := resp.GetBlock()
