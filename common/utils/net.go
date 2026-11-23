@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/x509"
+	"errors"
 	"fmt"
 	"net"
 	"strconv"
@@ -55,12 +56,12 @@ func ExtractCertificateFromContext(ctx context.Context) *x509.Certificate {
 func ValidateClientCertFromContext(ctx context.Context, expectedPEMCert []byte) error {
 	cert := ExtractCertificateFromContext(ctx)
 	if cert == nil {
-		return fmt.Errorf("could not extract the client certificate from the context")
+		return errors.New("could not extract the client certificate from the context")
 	}
 
 	expectedCert, err := Parsex509Cert(expectedPEMCert)
 	if err != nil {
-		return fmt.Errorf("could not parse the expected certificate: %v", err)
+		return fmt.Errorf("could not parse the expected certificate: %w", err)
 	}
 
 	if !bytes.Equal(expectedCert.Raw, cert.Raw) {
@@ -74,10 +75,10 @@ func ValidateClientCertFromContext(ctx context.Context, expectedPEMCert []byte) 
 func ExtractClientAddressFromContext(ctx context.Context) (string, error) {
 	peer, ok := peer.FromContext(ctx)
 	if !ok {
-		return "", fmt.Errorf("failed to extract peer from context")
+		return "", errors.New("failed to extract peer from context")
 	}
 	if peer.Addr == net.Addr(nil) {
-		return "", fmt.Errorf("peer address is nil")
+		return "", errors.New("peer address is nil")
 	}
 	return peer.Addr.String(), nil
 }
@@ -85,7 +86,7 @@ func ExtractClientAddressFromContext(ctx context.Context) (string, error) {
 func CertificateBytesToString(cert []byte) (string, error) {
 	x509Cert, err := Parsex509Cert(cert)
 	if err != nil {
-		return "", fmt.Errorf("failed to parse certificate: %v", err)
+		return "", fmt.Errorf("failed to parse certificate: %w", err)
 	}
 	return CertificateToString(x509Cert), nil
 }
@@ -93,11 +94,11 @@ func CertificateBytesToString(cert []byte) (string, error) {
 func AreCertificatesEqual(cert1, cert2 []byte) (bool, error) {
 	x509Cert1, err := Parsex509Cert(cert1)
 	if err != nil {
-		return false, fmt.Errorf("failed to parse cert1: %v", err)
+		return false, fmt.Errorf("failed to parse cert1: %w", err)
 	}
 	x509Cert2, err := Parsex509Cert(cert2)
 	if err != nil {
-		return false, fmt.Errorf("failed to parse cert2: %v", err)
+		return false, fmt.Errorf("failed to parse cert2: %w", err)
 	}
 
 	// Compare RawTBSCertificate fields

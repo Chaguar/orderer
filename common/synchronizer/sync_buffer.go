@@ -7,10 +7,10 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 type SyncBuffer struct {
@@ -32,14 +32,14 @@ func NewSyncBuffer(capacity uint) *SyncBuffer {
 // HandleBlock gives the block to the next stage of processing after fetching it from a remote orderer.
 func (sb *SyncBuffer) HandleBlock(channelID string, block *common.Block) error {
 	if block == nil || block.Header == nil {
-		return errors.Errorf("empty block or block header, channel: %s", channelID)
+		return fmt.Errorf("empty block or block header, channel: %s", channelID)
 	}
 
 	select {
 	case sb.blockCh <- block:
 		return nil
 	case <-sb.stopCh:
-		return errors.Errorf("SyncBuffer stopping, channel: %s", channelID)
+		return fmt.Errorf("SyncBuffer stopping, channel: %s", channelID)
 	}
 }
 

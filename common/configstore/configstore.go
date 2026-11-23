@@ -7,12 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package configstore
 
 import (
+	"errors"
 	"fmt"
 	"sort"
 
 	"github.com/Chaguar/orderer/common/filerepo"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -34,7 +34,7 @@ type Store struct {
 func NewStore(storeDir string) (*Store, error) {
 	repo, err := filerepo.New(storeDir, fileSuffix)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "failed to create config store")
+		return nil, fmt.Errorf("failed to create config store: %w", err)
 	}
 
 	s := &Store{
@@ -56,14 +56,14 @@ func (s *Store) Add(block *common.Block) error {
 
 	content, err := proto.Marshal(block)
 	if err != nil {
-		return errors.Wrap(err, "failed to marshal block")
+		return fmt.Errorf("failed to marshal block: %w", err)
 	}
 
 	fileName := fmt.Sprintf(baseFileNameTemplate, block.Header.Number)
 
 	err = s.fileRepo.Save(fileName, content)
 	if err != nil {
-		return errors.Wrapf(err, "failed to add block %d", block.GetHeader().GetNumber())
+		return fmt.Errorf("failed to add block %d: %w", block.GetHeader().GetNumber(), err)
 	}
 
 	return nil
@@ -79,14 +79,14 @@ func (s *Store) GetByNumber(num uint64) (*common.Block, error) {
 func (s *Store) ListBlocks() ([]*common.Block, error) {
 	fileNames, err := s.fileRepo.List()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to list blocks")
+		return nil, fmt.Errorf("failed to list blocks: %w", err)
 	}
 
 	var blocks []*common.Block
 	for i, fileName := range fileNames {
 		block, err := s.readByName(fileName)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed reading block %s, %d out of %d; list: %v", fileName, i+1, len(fileNames), fileNames)
+			return nil, fmt.Errorf("failed reading block %s, %d out of %d; list: %v: %w", fileName, i+1, len(fileNames), fileNames, err)
 		}
 
 		blocks = append(blocks, block)
@@ -103,13 +103,13 @@ func (s *Store) readByName(fileName string) (*common.Block, error) {
 	baseName := s.fileRepo.FileToBaseName(fileName)
 	content, err := s.fileRepo.Read(baseName)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed reading block %s", fileName)
+		return nil, fmt.Errorf("failed reading block %s: %w", fileName, err)
 	}
 
 	block := &common.Block{}
 	err = proto.Unmarshal(content, block)
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to unmarshal block %s", fileName)
+		return nil, fmt.Errorf("failed to unmarshal block %s: %w", fileName, err)
 	}
 
 	return block, nil
@@ -119,14 +119,14 @@ func (s *Store) readByName(fileName string) (*common.Block, error) {
 func (s *Store) ListBlockNumbers() ([]uint64, error) {
 	fileNames, err := s.fileRepo.List()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to list blocks")
+		return nil, fmt.Errorf("failed to list blocks: %w", err)
 	}
 
 	var nums []uint64
 	for i, fileName := range fileNames {
 		block, err := s.readByName(fileName)
 		if err != nil {
-			return nil, errors.Wrapf(err, "failed reading block %s, %d out of %d; list: %v", fileName, i+1, len(fileNames), fileNames)
+			return nil, fmt.Errorf("failed reading block %s, %d out of %d; list: %v: %w", fileName, i+1, len(fileNames), fileNames, err)
 		}
 		nums = append(nums, block.GetHeader().GetNumber())
 	}
@@ -140,7 +140,7 @@ func (s *Store) ListBlockNumbers() ([]uint64, error) {
 func (s *Store) Last() (*common.Block, error) {
 	nums, err := s.ListBlockNumbers()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to list block numbers")
+		return nil, fmt.Errorf("failed to list block numbers: %w", err)
 	}
 
 	if len(nums) == 0 {

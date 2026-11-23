@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package filerepo
 
 import (
+	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -14,7 +16,6 @@ import (
 	"unicode"
 
 	"github.com/Chaguar/common/tools/fileutil"
-	"github.com/pkg/errors"
 )
 
 const (
@@ -63,7 +64,7 @@ func New(repoParentDir, fileSuffix string) (*Repo, error) {
 		}
 		if isTransientFile {
 			if err := os.Remove(filepath.Join(fileRepoDir, f.Name())); err != nil {
-				return nil, errors.Wrapf(err, "error cleaning up transient files")
+				return nil, fmt.Errorf("error cleaning up transient files: %w", err)
 			}
 		}
 	}
@@ -182,7 +183,7 @@ func validateFileSuffix(fileSuffix string) error {
 	}
 
 	if strings.Contains(fileSuffix, string(os.PathSeparator)) {
-		return errors.Errorf("fileSuffix [%s] illegal, cannot contain os path separator", fileSuffix)
+		return fmt.Errorf("fileSuffix [%s] illegal, cannot contain os path separator", fileSuffix)
 	}
 
 	return nil
@@ -194,16 +195,16 @@ func validateBaseName(baseName string) error {
 	}
 
 	if baseName == "." || baseName == ".." {
-		return errors.Errorf("baseName %q illegal, cannot be '.' or '..'", baseName)
+		return fmt.Errorf("baseName %q illegal, cannot be '.' or '..'", baseName)
 	}
 
 	if strings.Contains(baseName, "/") || strings.Contains(baseName, "\\") {
-		return errors.Errorf("baseName %q illegal, cannot contain path separator", baseName)
+		return fmt.Errorf("baseName %q illegal, cannot contain path separator", baseName)
 	}
 
 	for _, r := range baseName {
 		if unicode.IsControl(r) {
-			return errors.Errorf("baseName %q illegal, cannot contain control characters", baseName)
+			return fmt.Errorf("baseName %q illegal, cannot contain control characters", baseName)
 		}
 	}
 

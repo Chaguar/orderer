@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package policy
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Chaguar/common/common/channelconfig"
@@ -17,7 +18,6 @@ import (
 	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 //go:generate counterfeiter -o mocks/config_update_proposer.go . ConfigUpdateProposer
@@ -41,12 +41,12 @@ func (cp *DefaultConfigUpdateProposer) ProposeConfigUpdate(request *protos.Reque
 		Signature: request.Signature,
 	}, bundle, bccsp)
 	if err != nil {
-		return nil, fmt.Errorf("failed authorizing and verifying config update request, err: %s", err)
+		return nil, fmt.Errorf("failed authorizing and verifying config update request, err: %w", err)
 	}
 
 	configRequest, err := BuildVerifiedConfigRequest(request, configEnvelope, bundle, signer, verifier)
 	if err != nil {
-		return nil, fmt.Errorf("failed creating a verified config request, err: %s", err)
+		return nil, fmt.Errorf("failed creating a verified config request, err: %w", err)
 	}
 
 	return configRequest, nil
@@ -57,7 +57,7 @@ func (cp *DefaultConfigUpdateProposer) ProposeConfigUpdate(request *protos.Reque
 func BuildBundleFromBlock(configTX *cb.Envelope, bccsp bccsp.BCCSP) (*channelconfig.Bundle, error) {
 	payload, err := protoutil.UnmarshalPayload(configTX.Payload)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error unmarshalling envelope to payload")
+		return nil, fmt.Errorf("error unmarshalling envelope to payload: %w", err)
 	}
 
 	if payload.Header == nil {
@@ -66,7 +66,7 @@ func BuildBundleFromBlock(configTX *cb.Envelope, bccsp bccsp.BCCSP) (*channelcon
 
 	chdr, err := protoutil.UnmarshalChannelHeader(payload.Header.ChannelHeader)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error unmarshalling channel header")
+		return nil, fmt.Errorf("error unmarshalling channel header: %w", err)
 	}
 
 	if chdr == nil {
@@ -75,7 +75,7 @@ func BuildBundleFromBlock(configTX *cb.Envelope, bccsp bccsp.BCCSP) (*channelcon
 
 	configEnvelope, err := configtx.UnmarshalConfigEnvelope(payload.Data)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error unmarshalling config envelope from payload data")
+		return nil, fmt.Errorf("error unmarshalling config envelope from payload data: %w", err)
 	}
 
 	if configEnvelope == nil {
@@ -84,12 +84,12 @@ func BuildBundleFromBlock(configTX *cb.Envelope, bccsp bccsp.BCCSP) (*channelcon
 
 	bundle, err := channelconfig.NewBundle(chdr.ChannelId, configEnvelope.Config, bccsp)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error creating channelconfig bundle")
+		return nil, fmt.Errorf("error creating channelconfig bundle: %w", err)
 	}
 
 	err = checkResources(bundle)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "error checking bundle for channel: %s", chdr.ChannelId)
+		return nil, fmt.Errorf("error checking bundle for channel: %s: %w", chdr.ChannelId, err)
 	}
 	return bundle, nil
 }
@@ -98,7 +98,7 @@ func (cp *DefaultConfigUpdateProposer) AuthorizeAndVerifyConfigUpdate(envelope *
 	// validates that all modified config has the corresponding modification policies satisfied by the signature set
 	configEnvelope, err := bundle.ConfigtxValidator().ProposeConfigUpdate(envelope)
 	if err != nil {
-		return nil, fmt.Errorf("error applying config update to %s, err: %s", bundle.ConfigtxValidator().ChannelID(), err)
+		return nil, fmt.Errorf("error applying config update to %s, err: %w", bundle.ConfigtxValidator().ChannelID(), err)
 	}
 
 	// Apply validation checks of new bundle against old bundle
@@ -116,7 +116,7 @@ func BuildVerifiedConfigRequest(request *protos.Request, configEnvelope *cb.Conf
 	// Wrap the config envelope and sign, prepare a matching request
 	config, err := createSignedConfigEnvelopeWithTxID(bundle.ConfigtxValidator().ChannelID(), signer, configEnvelope)
 	if err != nil {
-		return nil, fmt.Errorf("error creating a signed envelope, err: %s", err)
+		return nil, fmt.Errorf("error creating a signed envelope, err: %w", err)
 	}
 
 	configRequest := &protos.Request{
@@ -138,11 +138,11 @@ func BuildVerifiedConfigRequest(request *protos.Request, configEnvelope *cb.Conf
 		return nil, fmt.Errorf("config request header should be %s but got %s", cb.HeaderType_CONFIG, reqType)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("config update did not pass signature filter final checks, err: %s", err)
+		return nil, fmt.Errorf("config update did not pass signature filter final checks, err: %w", err)
 	}
 	err = verifier.Verify(configRequest)
 	if err != nil {
-		return nil, fmt.Errorf("config update did not pass filter final checks, err: %s", err)
+		return nil, fmt.Errorf("config update did not pass filter final checks, err: %w", err)
 	}
 
 	return configRequest, nil
@@ -162,11 +162,11 @@ func createSignedConfigEnvelopeWithTxID(channelID string, signer identity.Signer
 
 	creator, err := signer.Serialize()
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to serialize signer")
+		return nil, fmt.Errorf("failed to serialize signer: %w", err)
 	}
 	nonce, err := protoutil.CreateNonce()
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to create nonce")
+		return nil, fmt.Errorf("failed to create nonce: %w", err)
 	}
 
 	channelHeader := protoutil.MakeChannelHeader(cb.HeaderType_CONFIG, int32(0), channelID, 0)
@@ -180,7 +180,7 @@ func createSignedConfigEnvelopeWithTxID(channelID string, signer identity.Signer
 
 	sig, err := signer.Sign(payloadBytes)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to sign config envelope payload")
+		return nil, fmt.Errorf("failed to sign config envelope payload: %w", err)
 	}
 
 	return &cb.Envelope{Payload: payloadBytes, Signature: sig}, nil
@@ -195,10 +195,10 @@ func checkResources(res channelconfig.Resources) error {
 		return errors.New("config does not contain orderer config")
 	}
 	if err := oc.Capabilities().Supported(); err != nil {
-		return errors.WithMessagef(err, "config requires unsupported orderer capabilities: %s", err)
+		return fmt.Errorf("config requires unsupported orderer capabilities: %w", err)
 	}
 	if err := res.ChannelConfig().Capabilities().Supported(); err != nil {
-		return errors.WithMessagef(err, "config requires unsupported channel capabilities: %s", err)
+		return fmt.Errorf("config requires unsupported channel capabilities: %w", err)
 	}
 	return nil
 }
@@ -211,7 +211,7 @@ func validateNewBundleAgainstOldBundle(configEnvelope *cb.ConfigEnvelope, bundle
 	}
 
 	if err = checkResources(newBundle); err != nil {
-		return errors.WithMessage(err, "config update is not compatible")
+		return fmt.Errorf("config update is not compatible: %w", err)
 	}
 
 	if err = bundle.ValidateNew(newBundle); err != nil {

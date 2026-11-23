@@ -9,8 +9,8 @@ package types
 import (
 	"crypto/sha256"
 	"encoding/binary"
-
-	"github.com/pkg/errors"
+	"errors"
+	"fmt"
 )
 
 // BatchedRequests are used to represent a batch of requests.
@@ -54,16 +54,16 @@ func (br *BatchedRequests) Deserialize(bytes []byte) error {
 
 	*br = BatchedRequests{}
 	if len(bytes) == 0 {
-		return errors.Errorf("nil bytes")
+		return errors.New("nil bytes")
 	}
 	for len(bytes) > 0 {
 		if len(bytes) < 4 {
-			return errors.Errorf("size of req is not encoded correctly")
+			return errors.New("size of req is not encoded correctly")
 		}
 		size := binary.BigEndian.Uint32(bytes[0:4])
 		bytes = bytes[4:]
 		if len(bytes) < int(size) {
-			return errors.Errorf("there is no req with a size of %d", size)
+			return fmt.Errorf("there is no req with a size of %d", size)
 		}
 		req := bytes[0:size]
 		*br = append(*br, req)

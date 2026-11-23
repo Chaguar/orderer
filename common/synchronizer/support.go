@@ -7,11 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package synchronizer
 
 import (
+	"errors"
+
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // Support is the subset of ledger and identity operations shared by the assembler

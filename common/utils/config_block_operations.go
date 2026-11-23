@@ -7,10 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package utils
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/Chaguar/common/common/configtx"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // ConfigBlockOperations provides block-type-specific operations for config block handling.
@@ -46,19 +48,19 @@ func (c *CommonConfigBlockOperations) ConfigFromBlock(block *common.Block) (*com
 	txn := block.Data.Data[0]
 	env, err := protoutil.GetEnvelopeFromBlock(txn)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	payload, err := protoutil.UnmarshalPayload(env.Payload)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	// Genesis block (block 0) has config directly
 	if block.Header.Number == 0 {
 		configEnvelope, err := configtx.UnmarshalConfigEnvelope(payload.Data)
 		if err != nil {
-			return nil, errors.Wrap(err, "invalid config envelope")
+			return nil, fmt.Errorf("invalid config envelope: %w", err)
 		}
 		return configEnvelope, nil
 	}
@@ -70,7 +72,7 @@ func (c *CommonConfigBlockOperations) ConfigFromBlock(block *common.Block) (*com
 
 	chdr, err := protoutil.UnmarshalChannelHeader(payload.Header.ChannelHeader)
 	if err != nil {
-		return nil, errors.WithStack(err)
+		return nil, err
 	}
 
 	if common.HeaderType(chdr.Type) != common.HeaderType_CONFIG {
@@ -79,7 +81,7 @@ func (c *CommonConfigBlockOperations) ConfigFromBlock(block *common.Block) (*com
 
 	configEnvelope, err := configtx.UnmarshalConfigEnvelope(payload.Data)
 	if err != nil {
-		return nil, errors.Wrap(err, "invalid config envelope")
+		return nil, fmt.Errorf("invalid config envelope: %w", err)
 	}
 
 	return configEnvelope, nil

@@ -8,6 +8,7 @@ package configack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -15,7 +16,6 @@ import (
 	"github.com/Chaguar/orderer/node/comm"
 	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/pkg/errors"
 	"google.golang.org/grpc"
 )
 
@@ -139,7 +139,7 @@ func (s *sender) SubmitConfigAck(configSeq uint64) error {
 		select {
 		case <-ctx.Done():
 			if s.ctx.Err() != nil {
-				return errors.Wrap(ErrSenderStopped, "sending config ack to consensus aborted")
+				return fmt.Errorf("sending config ack to consensus aborted: %w", ErrSenderStopped)
 			}
 			return fmt.Errorf("sending config ack to consensus aborted: %w", ctx.Err())
 		case <-time.After(interval):
@@ -211,7 +211,7 @@ func (s *sender) sendConfigAckToConsensus(ctx context.Context, conn *grpc.Client
 	}
 	if resp.GetError() != "" {
 		s.logger.Warnf("Received bad response from consensus on config ack on config sequence %d: %s", configSeq, resp.GetError())
-		return errors.Wrapf(errConfigAckRejected, "config sequence %d: %s", configSeq, resp.GetError())
+		return fmt.Errorf("config sequence %d: %s: %w", configSeq, resp.GetError(), errConfigAckRejected)
 	}
 	return nil
 }

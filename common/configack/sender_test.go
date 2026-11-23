@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package configack
 
 import (
-	"fmt"
+	"errors"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -60,7 +60,7 @@ func TestSubmitConfigAck_RetriesOnSendFailure(t *testing.T) {
 	var callCount int32
 	stubConsenter.AckConfigHandler = func(req *protos.ConfigAck) (*protos.ConfigAckResponse, error) {
 		if atomic.AddInt32(&callCount, 1) <= 10 {
-			return nil, fmt.Errorf("temporary failure")
+			return nil, errors.New("temporary failure")
 		}
 		return &protos.ConfigAckResponse{}, nil
 	}
@@ -132,7 +132,7 @@ func TestSubmitConfigAck_ReturnsErrorOnTimeout(t *testing.T) {
 	var callCount int32
 	stubConsenter.AckConfigHandler = func(req *protos.ConfigAck) (*protos.ConfigAckResponse, error) {
 		atomic.AddInt32(&callCount, 1)
-		return nil, fmt.Errorf("permanent failure")
+		return nil, errors.New("permanent failure")
 	}
 
 	stubConsenter.Start()

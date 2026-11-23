@@ -8,6 +8,7 @@ package configack
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 
@@ -101,7 +102,7 @@ func (r *Receiver) Stop() {
 // AddAck records an acknowledgment from a party member.
 func (r *Receiver) AddAck(request *protos.ConfigAck) error {
 	if request == nil {
-		return fmt.Errorf("config ack request is nil")
+		return errors.New("config ack request is nil")
 	}
 
 	clientRole := ClientRole{
