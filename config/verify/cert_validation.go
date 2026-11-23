@@ -9,11 +9,12 @@ package verify
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Chaguar/common/api/ordererpb"
 	arma_types "github.com/Chaguar/orderer/common/types"
-	"github.com/pkg/errors"
 )
 
 // validatePartyCertificates validates TLS CA and CA certificates, and verifies TLS and signing certificates for the party.
@@ -30,7 +31,7 @@ func validatePartyCertificates(party *ordererpb.PartyConfig, ignoreExpiration bo
 	for _, raw := range party.TLSCACerts {
 		cert, err := validateCACert(raw)
 		if err != nil {
-			return errors.Wrap(err, "invalid TLS CA certificate")
+			return fmt.Errorf("invalid TLS CA certificate: %w", err)
 		}
 		tlsPool.AddCert(cert)
 	}
@@ -48,7 +49,7 @@ func validatePartyCertificates(party *ordererpb.PartyConfig, ignoreExpiration bo
 	for _, raw := range party.CACerts {
 		cert, err := validateCACert(raw)
 		if err != nil {
-			return errors.Wrap(err, "invalid CA certificate")
+			return fmt.Errorf("invalid CA certificate: %w", err)
 		}
 		signPool.AddCert(cert)
 	}
@@ -63,10 +64,10 @@ func validatePartyCertificates(party *ordererpb.PartyConfig, ignoreExpiration bo
 
 	if party.RouterConfig != nil {
 		if err := verifyCert(party.RouterConfig.GetNodeConfig().GetServerTlsCert(), tlsOpts, ignoreExpiration); err != nil {
-			return errors.Wrap(err, "router TLS certificate validation failed")
+			return fmt.Errorf("router TLS certificate validation failed: %w", err)
 		}
 		if err := verifyCert(party.RouterConfig.GetNodeConfig().GetSignCert(), signOpts, ignoreExpiration); err != nil {
-			return errors.Wrap(err, "router signing certificate validation failed")
+			return fmt.Errorf("router signing certificate validation failed: %w", err)
 		}
 	} else {
 		return errors.New("router config is nil")
@@ -74,10 +75,10 @@ func validatePartyCertificates(party *ordererpb.PartyConfig, ignoreExpiration bo
 
 	if party.AssemblerConfig != nil {
 		if err := verifyCert(party.AssemblerConfig.GetNodeConfig().GetServerTlsCert(), tlsOpts, ignoreExpiration); err != nil {
-			return errors.Wrap(err, "assembler TLS certificate validation failed")
+			return fmt.Errorf("assembler TLS certificate validation failed: %w", err)
 		}
 		if err := verifyCert(party.AssemblerConfig.GetNodeConfig().GetSignCert(), signOpts, ignoreExpiration); err != nil {
-			return errors.Wrap(err, "assembler signing certificate validation failed")
+			return fmt.Errorf("assembler signing certificate validation failed: %w", err)
 		}
 	} else {
 		return errors.New("assembler config is nil")
@@ -85,10 +86,10 @@ func validatePartyCertificates(party *ordererpb.PartyConfig, ignoreExpiration bo
 
 	if party.ConsenterConfig != nil {
 		if err := verifyCert(party.ConsenterConfig.GetNodeConfig().GetServerTlsCert(), tlsOpts, ignoreExpiration); err != nil {
-			return errors.Wrap(err, "consenter TLS certificate validation failed")
+			return fmt.Errorf("consenter TLS certificate validation failed: %w", err)
 		}
 		if err := verifyCert(party.ConsenterConfig.GetNodeConfig().GetSignCert(), signOpts, ignoreExpiration); err != nil {
-			return errors.Wrap(err, "consenter signing certificate validation failed")
+			return fmt.Errorf("consenter signing certificate validation failed: %w", err)
 		}
 	} else {
 		return errors.New("consenter config is nil")
@@ -100,10 +101,10 @@ func validatePartyCertificates(party *ordererpb.PartyConfig, ignoreExpiration bo
 		}
 
 		if err := verifyCert(b.GetNodeConfig().GetServerTlsCert(), tlsOpts, ignoreExpiration); err != nil {
-			return errors.Wrap(err, "batcher TLS certificate validation failed")
+			return fmt.Errorf("batcher TLS certificate validation failed: %w", err)
 		}
 		if err := verifyCert(b.GetNodeConfig().GetSignCert(), signOpts, ignoreExpiration); err != nil {
-			return errors.Wrap(err, "batcher signing certificate validation failed")
+			return fmt.Errorf("batcher signing certificate validation failed: %w", err)
 		}
 
 	}
@@ -140,12 +141,12 @@ func validateUniqueSigningCerts(parties []*ordererpb.PartyConfig) error {
 		for _, sc := range signCerts {
 			cert, err := parseCertificateFromBytes(sc.cert)
 			if err != nil {
-				return errors.Wrapf(err, "invalid signing certificate of %s", sc.node)
+				return fmt.Errorf("invalid signing certificate of %s: %w", sc.node, err)
 			}
 
 			certKey := string(cert.RawSubjectPublicKeyInfo)
 			if owner, exists := signCertOwners[certKey]; exists {
-				return errors.Errorf("%s and %s share the same signing key", owner, sc.node)
+				return fmt.Errorf("%s and %s share the same signing key", owner, sc.node)
 			}
 			signCertOwners[certKey] = sc.node
 		}
@@ -165,7 +166,7 @@ func validateCACert(raw []byte) (*x509.Certificate, error) {
 	}
 
 	if !cert.IsCA {
-		return nil, errors.Errorf("certificate %q is not a CA", cert.Subject.String())
+		return nil, fmt.Errorf("certificate %q is not a CA", cert.Subject.String())
 	}
 
 	return cert, nil
@@ -187,11 +188,11 @@ func verifyCert(raw []byte, opts x509.VerifyOptions, ignoreExpiration bool) erro
 	}
 
 	if _, err := cert.Verify(opts); err != nil {
-		return errors.Wrapf(err, "verifying certificate with serial number %d", cert.SerialNumber)
+		return fmt.Errorf("verifying certificate with serial number %d: %w", cert.SerialNumber, err)
 	}
 
 	if ignoreExpiration && time.Now().Before(cert.NotBefore) {
-		return errors.Errorf("certificate with serial number %d is not yet valid", cert.SerialNumber)
+		return fmt.Errorf("certificate with serial number %d is not yet valid", cert.SerialNumber)
 	}
 
 	return nil
@@ -204,12 +205,12 @@ func parseCertificateFromBytes(cert []byte) (*x509.Certificate, error) {
 	}
 
 	if pemBlock.Type != "CERTIFICATE" {
-		return nil, errors.Errorf("expected PEM block of type CERTIFICATE, but found %s", pemBlock.Type)
+		return nil, fmt.Errorf("expected PEM block of type CERTIFICATE, but found %s", pemBlock.Type)
 	}
 
 	certificate, err := x509.ParseCertificate(pemBlock.Bytes)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to parse certificate from ASN1 structure")
+		return nil, fmt.Errorf("failed to parse certificate from ASN1 structure: %w", err)
 	}
 
 	return certificate, nil

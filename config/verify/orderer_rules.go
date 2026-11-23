@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package verify
 
 import (
+	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"time"
@@ -23,7 +25,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -69,17 +70,17 @@ type DefaultOrdererRules struct{}
 func (or *DefaultOrdererRules) ValidateNewConfig(envelope *common.Envelope, bccsp bccsp.BCCSP, partyID arma_types.PartyID) error {
 	bundle, err := channelconfig.NewBundleFromEnvelope(envelope, bccsp)
 	if err != nil {
-		return errors.Wrap(err, "failed to create bundle from envelope config")
+		return fmt.Errorf("failed to create bundle from envelope config: %w", err)
 	}
 
 	ordererConfig, exists := bundle.OrdererConfig()
 	if !exists {
-		return errors.Errorf("orderer entry in the config block is empty")
+		return errors.New("orderer entry in the config block is empty")
 	}
 
 	sharedConfig := &ordererpb.SharedConfig{}
 	if err := proto.Unmarshal(ordererConfig.ConsensusMetadata(), sharedConfig); err != nil {
-		return errors.Wrap(err, "failed to unmarshal consensus metadata")
+		return fmt.Errorf("failed to unmarshal consensus metadata: %w", err)
 	}
 	if sharedConfig.BatchingConfig == nil {
 		return errors.New("batching config is nil")
@@ -95,12 +96,12 @@ func (or *DefaultOrdererRules) ValidateNewConfig(envelope *common.Envelope, bccs
 
 	// 2.
 	if sharedConfig.BatchingConfig.BatchSize.AbsoluteMaxBytes != ordererConfig.BatchSize().AbsoluteMaxBytes {
-		return errors.Errorf("batch size differs between shared and orderer config")
+		return errors.New("batch size differs between shared and orderer config")
 	}
 
 	// 3.
 	if sharedConfig.BatchingConfig.RequestMaxBytes <= 0 {
-		return errors.Errorf("BatchingConfig RequestMaxBytes must be greater than zero")
+		return errors.New("BatchingConfig RequestMaxBytes must be greater than zero")
 	}
 
 	bftConfig := sharedConfig.ConsensusConfig.SmartBFTConfig
@@ -108,24 +109,24 @@ func (or *DefaultOrdererRules) ValidateNewConfig(envelope *common.Envelope, bccs
 		return errors.New("smartbft config is nil")
 	}
 	if bftConfig.RequestMaxBytes < sharedConfig.BatchingConfig.RequestMaxBytes {
-		return errors.Errorf("smartbft RequestMaxBytes must be equal or greater than BatchingConfig RequestMaxBytes")
+		return errors.New("smartbft RequestMaxBytes must be equal or greater than BatchingConfig RequestMaxBytes")
 	}
 
 	// 4.
 	if err := validateSmartBFTConfig(uint64(partyID), bftConfig); err != nil {
-		return errors.Wrap(err, "smartbft config validation failed")
+		return fmt.Errorf("smartbft config validation failed: %w", err)
 	}
 
 	// 5.
 	for _, org := range ordererConfig.Organizations() {
 		if err := validateOrdererOrgEndpoints(org.Endpoints()); err != nil {
-			return errors.Wrapf(err, "invalid endpoints for orderer organization %s", org.Name())
+			return fmt.Errorf("invalid endpoints for orderer organization %s: %w", org.Name(), err)
 		}
 	}
 
 	// 6.
 	if err := validateConsenterConsistency(ordererConfig.Consenters(), sharedConfig.PartiesConfig); err != nil {
-		return errors.Wrap(err, "consenter mapping is inconsistent with shared config parties")
+		return fmt.Errorf("consenter mapping is inconsistent with shared config parties: %w", err)
 	}
 
 	// 7.
@@ -145,7 +146,7 @@ func (or *DefaultOrdererRules) ValidateNewConfig(envelope *common.Envelope, bccs
 
 		org, exists := orgMap[consenter.MspId]
 		if !exists {
-			return errors.Errorf("missing orderer organization for party %d", consenter.Id)
+			return fmt.Errorf("missing orderer organization for party %d", consenter.Id)
 		}
 
 		partyOrgMap[consenter.Id] = org
@@ -153,7 +154,7 @@ func (or *DefaultOrdererRules) ValidateNewConfig(envelope *common.Envelope, bccs
 
 	// 8.
 	if err := validateTLSCACertsConsistency(sharedConfig.PartiesConfig, partyOrgMap); err != nil {
-		return errors.Wrap(err, "orderer organization TLS CA certificates are inconsistent with shared config")
+		return fmt.Errorf("orderer organization TLS CA certificates are inconsistent with shared config: %w", err)
 	}
 
 	// 9.
@@ -161,28 +162,28 @@ func (or *DefaultOrdererRules) ValidateNewConfig(envelope *common.Envelope, bccs
 	ordererGroup := config.ChannelGroup.Groups["Orderer"]
 
 	if err := validateBlockValidationPolicy(ordererGroup.Policies[policies.BlockValidationPolicyKey], ordererConfig.Consenters()); err != nil {
-		return errors.Wrap(err, "invalid block validation policy")
+		return fmt.Errorf("invalid block validation policy: %w", err)
 	}
 
 	// 10.
 	ignoreExpiration := bundle.ConfigtxValidator().Sequence() > 0
 	for _, party := range sharedConfig.PartiesConfig {
 		if err := validatePartyCertificates(party, ignoreExpiration); err != nil {
-			return errors.Wrapf(err, "certificate validation failed for party ID %d", party.PartyID)
+			return fmt.Errorf("certificate validation failed for party ID %d: %w", party.PartyID, err)
 		}
 	}
 
 	// 11.
 	if sharedConfig.MaxPartyID > math.MaxUint16 {
-		return errors.Errorf("MaxPartyID %d exceeds uint16 maximum %d", sharedConfig.MaxPartyID, math.MaxUint16)
+		return fmt.Errorf("MaxPartyID %d exceeds uint16 maximum %d", sharedConfig.MaxPartyID, math.MaxUint16)
 	}
 	if err := validatePartyAndShardIDs(sharedConfig.PartiesConfig, sharedConfig.MaxPartyID); err != nil {
-		return errors.Wrap(err, "invalid party or shard ID in shared config")
+		return fmt.Errorf("invalid party or shard ID in shared config: %w", err)
 	}
 
 	// 12.
 	if err := validateRouterAndAssemblerEndpoints(sharedConfig.PartiesConfig, partyOrgMap); err != nil {
-		return errors.Wrap(err, "failed to verify router and assembler endpoints against shared config")
+		return fmt.Errorf("failed to verify router and assembler endpoints against shared config: %w", err)
 	}
 
 	// 13.
@@ -220,13 +221,13 @@ func (DefaultOrdererRules) ValidateTransition(current channelconfig.Resources, n
 
 	currCfg := &ordererpb.SharedConfig{}
 	if err := proto.Unmarshal(currOrdererCfg.ConsensusMetadata(), currCfg); err != nil {
-		return errors.Wrap(err, "failed to unmarshal current consensus metadata")
+		return fmt.Errorf("failed to unmarshal current consensus metadata: %w", err)
 	}
 
 	// extract next shared config
 	nextBundle, err := channelconfig.NewBundleFromEnvelope(next, bccsp)
 	if err != nil {
-		return errors.Wrap(err, "failed to create bundle from next envelope config")
+		return fmt.Errorf("failed to create bundle from next envelope config: %w", err)
 	}
 
 	// 1.
@@ -241,7 +242,7 @@ func (DefaultOrdererRules) ValidateTransition(current channelconfig.Resources, n
 
 	nextCfg := &ordererpb.SharedConfig{}
 	if err := proto.Unmarshal(nextOrdererCfg.ConsensusMetadata(), nextCfg); err != nil {
-		return errors.Wrap(err, "failed to unmarshal next consensus metadata")
+		return fmt.Errorf("failed to unmarshal next consensus metadata: %w", err)
 	}
 
 	currMap := make(map[uint32]*ordererpb.PartyConfig)
@@ -275,17 +276,17 @@ func (DefaultOrdererRules) ValidateTransition(current channelconfig.Resources, n
 	if len(changes.Added) == 1 {
 		newID := changes.Added[0].PartyID
 		if newID <= currCfg.MaxPartyID {
-			return errors.Errorf("proposed party ID %d must be greater than previous MaxPartyID %d", newID, currCfg.MaxPartyID)
+			return fmt.Errorf("proposed party ID %d must be greater than previous MaxPartyID %d", newID, currCfg.MaxPartyID)
 		}
 		if nextCfg.MaxPartyID != newID {
-			return errors.Errorf("proposed MaxPartyID %d must equal the newly added PartyID %d", nextCfg.MaxPartyID, newID)
+			return fmt.Errorf("proposed MaxPartyID %d must equal the newly added PartyID %d", nextCfg.MaxPartyID, newID)
 		}
 		if nextCfg.MaxPartyID != currCfg.MaxPartyID+1 {
-			return errors.Errorf("proposed MaxPartyID %d must be greater than previous MaxPartyID %d by one", nextCfg.MaxPartyID, currCfg.MaxPartyID)
+			return fmt.Errorf("proposed MaxPartyID %d must be greater than previous MaxPartyID %d by one", nextCfg.MaxPartyID, currCfg.MaxPartyID)
 		}
 	} else {
 		if nextCfg.MaxPartyID != currCfg.MaxPartyID {
-			return errors.Errorf("MaxPartyID cannot change if no new party is added (current=%d, next=%d)", currCfg.MaxPartyID, nextCfg.MaxPartyID)
+			return fmt.Errorf("MaxPartyID cannot change if no new party is added (current=%d, next=%d)", currCfg.MaxPartyID, nextCfg.MaxPartyID)
 		}
 	}
 
@@ -301,19 +302,19 @@ func (DefaultOrdererRules) ValidateTransition(current channelconfig.Resources, n
 
 	// 6.
 	if len(changes.Added)+len(changes.Removed)+len(changes.Modified) > 1 {
-		return errors.Errorf("only one party can be changed in a config tx (added=%d, removed=%d, modified=%d)", len(changes.Added), len(changes.Removed), len(changes.Modified))
+		return fmt.Errorf("only one party can be changed in a config tx (added=%d, removed=%d, modified=%d)", len(changes.Added), len(changes.Removed), len(changes.Modified))
 	}
 
 	// 7.
 	for _, party := range changes.Added {
 		if err := validatePartyCertificates(party, false); err != nil {
-			return errors.Wrapf(err, "certificate validation failed for added party ID %d", party.PartyID)
+			return fmt.Errorf("certificate validation failed for added party ID %d: %w", party.PartyID, err)
 		}
 	}
 
 	for _, party := range changes.Modified {
 		if err := validatePartyCertificates(party, false); err != nil {
-			return errors.Wrapf(err, "certificate validation failed for modified party ID %d", party.PartyID)
+			return fmt.Errorf("certificate validation failed for modified party ID %d: %w", party.PartyID, err)
 		}
 	}
 
@@ -329,7 +330,7 @@ func validateBatchTimeout(bt *ordererpb.BatchTimeouts) error {
 		return err
 	}
 	if batchCreation <= 0 {
-		return errors.Errorf("attempted to set the batch creation timeout to a non-positive value: %s", batchCreation)
+		return fmt.Errorf("attempted to set the batch creation timeout to a non-positive value: %s", batchCreation)
 	}
 
 	firstStrike, err := time.ParseDuration(bt.FirstStrikeThreshold)
@@ -337,7 +338,7 @@ func validateBatchTimeout(bt *ordererpb.BatchTimeouts) error {
 		return err
 	}
 	if firstStrike <= 0 {
-		return errors.Errorf("attempted to set the first strike threshold to a non-positive value: %s", firstStrike)
+		return fmt.Errorf("attempted to set the first strike threshold to a non-positive value: %s", firstStrike)
 	}
 
 	secondStrike, err := time.ParseDuration(bt.SecondStrikeThreshold)
@@ -345,7 +346,7 @@ func validateBatchTimeout(bt *ordererpb.BatchTimeouts) error {
 		return err
 	}
 	if secondStrike <= 0 {
-		return errors.Errorf("attempted to set the second strike threshold to a non-positive value: %s", secondStrike)
+		return fmt.Errorf("attempted to set the second strike threshold to a non-positive value: %s", secondStrike)
 	}
 
 	autoRemove, err := time.ParseDuration(bt.AutoRemoveTimeout)
@@ -353,7 +354,7 @@ func validateBatchTimeout(bt *ordererpb.BatchTimeouts) error {
 		return err
 	}
 	if autoRemove <= 0 {
-		return errors.Errorf("attempted to set auto remove timeout to a non-positive value: %s", autoRemove)
+		return fmt.Errorf("attempted to set auto remove timeout to a non-positive value: %s", autoRemove)
 	}
 	return nil
 }
@@ -376,31 +377,31 @@ func validateSmartBFTConfig(id uint64, cfg *ordererpb.SmartBFTConfig) error {
 
 	var err error
 	if c.RequestBatchMaxInterval, err = time.ParseDuration(cfg.RequestBatchMaxInterval); err != nil {
-		return errors.Wrap(err, "invalid smartbft config RequestBatchMaxInterval")
+		return fmt.Errorf("invalid smartbft config RequestBatchMaxInterval: %w", err)
 	}
 	if c.RequestForwardTimeout, err = time.ParseDuration(cfg.RequestForwardTimeout); err != nil {
-		return errors.Wrap(err, "invalid smartbft config RequestForwardTimeout")
+		return fmt.Errorf("invalid smartbft config RequestForwardTimeout: %w", err)
 	}
 	if c.RequestComplainTimeout, err = time.ParseDuration(cfg.RequestComplainTimeout); err != nil {
-		return errors.Wrap(err, "invalid smartbft config RequestComplainTimeout")
+		return fmt.Errorf("invalid smartbft config RequestComplainTimeout: %w", err)
 	}
 	if c.RequestAutoRemoveTimeout, err = time.ParseDuration(cfg.RequestAutoRemoveTimeout); err != nil {
-		return errors.Wrap(err, "invalid smartbft config RequestAutoRemoveTimeout")
+		return fmt.Errorf("invalid smartbft config RequestAutoRemoveTimeout: %w", err)
 	}
 	if c.ViewChangeResendInterval, err = time.ParseDuration(cfg.ViewChangeResendInterval); err != nil {
-		return errors.Wrap(err, "invalid smartbft config ViewChangeResendInterval")
+		return fmt.Errorf("invalid smartbft config ViewChangeResendInterval: %w", err)
 	}
 	if c.ViewChangeTimeout, err = time.ParseDuration(cfg.ViewChangeTimeout); err != nil {
-		return errors.Wrap(err, "invalid smartbft config ViewChangeTimeout")
+		return fmt.Errorf("invalid smartbft config ViewChangeTimeout: %w", err)
 	}
 	if c.LeaderHeartbeatTimeout, err = time.ParseDuration(cfg.LeaderHeartbeatTimeout); err != nil {
-		return errors.Wrap(err, "invalid smartbft config LeaderHeartbeatTimeout")
+		return fmt.Errorf("invalid smartbft config LeaderHeartbeatTimeout: %w", err)
 	}
 	if c.CollectTimeout, err = time.ParseDuration(cfg.CollectTimeout); err != nil {
-		return errors.Wrap(err, "invalid smartbft config CollectTimeout")
+		return fmt.Errorf("invalid smartbft config CollectTimeout: %w", err)
 	}
 	if c.RequestPoolSubmitTimeout, err = time.ParseDuration(cfg.RequestPoolSubmitTimeout); err != nil {
-		return errors.Wrap(err, "invalid smartbft config RequestPoolSubmitTimeout")
+		return fmt.Errorf("invalid smartbft config RequestPoolSubmitTimeout: %w", err)
 	}
 	c.LeaderRotation = cfg.LeaderRotation
 	c.DecisionsPerLeader = cfg.DecisionsPerLeader
@@ -445,7 +446,7 @@ func validateOrdererOrgEndpoints(endpoints []string) error {
 
 func validateConsenterConsistency(consenters []*common.Consenter, parties []*ordererpb.PartyConfig) error {
 	if len(consenters) != len(parties) {
-		return errors.Errorf("number of parties in Orderer consenters mapping (%d) does not match number of parties in Shared config (%d)", len(consenters), len(parties))
+		return fmt.Errorf("number of parties in Orderer consenters mapping (%d) does not match number of parties in Shared config (%d)", len(consenters), len(parties))
 	}
 
 	partiesMap := make(map[uint32]*ordererpb.PartyConfig)
@@ -462,30 +463,30 @@ func validateConsenterConsistency(consenters []*common.Consenter, parties []*ord
 		}
 		party, exists := partiesMap[consenter.Id]
 		if !exists {
-			return errors.Errorf("party ID %d missing from shared config", consenter.Id)
+			return fmt.Errorf("party ID %d missing from shared config", consenter.Id)
 		}
 		if party.ConsenterConfig == nil {
-			return errors.Errorf("consenter config missing in shared config for party %d", consenter.Id)
+			return fmt.Errorf("consenter config missing in shared config for party %d", consenter.Id)
 		}
 		nodeCfg := party.ConsenterConfig.GetNodeConfig()
 		if consenter.Host != nodeCfg.GetHost() {
-			return errors.Errorf("host mismatch for party %d: %s != %s", consenter.Id, consenter.Host, nodeCfg.GetHost())
+			return fmt.Errorf("host mismatch for party %d: %s != %s", consenter.Id, consenter.Host, nodeCfg.GetHost())
 		}
 
 		if consenter.Port != nodeCfg.GetPort() {
-			return errors.Errorf("port mismatch for party %d: %d != %d", consenter.Id, consenter.Port, nodeCfg.GetPort())
+			return fmt.Errorf("port mismatch for party %d: %d != %d", consenter.Id, consenter.Port, nodeCfg.GetPort())
 		}
 
 		if !slices.Equal(consenter.Identity, nodeCfg.GetSignCert()) {
-			return errors.Errorf("identity/sign_cert mismatch for party %d", consenter.Id)
+			return fmt.Errorf("identity/sign_cert mismatch for party %d", consenter.Id)
 		}
 
 		if len(consenter.ServerTlsCert) > 0 && !slices.Equal(consenter.ServerTlsCert, nodeCfg.GetServerTlsCert()) {
-			return errors.Errorf("server TLS certificate mismatch for party %d", consenter.Id)
+			return fmt.Errorf("server TLS certificate mismatch for party %d", consenter.Id)
 		}
 
 		if len(consenter.ClientTlsCert) > 0 && !slices.Equal(consenter.ClientTlsCert, nodeCfg.GetClientTlsCert()) {
-			return errors.Errorf("client TLS certificate mismatch for party %d", consenter.Id)
+			return fmt.Errorf("client TLS certificate mismatch for party %d", consenter.Id)
 		}
 	}
 
@@ -513,7 +514,7 @@ func computePartyChanges(currMap map[uint32]*ordererpb.PartyConfig, nextMap map[
 
 		changed, err := validatePartyModification(currParty, nextParty)
 		if err != nil {
-			return nil, errors.Errorf("invalid modification for party ID %d: %v", currParty.PartyID, err)
+			return nil, fmt.Errorf("invalid modification for party ID %d: %w", currParty.PartyID, err)
 		}
 		if changed {
 			changes.Modified = append(changes.Modified, nextParty)
@@ -532,23 +533,23 @@ func validatePartyModification(curr, next *ordererpb.PartyConfig) (bool, error) 
 	}
 
 	if len(curr.BatchersConfig) != len(next.BatchersConfig) {
-		return false, errors.Errorf("batcher shards cannot change for party %d", curr.PartyID)
+		return false, fmt.Errorf("batcher shards cannot change for party %d", curr.PartyID)
 	}
 
 	nextShardIDs := make(map[uint32]struct{}, len(next.BatchersConfig))
 	for _, b := range next.BatchersConfig {
 		if b == nil {
-			return false, errors.Errorf("batcher config is nil for party %d in next config", curr.PartyID)
+			return false, fmt.Errorf("batcher config is nil for party %d in next config", curr.PartyID)
 		}
 		nextShardIDs[b.GetShardId()] = struct{}{}
 	}
 
 	for _, b := range curr.BatchersConfig {
 		if b == nil {
-			return false, errors.Errorf("batcher config is nil for party %d in current config", curr.PartyID)
+			return false, fmt.Errorf("batcher config is nil for party %d in current config", curr.PartyID)
 		}
 		if _, ok := nextShardIDs[b.GetShardId()]; !ok {
-			return false, errors.Errorf("batcher shard IDs cannot change for party %d", curr.PartyID)
+			return false, fmt.Errorf("batcher shard IDs cannot change for party %d", curr.PartyID)
 		}
 	}
 
@@ -570,7 +571,7 @@ func validateBlockValidationPolicy(policy *common.ConfigPolicy, consenters []*co
 
 	envelope := &common.SignaturePolicyEnvelope{}
 	if err := proto.Unmarshal(policy.Policy.Value, envelope); err != nil {
-		return errors.Wrap(err, "failed to unmarshal policy")
+		return fmt.Errorf("failed to unmarshal policy: %w", err)
 	}
 
 	// verify expected BFT quorum
@@ -583,31 +584,31 @@ func validateBlockValidationPolicy(policy *common.ConfigPolicy, consenters []*co
 		return errors.New("block validation policy rule is not NOutOf")
 	}
 	if nOutOf.N != expectedQuorum {
-		return errors.Errorf("quorum mismatch expected %d got %d", expectedQuorum, nOutOf.N)
+		return fmt.Errorf("quorum mismatch expected %d got %d", expectedQuorum, nOutOf.N)
 	}
 
 	// verify that the policy has one SignedBy rule for each consenter
 	if len(nOutOf.Rules) != n {
-		return errors.Errorf("unexpected number of policy rules: expected %d got %d", n, len(nOutOf.Rules))
+		return fmt.Errorf("unexpected number of policy rules: expected %d got %d", n, len(nOutOf.Rules))
 	}
 
 	seenSignedBy := make([]bool, n)
 	for i, rule := range nOutOf.Rules {
 		if rule == nil {
-			return errors.Errorf("policy rule %d is nil", i)
+			return fmt.Errorf("policy rule %d is nil", i)
 		}
 
 		signedBy, ok := rule.Type.(*common.SignaturePolicy_SignedBy)
 		if !ok {
-			return errors.Errorf("policy rule %d is not SignedBy", i)
+			return fmt.Errorf("policy rule %d is not SignedBy", i)
 		}
 
 		idx := signedBy.SignedBy
 		if idx < 0 || int(idx) >= n {
-			return errors.Errorf("invalid SignedBy index %d", idx)
+			return fmt.Errorf("invalid SignedBy index %d", idx)
 		}
 		if seenSignedBy[idx] {
-			return errors.Errorf("duplicate SignedBy index %d", idx)
+			return fmt.Errorf("duplicate SignedBy index %d", idx)
 		}
 		seenSignedBy[idx] = true
 	}
@@ -654,18 +655,18 @@ func validateTLSCACertsConsistency(parties []*ordererpb.PartyConfig, partyOrgMap
 
 		org, exists := partyOrgMap[party.PartyID]
 		if !exists {
-			return errors.Errorf("missing orderer organization for party %d", party.PartyID)
+			return fmt.Errorf("missing orderer organization for party %d", party.PartyID)
 		}
 
 		orgTLSCACerts := append([][]byte{}, org.MSP().GetTLSRootCerts()...)
 		orgTLSCACerts = append(orgTLSCACerts, org.MSP().GetTLSIntermediateCerts()...)
 
 		if len(orgTLSCACerts) == 0 {
-			return errors.Errorf("orderer organization for party %d has no TLS root or intermediate CA certificates", party.PartyID)
+			return fmt.Errorf("orderer organization for party %d has no TLS root or intermediate CA certificates", party.PartyID)
 		}
 
 		if err := certificateSetsEqual(party.TLSCACerts, orgTLSCACerts); err != nil {
-			return errors.Wrapf(err, "TLS CA certificates mismatch for party %d", party.PartyID)
+			return fmt.Errorf("TLS CA certificates mismatch for party %d: %w", party.PartyID, err)
 		}
 	}
 
@@ -684,12 +685,12 @@ func certificateSetsEqual(sharedConfigCerts, orgCerts [][]byte) error {
 
 	for _, cert := range orgCerts {
 		if _, exists := sharedConfigCertSet[string(cert)]; !exists {
-			return errors.Errorf("certificate exists in orderer organization MSP but is missing from shared config: %q", string(cert))
+			return fmt.Errorf("certificate exists in orderer organization MSP but is missing from shared config: %q", string(cert))
 		}
 	}
 	for _, cert := range sharedConfigCerts {
 		if _, exists := orgCertSet[string(cert)]; !exists {
-			return errors.Errorf("certificate exists in shared config but is missing from orderer organization MSP: %q", string(cert))
+			return fmt.Errorf("certificate exists in shared config but is missing from orderer organization MSP: %q", string(cert))
 		}
 	}
 
@@ -702,18 +703,18 @@ func validatePartyAndShardIDs(parties []*ordererpb.PartyConfig, maxPartyID uint3
 			return errors.New("party config is nil")
 		}
 		if party.PartyID == 0 || party.PartyID > math.MaxUint16 {
-			return errors.Errorf("party ID %d out of range [1, %d]", party.PartyID, math.MaxUint16)
+			return fmt.Errorf("party ID %d out of range [1, %d]", party.PartyID, math.MaxUint16)
 		}
 		if party.PartyID > maxPartyID {
-			return errors.Errorf("party ID %d exceeds MaxPartyID %d", party.PartyID, maxPartyID)
+			return fmt.Errorf("party ID %d exceeds MaxPartyID %d", party.PartyID, maxPartyID)
 		}
 
 		for _, batcher := range party.BatchersConfig {
 			if batcher == nil {
-				return errors.Errorf("nil batcher config for party %d", party.PartyID)
+				return fmt.Errorf("nil batcher config for party %d", party.PartyID)
 			}
 			if batcher.GetShardId() == 0 || batcher.GetShardId() >= uint32(arma_types.ShardIDConsensus) {
-				return errors.Errorf("shard ID %d of party %d out of range [1, %d]", batcher.GetShardId(), party.PartyID, arma_types.ShardIDConsensus-1)
+				return fmt.Errorf("shard ID %d of party %d out of range [1, %d]", batcher.GetShardId(), party.PartyID, arma_types.ShardIDConsensus-1)
 			}
 		}
 	}
@@ -725,7 +726,7 @@ func validateRouterAndAssemblerEndpoints(parties []*ordererpb.PartyConfig, party
 	for _, party := range parties {
 		org, exists := partyOrgMap[party.PartyID]
 		if !exists {
-			return errors.Errorf("missing orderer organization for party %d", party.PartyID)
+			return fmt.Errorf("missing orderer organization for party %d", party.PartyID)
 		}
 
 		routerHost := party.GetRouterConfig().GetNodeConfig().GetHost()

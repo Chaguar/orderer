@@ -8,13 +8,13 @@ package request
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/pkg/errors"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -135,7 +135,7 @@ func (rp *Pool) Submit(request []byte) error {
 	defer rp.lock.RUnlock()
 
 	if rp.isClosed() || rp.isStopped() {
-		return errors.Errorf("pool halted or closed, request rejected")
+		return errors.New("pool halted or closed, request rejected")
 	}
 
 	if uint64(len(request)) > rp.options.RequestMaxBytes {
@@ -190,7 +190,7 @@ func (rp *Pool) submitToBatchStore(reqID string, request []byte) error {
 	if !inserted {
 		rp.semaphore.Release(1)
 		rp.logger.Debugf("request %s has been already added to the pool", reqID)
-		return errors.Errorf("request %s already inserted", reqID)
+		return fmt.Errorf("request %s already inserted", reqID)
 	}
 
 	atomic.AddInt64(&rp.size, 1)
