@@ -120,6 +120,12 @@ func TestGeneratePrivateKey(t *testing.T) {
 	require.Contains(t, err.Error(), "no such file or directory")
 }
 
+func TestGeneratePrivateKeyUnsupportedAlgorithm(t *testing.T) {
+	priv, err := csp.GeneratePrivateKey(t.TempDir(), "rsa")
+	require.EqualError(t, err, "failed to generate private key: unsupported key algorithm: rsa")
+	require.Nil(t, priv)
+}
+
 func TestECDSASigner(t *testing.T) {
 	priv, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

@@ -23,8 +23,6 @@ import (
 	"time"
 
 	"github.com/Chaguar/orderer/internal/cryptogen/csp"
-
-	"github.com/pkg/errors"
 )
 
 // This code originates from hyperledger fabric project. Source: https://github.com/hyperledger/fabric/tree/main/internal/cryptogen/ca
@@ -327,11 +325,11 @@ func LoadCertificate(certPath string) (*x509.Certificate, error) {
 			}
 			block, _ := pem.Decode(rawCert)
 			if block == nil || block.Type != "CERTIFICATE" {
-				return errors.Errorf("%s: wrong PEM encoding", path)
+				return fmt.Errorf("%s: wrong PEM encoding", path)
 			}
 			cert, err = x509.ParseCertificate(block.Bytes)
 			if err != nil {
-				return errors.Errorf("%s: wrong DER encoding", path)
+				return fmt.Errorf("%s: wrong DER encoding", path)
 			}
 		}
 		return nil
