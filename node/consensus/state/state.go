@@ -584,16 +584,20 @@ func (s *State) PrunePoint(shard types.ShardID, primary types.PartyID) types.Bat
 	return 0
 }
 
-// SetPrunePoint raises the prune point of <shard, primary> to seq. A lower seq leaves it unchanged, and a
-// new <shard, primary> is inserted in (shard, primary) order. A prune point of 0 is never added, as an
-// absent <shard, primary> already has prune point 0.
-func (s *State) SetPrunePoint(shard types.ShardID, primary types.PartyID, seq types.BatchSequence) {
+// SetPrunePoint raises the prune point of <shard, primary> to seq, and reports whether it raised it. A seq
+// that is not higher leaves it unchanged, and a new <shard, primary> is inserted in (shard, primary) order. A
+// prune point of 0 is never added, as an absent <shard, primary> already has prune point 0.
+func (s *State) SetPrunePoint(shard types.ShardID, primary types.PartyID, seq types.BatchSequence) bool {
 	i, found := slices.BinarySearchFunc(s.PrunePoints, PrunePoint{Shard: shard, Primary: primary}, comparePrunePointKeys)
 	switch {
-	case found:
-		s.PrunePoints[i].Seq = max(s.PrunePoints[i].Seq, seq)
-	case seq > 0:
+	case found && seq > s.PrunePoints[i].Seq:
+		s.PrunePoints[i].Seq = seq
+		return true
+	case !found && seq > 0:
 		s.PrunePoints = slices.Insert(s.PrunePoints, i, PrunePoint{Shard: shard, Primary: primary, Seq: seq})
+		return true
+	default:
+		return false
 	}
 }
 

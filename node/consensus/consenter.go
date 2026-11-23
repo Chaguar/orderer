@@ -83,14 +83,21 @@ func (c *Consenter) updatePrunePoints(prev, next *state.State, committing []type
 			}
 		}
 
+		raised := false
 		for _, key := range c.BatchDecisions.Ledgers() {
 			seq := c.BatchDecisions.DurableFrontier(key.Shard, key.Primary, next.PrunePoint(key.Shard, key.Primary), next.DurableWatermark)
 			if lowest, exists := lowestCommitting[key]; exists {
 				seq = min(seq, lowest)
 			}
-			next.SetPrunePoint(key.Shard, key.Primary, seq)
+			if next.SetPrunePoint(key.Shard, key.Primary, seq) {
+				raised = true
+			}
 		}
-		next.DropPendingBelowPrunePoints(c.Logger)
+		// Pending BAFs below the prune points can only appear when a prune point rises: incoming BAFs below
+		// them are dropped before Process.
+		if raised {
+			next.DropPendingBelowPrunePoints(c.Logger)
+		}
 	}
 	next.ReplayFrom = c.BatchDecisions.ReplayFrom()
 }

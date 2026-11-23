@@ -117,6 +117,21 @@ func TestConsenterDropsBAFsBelowPrunePoint(t *testing.T) {
 		require.Len(t, next.Pending, 1)
 		require.Equal(t, arma_types.BatchSequence(4), next.Pending[0].Seq())
 	})
+
+	// Pending BAFs are scanned only when a prune point moves: incoming BAFs below the prune point are dropped
+	// before Process, and pending ones when it moves, so no other decision can hold one. The pending BAF below
+	// the prune point here is set up directly to show that a watermark advance alone does not scan.
+	t.Run("pending kept when no prune point moves", func(t *testing.T) {
+		c := createConsenter(testutil.CreateLogger(t, 0))
+		prev := pruneState(4, 0)
+		prev.SetPrunePoint(1, 1, 4)
+		prev.Pending = []arma_types.BatchAttestationFragment{baf(2, 0xee)}
+
+		next, _, _ := c.SimulateStateTransition(prev, 0, testutil.PartyIDs(4), nil)
+		require.Equal(t, arma_types.DecisionNum(4), next.DurableWatermark)
+		require.Equal(t, arma_types.BatchSequence(4), next.PrunePoint(1, 1))
+		require.Len(t, next.Pending, 1)
+	})
 }
 
 func TestConsenterIndexBatchDecisions(t *testing.T) {

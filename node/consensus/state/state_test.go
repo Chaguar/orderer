@@ -1196,19 +1196,21 @@ func TestStateDeserializeRejectsOutOfRangePruningFields(t *testing.T) {
 // one, and never adds an entry for prune point 0.
 func TestSetPrunePoint(t *testing.T) {
 	var s consensus_state.State
-	s.SetPrunePoint(1, 2, 5)
-	s.SetPrunePoint(0, 3, 4)
-	s.SetPrunePoint(1, 1, 2)
+	require.True(t, s.SetPrunePoint(1, 2, 5))
+	require.True(t, s.SetPrunePoint(0, 3, 4))
+	require.True(t, s.SetPrunePoint(1, 1, 2))
 	require.Equal(t, []consensus_state.PrunePoint{
 		{Shard: 0, Primary: 3, Seq: 4},
 		{Shard: 1, Primary: 1, Seq: 2},
 		{Shard: 1, Primary: 2, Seq: 5},
 	}, s.PrunePoints)
 
-	s.SetPrunePoint(1, 2, 3)
+	require.False(t, s.SetPrunePoint(1, 2, 3))
+	require.False(t, s.SetPrunePoint(1, 2, 5))
 	require.Equal(t, types.BatchSequence(5), s.PrunePoint(1, 2))
+	require.True(t, s.SetPrunePoint(1, 2, 6))
 
-	s.SetPrunePoint(2, 1, 0)
+	require.False(t, s.SetPrunePoint(2, 1, 0))
 	require.Len(t, s.PrunePoints, 3)
 
 	var deserialized consensus_state.State
