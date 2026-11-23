@@ -96,7 +96,7 @@ func TestBindingInspector(t *testing.T) {
 	chHdrWithWrongTLSCertHash, _ := proto.Marshal(chanHdr)
 	err = srv.newInspection(t).withMutualTLS().inspectBinding(envelopeWithChannelHeader(chHdrWithWrongTLSCertHash))
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "claimed TLS cert hash is [1 2 3] but actual TLS cert hash is")
+	require.Contains(t, err.Error(), "claimed TLS cert hash is 010203 but actual TLS cert hash is")
 
 	// Scenario VI: Client uses mutual TLS and also sends the correct TLS cert hash
 	err = srv.newInspection(t).withMutualTLS().inspectBinding(envelopeWithChannelHeader(ch))

@@ -15,7 +15,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 
 	"github.com/Chaguar/common/protoutil/identity"
 	"github.com/Chaguar/orderer/common/deliverclient"
@@ -378,7 +377,7 @@ func (d *BFTDeliverer) FetchBlocks(source *orderers.Endpoint, errC chan<- error,
 		deliverClient, cancel, err := d.requester.Connect(seekInfoEnv, source)
 		if err != nil {
 			d.Logger.Warningf("Could not connect to ordering service: %s", err)
-			errC <- errors.Wrapf(err, "could not connect to ordering service, orderer-address: %s", source.Address)
+			errC <- fmt.Errorf("could not connect to ordering service, orderer-address: %s: %w", source.Address, err)
 			return
 		}
 

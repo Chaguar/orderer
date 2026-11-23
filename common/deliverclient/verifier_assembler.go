@@ -7,10 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package deliverclient
 
 import (
+	"errors"
+	"fmt"
+
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/common/policies"
@@ -18,8 +20,9 @@ import (
 )
 
 func createErrorFunc(err error) protoutil.BlockVerifierFunc {
+	err = fmt.Errorf("failed to initialize block verifier function: %w", err)
 	return func(_ *common.BlockHeader, _ *common.BlockMetadata) error {
-		return errors.Wrap(err, "failed to initialize block verifier function")
+		return err
 	}
 }
 
@@ -38,7 +41,7 @@ func (bva *BlockVerifierAssembler) VerifierFromConfig(configuration *common.Conf
 
 	policy, exists := bundle.PolicyManager().GetPolicy(policies.BlockValidation)
 	if !exists {
-		err := errors.Errorf("no `%s` policy in config block", policies.BlockValidation)
+		err := fmt.Errorf("no `%s` policy in config block", policies.BlockValidation)
 		return createErrorFunc(err), err
 	}
 

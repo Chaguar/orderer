@@ -9,13 +9,13 @@ package orderers
 import (
 	"bytes"
 	"crypto/sha256"
+	"errors"
 	"fmt"
 	"math/rand"
 	"sync"
 
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"github.com/pkg/errors"
 )
 
 // Endpoint represents an orderer endpoint, which includes the endpoint address, TLS root certs, and a channel that is closed when the endpoint is refreshed.
@@ -69,7 +69,7 @@ func (cs *ConnectionSource) RandomEndpoint() (*Endpoint, error) {
 	cs.mutex.RLock()
 	defer cs.mutex.RUnlock()
 	if len(cs.allEndpoints) == 0 {
-		return nil, errors.Errorf("no endpoints currently defined")
+		return nil, errors.New("no endpoints currently defined")
 	}
 	return cs.allEndpoints[rand.Intn(len(cs.allEndpoints))], nil
 }

@@ -8,11 +8,12 @@ package blocksprovider
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"math"
 
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/common/protoutil/identity"
@@ -103,7 +104,7 @@ func (dr *DeliveryRequester) SeekInfoNewestHeader() (*common.Envelope, error) {
 func (dr *DeliveryRequester) Connect(seekInfoEnv *common.Envelope, endpoint *orderers.Endpoint) (orderer.AtomicBroadcast_DeliverClient, func(), error) {
 	conn, err := dr.dialer.Dial(endpoint.Address, endpoint.RootCerts)
 	if err != nil {
-		return nil, nil, errors.WithMessagef(err, "could not dial endpoint '%s'", endpoint.Address)
+		return nil, nil, fmt.Errorf("could not dial endpoint '%s': %w", endpoint.Address, err)
 	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
@@ -112,7 +113,7 @@ func (dr *DeliveryRequester) Connect(seekInfoEnv *common.Envelope, endpoint *ord
 	if err != nil {
 		_ = conn.Close()
 		ctxCancel()
-		return nil, nil, errors.WithMessagef(err, "could not create deliver client to endpoints '%s'", endpoint.Address)
+		return nil, nil, fmt.Errorf("could not create deliver client to endpoints '%s': %w", endpoint.Address, err)
 	}
 
 	err = deliverClient.Send(seekInfoEnv)
@@ -120,7 +121,7 @@ func (dr *DeliveryRequester) Connect(seekInfoEnv *common.Envelope, endpoint *ord
 		_ = deliverClient.CloseSend()
 		_ = conn.Close()
 		ctxCancel()
-		return nil, nil, errors.WithMessagef(err, "could not send deliver seek info handshake to '%s'", endpoint.Address)
+		return nil, nil, fmt.Errorf("could not send deliver seek info handshake to '%s': %w", endpoint.Address, err)
 	}
 
 	cancelFunc := func() {

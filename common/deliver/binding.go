@@ -9,9 +9,10 @@ package deliver
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 
 	"github.com/Chaguar/common/common/util"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -49,14 +50,14 @@ func NewBindingInspector(mutualTLS bool, extractTLSCertHash CertHashExtractor) B
 // an error is returned.
 func mutualTLSBinding(ctx context.Context, claimedTLScertHash []byte) error {
 	if len(claimedTLScertHash) == 0 {
-		return errors.Errorf("client didn't include its TLS cert hash")
+		return errors.New("client didn't include its TLS cert hash")
 	}
 	actualTLScertHash := util.ExtractCertificateHashFromContext(ctx)
 	if len(actualTLScertHash) == 0 {
-		return errors.Errorf("client didn't send a TLS certificate")
+		return errors.New("client didn't send a TLS certificate")
 	}
 	if !bytes.Equal(actualTLScertHash, claimedTLScertHash) {
-		return errors.Errorf("claimed TLS cert hash is %v but actual TLS cert hash is %v", claimedTLScertHash, actualTLScertHash)
+		return fmt.Errorf("claimed TLS cert hash is %x but actual TLS cert hash is %x", claimedTLScertHash, actualTLScertHash)
 	}
 	return nil
 }

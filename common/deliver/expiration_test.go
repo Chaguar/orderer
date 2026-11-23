@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package deliver_test
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -16,7 +17,6 @@ import (
 	"github.com/Chaguar/orderer/common/ledger/testutil/fakes"
 	"github.com/Chaguar/orderer/common/msputils/mock"
 	"github.com/Chaguar/orderer/common/utils"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 )
 

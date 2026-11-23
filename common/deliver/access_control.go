@@ -7,6 +7,8 @@ SPDX-License-Identifier: Apache-2.0
 package deliver
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/Chaguar/common/api/msppb"
@@ -14,7 +16,6 @@ import (
 	"github.com/Chaguar/common/common/policies"
 	"github.com/Chaguar/common/protoutil"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // AccessControl authorizes a request by a policy of the configuration the bundle carries.
@@ -35,7 +36,7 @@ func NewAccessControl(bundle channelconfig.Resources, policyName string) (*Acces
 
 	policy, exists := bundle.PolicyManager().GetPolicy(policyName)
 	if !exists {
-		return nil, errors.Errorf("the configuration holds no policy %s", policyName)
+		return nil, fmt.Errorf("the configuration holds no policy %s", policyName)
 	}
 
 	return &AccessControl{policy: policy, policyName: policyName, expiresAt: NewExpiresAtFunc(bundle.MSPManager())}, nil
@@ -46,11 +47,11 @@ func NewAccessControl(bundle channelconfig.Resources, policyName string) (*Acces
 func (a *AccessControl) CheckPolicy(envelope *cb.Envelope, channelID string) error {
 	signedData, err := protoutil.EnvelopeAsSignedData(envelope)
 	if err != nil {
-		return errors.Wrap(err, "could not convert the request to signed data")
+		return fmt.Errorf("could not convert the request to signed data: %w", err)
 	}
 
 	if err := a.policy.EvaluateSignedData(signedData); err != nil {
-		return errors.Wrapf(err, "the request does not satisfy %s", a.policyName)
+		return fmt.Errorf("the request does not satisfy %s: %w", a.policyName, err)
 	}
 
 	return nil

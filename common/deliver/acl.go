@@ -7,12 +7,12 @@ SPDX-License-Identifier: Apache-2.0
 package deliver
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // ExpiresAtFunc is used to extract the time at which an identity expires.
@@ -68,7 +68,7 @@ func (ac *SessionAccessControl) Evaluate() error {
 	}
 
 	if !ac.sessionEndTime.IsZero() && time.Now().After(ac.sessionEndTime) {
-		return errors.Errorf("deliver client identity expired %v before", time.Since(ac.sessionEndTime))
+		return fmt.Errorf("deliver client identity expired %v before", time.Since(ac.sessionEndTime))
 	}
 
 	policyCheckNeeded := !ac.usedAtLeastOnce

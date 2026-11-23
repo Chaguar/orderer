@@ -10,6 +10,8 @@ package deliver
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"math"
 	"strconv"
@@ -26,7 +28,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
 	ab "github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -315,7 +316,7 @@ func (h *Handler) deliverBlocks(ctx context.Context, srv *Server, envelope *cb.E
 		select {
 		case <-ctx.Done():
 			logger.Debugf("Context canceled, aborting wait for next block")
-			return cb.Status_INTERNAL_SERVER_ERROR, errors.Wrapf(ctx.Err(), "context finished before block retrieved")
+			return cb.Status_INTERNAL_SERVER_ERROR, fmt.Errorf("context finished before block retrieved: %w", ctx.Err())
 		case <-erroredChan:
 			// TODO, today, the only user of the errorChan is the orderer consensus implementations.  If the peer ever reports
 			// this error, we will need to update this error message, possibly finding a way to signal what error text to return.
@@ -410,7 +411,7 @@ func (h *Handler) validateChannelHeader(ctx context.Context, chdr *cb.ChannelHea
 	serverTime := time.Now()
 
 	if math.Abs(float64(serverTime.UnixNano()-envTime.UnixNano())) > float64(h.TimeWindow.Nanoseconds()) {
-		err := errors.Errorf("envelope timestamp %s is more than %s apart from current server time %s", envTime, h.TimeWindow, serverTime)
+		err := fmt.Errorf("envelope timestamp %s is more than %s apart from current server time %s", envTime, h.TimeWindow, serverTime)
 		return err
 	}
 
@@ -434,7 +435,7 @@ func NewExpiresAtFunc(identities msp.IdentityDeserializer) ExpiresAtFunc {
 
 		resolved, err := identities.DeserializeIdentity(identity)
 		if err != nil {
-			return time.Time{}, errors.Wrapf(err, "failed resolving the identity of MSP %s", identity.GetMspId())
+			return time.Time{}, fmt.Errorf("failed resolving the identity of MSP %s: %w", identity.GetMspId(), err)
 		}
 
 		return resolved.ExpiresAt(), nil
