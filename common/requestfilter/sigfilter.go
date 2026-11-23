@@ -43,7 +43,7 @@ func (sf *SigFilter) VerifyAndClassify(request *comm.Request) (common.HeaderType
 	if sf.clientSignatureVerificationRequired || reqType == common.HeaderType_CONFIG_UPDATE {
 		policy, exists := sf.policyManager.GetPolicy(sf.policyName)
 		if !exists {
-			return reqType, fmt.Errorf("no policies in config block")
+			return reqType, errors.New("no policies in config block")
 		}
 		err = policy.EvaluateSignedData([]*protoutil.SignedData{signedData})
 		if err != nil {
@@ -58,7 +58,7 @@ func (sf *SigFilter) VerifyAndClassify(request *comm.Request) (common.HeaderType
 func (sf *SigFilter) requestToSignedData(request *comm.Request) (*protoutil.SignedData, common.HeaderType, error) {
 	var reqType common.HeaderType
 	if request == nil {
-		return nil, reqType, fmt.Errorf("nil request")
+		return nil, reqType, errors.New("nil request")
 	}
 
 	payload := &common.Payload{}
@@ -68,21 +68,21 @@ func (sf *SigFilter) requestToSignedData(request *comm.Request) (*protoutil.Sign
 	}
 
 	if payload.Header == nil {
-		return nil, reqType, fmt.Errorf("missing header in request's payload")
+		return nil, reqType, errors.New("missing header in request's payload")
 	}
 
 	if payload.Header.SignatureHeader == nil {
-		return nil, reqType, fmt.Errorf("missing signature header in payload's header")
+		return nil, reqType, errors.New("missing signature header in payload's header")
 	}
 
 	shdr := &common.SignatureHeader{}
 	err = proto.Unmarshal(payload.Header.SignatureHeader, shdr)
 	if err != nil {
-		return nil, reqType, fmt.Errorf("failed unmarshalling signature header, err %s", err)
+		return nil, reqType, fmt.Errorf("failed unmarshalling signature header, err %w", err)
 	}
 
 	if payload.Header.ChannelHeader == nil {
-		return nil, reqType, fmt.Errorf("missing channel header in request's payload")
+		return nil, reqType, errors.New("missing channel header in request's payload")
 	}
 
 	chdr := &common.ChannelHeader{}

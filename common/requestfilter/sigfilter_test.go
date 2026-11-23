@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package requestfilter_test
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"testing"
@@ -21,7 +22,6 @@ import (
 	"github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )

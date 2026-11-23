@@ -7,7 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package requestfilter
 
 import (
-	"fmt"
+	"errors"
 	"sync"
 
 	"github.com/Chaguar/orderer/node/protos/comm"
@@ -61,7 +61,7 @@ func (rv *RulesVerifier) VerifyStructureAndClassify(request *comm.Request) (comm
 	defer rv.lock.RUnlock()
 	var reqType common.HeaderType
 	if rv.structureRule == nil {
-		return reqType, fmt.Errorf("sturcture rule is not set in verifier")
+		return reqType, errors.New("structure rule is not set in verifier")
 	}
 	return rv.structureRule.VerifyAndClassify(request)
 }

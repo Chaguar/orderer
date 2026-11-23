@@ -10,21 +10,20 @@ import (
 	"crypto/ecdsa"
 	"crypto/x509"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 func ReadPem(path string) ([]byte, error) {
 	if path == "" {
-		return nil, fmt.Errorf("failed reading pem file, path is empty")
+		return nil, errors.New("failed reading pem file, path is empty")
 	}
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("failed reading a pem file from %s, err: %v", path, err)
+		return nil, fmt.Errorf("failed reading a pem file from %s, err: %w", path, err)
 	}
 
 	return data, nil
@@ -33,13 +32,13 @@ func ReadPem(path string) ([]byte, error) {
 func WritePEMToFile(path string, pemType string, bytes []byte) error {
 	file, err := os.Create(path)
 	if err != nil {
-		return fmt.Errorf("err: %s, failed creating %s to %s", err, pemType, path)
+		return fmt.Errorf("err: %w, failed creating %s to %s", err, pemType, path)
 	}
 	defer file.Close()
 
 	err = pem.Encode(file, &pem.Block{Type: pemType, Bytes: bytes})
 	if err != nil {
-		return fmt.Errorf("err: %s, failed writing %s to %s", err, pemType, path)
+		return fmt.Errorf("err: %w, failed writing %s to %s", err, pemType, path)
 	}
 
 	return nil
@@ -93,10 +92,10 @@ func GetPublicKeyFromCertificate(nodeCert []byte) []byte {
 func Parsex509Cert(certBytes []byte) (*x509.Certificate, error) {
 	pbl, _ := pem.Decode(certBytes)
 	if pbl == nil || pbl.Bytes == nil {
-		return nil, errors.Errorf("no pem content for cert")
+		return nil, errors.New("no pem content for cert")
 	}
 	if pbl.Type != "CERTIFICATE" && pbl.Type != "PRIVATE KEY" {
-		return nil, errors.Errorf("unexpected pem type, got a %s", strings.ToLower(pbl.Type))
+		return nil, fmt.Errorf("unexpected pem type, got a %s", strings.ToLower(pbl.Type))
 	}
 
 	cert, err := x509.ParseCertificate(pbl.Bytes)
@@ -118,7 +117,7 @@ func PemFilesFromDir(dir string) ([]string, error) {
 		}
 	}
 	if len(names) == 0 {
-		return nil, errors.Errorf("no .pem files found in directory %s", dir)
+		return nil, fmt.Errorf("no .pem files found in directory %s", dir)
 	}
 	return names, nil
 }

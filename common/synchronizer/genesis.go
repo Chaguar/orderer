@@ -14,7 +14,6 @@ import (
 	"github.com/Chaguar/orderer/common/utils"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/proto"
 )
 
@@ -24,7 +23,7 @@ import (
 // Byzantine faults given the cluster size.
 func SelectGenesisBlock(logger *flogging.FabricLogger, genesisByEndpoint map[string]*common.Block, clusterSize int) (*common.Block, error) {
 	if clusterSize <= 0 {
-		return nil, errors.Errorf("invalid cluster size: %d; must be positive", clusterSize)
+		return nil, fmt.Errorf("invalid cluster size: %d; must be positive", clusterSize)
 	}
 
 	// Calculate required matches
@@ -64,5 +63,5 @@ func SelectGenesisBlock(logger *flogging.FabricLogger, genesisByEndpoint map[str
 		}
 	}
 
-	return nil, errors.Errorf("could not find genesis block with at least %d matching copies: %+v", requiredMatches, endpointToHash)
+	return nil, fmt.Errorf("could not find genesis block with at least %d matching copies: %+v", requiredMatches, endpointToHash)
 }

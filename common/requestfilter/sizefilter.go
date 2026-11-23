@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package requestfilter
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/Chaguar/orderer/node/protos/comm"
@@ -39,7 +40,7 @@ type PayloadNotEmptyRule struct{}
 
 func (r PayloadNotEmptyRule) Verify(request *comm.Request) error {
 	if request.Payload == nil {
-		return fmt.Errorf("empty payload field")
+		return errors.New("empty payload field")
 	}
 	return nil
 }

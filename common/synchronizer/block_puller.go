@@ -9,6 +9,7 @@ package synchronizer
 import (
 	"crypto/x509"
 	"encoding/pem"
+	"fmt"
 	"time"
 
 	"github.com/Chaguar/common/common/channelconfig"
@@ -19,7 +20,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	cb "github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 )
 
 // AddressExtractor extracts the party-to-endpoint mapping from the shared orderer
@@ -54,12 +54,12 @@ func NewBlockPuller(
 	// Extract endpoint and TLS cert from the config, excluding the self endpoint.
 	endpoints, err := extractEndpointCriteriaFromConfig(myPartyID, support, extractAddresses)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to extract endpoint criteria from config")
+		return nil, fmt.Errorf("failed to extract endpoint criteria from config: %w", err)
 	}
 
 	der, _ := pem.Decode(stdDialer.Config.SecOpts.Certificate)
 	if der == nil {
-		return nil, errors.Errorf("client certificate isn't in PEM format: %v",
+		return nil, fmt.Errorf("client certificate isn't in PEM format: %v",
 			string(stdDialer.Config.SecOpts.Certificate))
 	}
 
