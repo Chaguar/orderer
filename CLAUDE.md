@@ -139,22 +139,13 @@ Reconfiguration (membership, identity, endpoints, params) flows through new conf
 - Logging is `flogging` (`FabricLogger`), typically named per role/party
   (e.g. `Batcher%dShard%d`).
 - Errors: use the standard library (`errors`, `fmt.Errorf` with `%w`, `errors.Is`/`errors.As`,
-  `errors.Join`). `github.com/pkg/errors` is archived and being removed.
-  - Policy: don't add new uses of `pkg/errors`, but don't migrate existing code unrelated to your
-    change either (it bloats the PR review). Use `github.com/cockroachdb/errors` only where stack
-    traces are actually needed.
-  - Aliasing: in a file that still imports `pkg/errors`, `fmt.Errorf` needs no alias, and
-    `errors.Is`/`As`/`Unwrap` already forward to the standard library. Alias only when you need the
-    standard library's `errors.New` or `errors.Join`, and then always as
-    `pkgerrors "github.com/pkg/errors"`.
-  - Mapping, for code you do migrate:
-    - `errors.Wrap(err, "msg")`, `errors.WithMessage(err, "msg")` → `fmt.Errorf("msg: %w", err)`
-    - `errors.Wrapf(err, "f %d", x)`, `errors.WithMessagef(…)` → `fmt.Errorf("f %d: %w", x, err)`
-    - `errors.WithStack(err)` → `err` (just drop the wrapper)
-    - `errors.Errorf(…)` → `fmt.Errorf(…)`
-  - `nil` trap: every `pkg/errors` wrapper (`Wrap*`, `WithMessage*`, `WithStack`) returns `nil`
-    for a `nil` error, but `fmt.Errorf("…: %w", nil)` does not. Add an explicit `if err != nil`
-    wherever the old code relied on that (e.g. `return errors.WithStack(f.Close())`).
+  `errors.Join`). Don't import `github.com/pkg/errors`: it is archived, and the repository no
+  longer uses it (it remains only as an indirect dependency in `go.mod`). Use
+  `github.com/cockroachdb/errors` only where stack traces are actually needed.
+  - Wrap with `%w`, not `%s`/`%v` or `err.Error()`, so `errors.Is`/`errors.As` see the cause; use
+    `errors.New` when there are no format arguments.
+  - `fmt.Errorf` never returns `nil`, even for a `nil` error, so wrap only inside
+    `if err != nil` (never `return fmt.Errorf("…: %w", err)` on a path where `err` may be `nil`).
 - `.golangci.yml` enables a wider linter set than `make linter` (`gosec`, `gocritic`, `revive`,
   `ireturn`, `lll`, `gocognit`, …), run only by `make linter-extra`; keep new code clean under it.
   CI does not run it, and the config is in golangci-lint v1 format, so it needs a v1 binary.
