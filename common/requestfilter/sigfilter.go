@@ -88,7 +88,7 @@ func (sf *SigFilter) requestToSignedData(request *comm.Request) (*protoutil.Sign
 	chdr := &common.ChannelHeader{}
 	err = proto.Unmarshal(payload.Header.ChannelHeader, chdr)
 	if err != nil {
-		return nil, reqType, fmt.Errorf("failed unmarshalling channel header, err %s", err.Error())
+		return nil, reqType, fmt.Errorf("failed unmarshalling channel header, err %w", err)
 	}
 
 	if err = verifyTxID(chdr, shdr); err != nil {
