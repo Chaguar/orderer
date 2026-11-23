@@ -14,13 +14,13 @@ import (
 	"crypto/x509"
 	"encoding/asn1"
 	"encoding/pem"
+	"errors"
+	"fmt"
 	"io"
 	"math/big"
 	"os"
 	"path/filepath"
 	"strings"
-
-	"github.com/pkg/errors"
 )
 
 // This code originates from hyperledger fabric project. Source: https://github.com/hyperledger/fabric/blob/main/internal/cryptogen/csp/csp.go
@@ -42,7 +42,7 @@ func LoadPrivateKey(keystorePath string) (crypto.PrivateKey, error) {
 
 		priv, err = parsePrivateKeyPEM(rawKey)
 		if err != nil {
-			return errors.WithMessage(err, path)
+			return fmt.Errorf("%s: %w", path, err)
 		}
 
 		return nil
@@ -64,7 +64,7 @@ func parsePrivateKeyPEM(rawKey []byte) (crypto.PrivateKey, error) {
 
 	key, err := x509.ParsePKCS8PrivateKey(block.Bytes)
 	if err != nil {
-		return nil, errors.WithMessage(err, "pem bytes are not PKCS8 encoded ")
+		return nil, fmt.Errorf("pem bytes are not PKCS8 encoded: %w", err)
 	}
 
 	_, isEcdsa := key.(*ecdsa.PrivateKey)
@@ -88,15 +88,15 @@ func GeneratePrivateKey(keystorePath string, keyAlg string) (crypto.PrivateKey, 
 	case "ed25519":
 		_, priv, err = ed25519.GenerateKey(rand.Reader)
 	default:
-		err = errors.WithMessagef(err, "Unsupported key algorithm: %s", keyAlg)
+		err = fmt.Errorf("unsupported key algorithm: %s", keyAlg)
 	}
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to generate private key")
+		return nil, fmt.Errorf("failed to generate private key: %w", err)
 	}
 
 	pkcs8Encoded, err := x509.MarshalPKCS8PrivateKey(priv)
 	if err != nil {
-		return nil, errors.WithMessage(err, "failed to marshal private key")
+		return nil, fmt.Errorf("failed to marshal private key: %w", err)
 	}
 
 	pemEncoded := pem.EncodeToMemory(&pem.Block{Type: "PRIVATE KEY", Bytes: pkcs8Encoded})
@@ -104,7 +104,7 @@ func GeneratePrivateKey(keystorePath string, keyAlg string) (crypto.PrivateKey, 
 	keyFile := filepath.Join(keystorePath, "priv_sk")
 	err = os.WriteFile(keyFile, pemEncoded, 0o600)
 	if err != nil {
-		return nil, errors.WithMessagef(err, "failed to save private key to file %s", keyFile)
+		return nil, fmt.Errorf("failed to save private key to file %s: %w", keyFile, err)
 	}
 
 	return priv, err
