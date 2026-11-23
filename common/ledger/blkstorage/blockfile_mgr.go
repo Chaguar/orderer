@@ -8,6 +8,7 @@ package blkstorage
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -18,7 +19,6 @@ import (
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
@@ -182,7 +182,7 @@ func (mgr *blockfileMgr) checkPruneInfoAgainstBlockfiles() error {
 	// The errors report what the record says rather than diagnosing why it says it: an absent record is
 	// indistinguishable from a zero-valued one here, and a first stored file of 0 is an ordinary record too.
 	if first > mgr.blockfilesInfo.latestFileNumber {
-		return errors.Errorf(
+		return fmt.Errorf(
 			"cannot open block store. the prune info records block file [%d] as the lowest surviving block "+
 				"file with blocks readable from [%d], but the latest block file is [%d]",
 			first, mgr.pruner.firstReadableBlockNum(), mgr.blockfilesInfo.latestFileNumber,
@@ -193,7 +193,7 @@ func (mgr *blockfileMgr) checkPruneInfoAgainstBlockfiles() error {
 		return err
 	}
 	if !exists {
-		return errors.Errorf(
+		return fmt.Errorf(
 			"cannot open block store. block file [%d] is missing, though the prune info records it as the "+
 				"lowest surviving block file with blocks readable from [%d]",
 			first, mgr.pruner.firstReadableBlockNum(),
@@ -272,7 +272,7 @@ func (mgr *blockfileMgr) moveToNextFile() {
 func (mgr *blockfileMgr) addBlock(block *common.Block) error {
 	bcInfo := mgr.getBlockchainInfo()
 	if block.Header.Number != bcInfo.Height {
-		return errors.Errorf(
+		return fmt.Errorf(
 			"block number should have been %d but was %d",
 			mgr.getBlockchainInfo().Height, block.Header.Number,
 		)
@@ -283,7 +283,7 @@ func (mgr *blockfileMgr) addBlock(block *common.Block) error {
 	// This check is a simple bytes comparison and hence does not cause any observable performance penalty
 	// and may help in detecting a rare scenario if there is any bug in the ordering service.
 	if !bytes.Equal(block.Header.PreviousHash, bcInfo.CurrentBlockHash) {
-		return errors.Errorf(
+		return fmt.Errorf(
 			"unexpected Previous block hash. Expected PreviousHash = [%x], PreviousHash referred in the latest block= [%x]",
 			bcInfo.CurrentBlockHash, block.Header.PreviousHash,
 		)
@@ -313,7 +313,7 @@ func (mgr *blockfileMgr) addBlock(block *common.Block) error {
 		if truncateErr != nil {
 			panic(fmt.Sprintf("Could not truncate current file to known size after an error during block append: %s", err))
 		}
-		return errors.WithMessage(err, "error appending block to file")
+		return fmt.Errorf("error appending block to file: %w", err)
 	}
 
 	defer mgr.cache.put(block, blockBytesLen)
@@ -332,7 +332,7 @@ func (mgr *blockfileMgr) addBlock(block *common.Block) error {
 		if truncateErr != nil {
 			panic(fmt.Sprintf("Error in truncating current file to known size after an error in saving blockfiles info: %s", err))
 		}
-		return errors.WithMessage(err, "error saving blockfiles file info to db")
+		return fmt.Errorf("error saving blockfiles file info to db: %w", err)
 	}
 
 	// Index block file location pointer updated with file suffex and offset for the new block
@@ -409,7 +409,7 @@ func (mgr *blockfileMgr) syncIndex() error {
 			return err
 		}
 		if blockBytes == nil {
-			return errors.Errorf("block bytes for block num = [%d] should not be nil here. The indexes for the block are already present",
+			return fmt.Errorf("block bytes for block num = [%d] should not be nil here. The indexes for the block are already present",
 				lastBlockIndexed)
 		}
 	}
@@ -598,8 +598,7 @@ func (mgr *blockfileMgr) checkBlockAvailable(blockNum uint64) error {
 	// Read the bound once, so a concurrent prune cannot land between the check and the message and have
 	// us report a bound other than the one that made the decision.
 	if prunedTo := mgr.pruner.firstReadableBlockNum(); blockNum < prunedTo {
-		return errors.WithMessagef(ErrPruned,
-			"cannot serve block [%d]. First available block = [%d]", blockNum, prunedTo)
+		return fmt.Errorf("cannot serve block [%d]. First available block = [%d]: %w", blockNum, prunedTo, ErrPruned)
 	}
 	return nil
 }

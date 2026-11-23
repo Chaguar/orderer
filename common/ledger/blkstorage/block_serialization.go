@@ -7,8 +7,9 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"fmt"
+
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
-	"github.com/pkg/errors"
 	"google.golang.org/protobuf/encoding/protowire"
 )
 
@@ -74,13 +75,13 @@ func extractHeader(buf *buffer) (*common.BlockHeader, error) {
 	header := &common.BlockHeader{}
 	var err error
 	if header.Number, err = buf.DecodeVarint(); err != nil {
-		return nil, errors.Wrap(err, "error decoding the block number")
+		return nil, fmt.Errorf("error decoding the block number: %w", err)
 	}
 	if header.DataHash, err = buf.DecodeRawBytes(false); err != nil {
-		return nil, errors.Wrap(err, "error decoding the data hash")
+		return nil, fmt.Errorf("error decoding the data hash: %w", err)
 	}
 	if header.PreviousHash, err = buf.DecodeRawBytes(false); err != nil {
-		return nil, errors.Wrap(err, "error decoding the previous hash")
+		return nil, fmt.Errorf("error decoding the previous hash: %w", err)
 	}
 	if len(header.PreviousHash) == 0 {
 		header.PreviousHash = nil
@@ -94,12 +95,12 @@ func extractData(buf *buffer) (*common.BlockData, error) {
 	var err error
 
 	if numItems, err = buf.DecodeVarint(); err != nil {
-		return nil, errors.Wrap(err, "error decoding the length of block data")
+		return nil, fmt.Errorf("error decoding the length of block data: %w", err)
 	}
 	for i := uint64(0); i < numItems; i++ {
 		var txEnvBytes []byte
 		if txEnvBytes, err = buf.DecodeRawBytes(false); err != nil {
-			return nil, errors.Wrap(err, "error decoding the transaction envelope")
+			return nil, fmt.Errorf("error decoding the transaction envelope: %w", err)
 		}
 		data.Data = append(data.Data, txEnvBytes)
 	}
@@ -112,11 +113,11 @@ func extractMetadata(buf *buffer) (*common.BlockMetadata, error) {
 	var metadataEntry []byte
 	var err error
 	if numItems, err = buf.DecodeVarint(); err != nil {
-		return nil, errors.Wrap(err, "error decoding the length of block metadata")
+		return nil, fmt.Errorf("error decoding the length of block metadata: %w", err)
 	}
 	for i := uint64(0); i < numItems; i++ {
 		if metadataEntry, err = buf.DecodeRawBytes(false); err != nil {
-			return nil, errors.Wrap(err, "error decoding the block metadata")
+			return nil, fmt.Errorf("error decoding the block metadata: %w", err)
 		}
 		metadata.Metadata = append(metadata.Metadata, metadataEntry)
 	}

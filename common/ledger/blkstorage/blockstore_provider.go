@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package blkstorage
 
 import (
+	"fmt"
 	"os"
 
 	"github.com/Chaguar/common/tools/fileutil"
@@ -15,7 +16,6 @@ import (
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-lib-go/common/metrics"
-	"github.com/pkg/errors"
 )
 
 var logger = flogging.MustGetLogger("blkstorage")
@@ -45,12 +45,12 @@ func NewProvider(conf *Conf, metricsProvider metrics.Provider) (*BlockStoreProvi
 	dirPath := conf.getChainsDir()
 	if _, err := os.Stat(dirPath); err != nil {
 		if !os.IsNotExist(err) { // NotExist is the only permitted error type
-			return nil, errors.Wrapf(err, "failed to read ledger directory %s", dirPath)
+			return nil, fmt.Errorf("failed to read ledger directory %s: %w", dirPath, err)
 		}
 
 		logger.Info("Creating new file ledger directory at", dirPath)
 		if err = os.MkdirAll(dirPath, 0o755); err != nil {
-			return nil, errors.Wrapf(err, "failed to create ledger directory: %s", dirPath)
+			return nil, fmt.Errorf("failed to create ledger directory: %s: %w", dirPath, err)
 		}
 	}
 
