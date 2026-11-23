@@ -49,8 +49,8 @@ func (c *Consenter) SimulateStateTransition(prevState *state.State, configSeq ty
 	// batch below the prune point, which batchers may already have dropped.
 	for _, ce := range controlEvents {
 		if ce.BAF != nil {
-			if ce.BAF.Seq() < prevState.PrunePoint(ce.BAF.Shard(), ce.BAF.Primary()) {
-				c.Logger.Debugf("Batch attestation fragment below the prune point; %s", ce.BAF.String())
+			if prunePoint := prevState.PrunePoint(ce.BAF.Shard(), ce.BAF.Primary()); ce.BAF.Seq() < prunePoint {
+				c.Logger.Debugf("Batch attestation fragment below the prune point %d; %s", prunePoint, ce.BAF.String())
 				continue
 			}
 			if c.DB.Exists(ce.BAF.Digest()) {

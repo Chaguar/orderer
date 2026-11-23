@@ -610,10 +610,11 @@ func comparePrunePointKeys(a, b PrunePoint) int {
 // signer of such a BAF resubmit its batch.
 func (s *State) DropPendingBelowPrunePoints(l *flogging.FabricLogger) {
 	s.Pending = slices.DeleteFunc(s.Pending, func(baf types.BatchAttestationFragment) bool {
-		if baf.Seq() >= s.PrunePoint(baf.Shard(), baf.Primary()) {
+		prunePoint := s.PrunePoint(baf.Shard(), baf.Primary())
+		if baf.Seq() >= prunePoint {
 			return false
 		}
-		l.Debugf("Dropping pending BAF below the prune point; %s", baf.String())
+		l.Debugf("Dropping pending BAF below the prune point %d; %s", prunePoint, baf.String())
 		return true
 	})
 }
