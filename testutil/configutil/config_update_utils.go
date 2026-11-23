@@ -8,6 +8,7 @@ package configutil
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -33,7 +34,6 @@ import (
 	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/protobuf/proto"
@@ -184,13 +184,13 @@ func createSigner(privateKeyPath string) (*crypto.ECDSASigner, error) {
 	// Read the private key
 	keyBytes, err := os.ReadFile(privateKeyPath)
 	if err != nil {
-		return nil, fmt.Errorf("failed to read private key, err: %v", err)
+		return nil, fmt.Errorf("failed to read private key, err: %w", err)
 	}
 
 	// Create a ECDSA Signer
 	privateKey, err := tx.CreateECDSAPrivateKey(keyBytes)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create ECDSA Signer, err: %v", err)
+		return nil, fmt.Errorf("failed to create ECDSA Signer, err: %w", err)
 	}
 
 	return (*crypto.ECDSASigner)(privateKey), nil
@@ -271,19 +271,19 @@ func mustOpenFile(t *testing.T, path string) *os.File {
 func encodeProto(msgName string, input, output *os.File) error {
 	mt, err := protoregistry.GlobalTypes.FindMessageByName(protoreflect.FullName(msgName))
 	if err != nil {
-		return errors.Wrapf(err, "error encode input")
+		return fmt.Errorf("error encode input: %w", err)
 	}
 
 	msgType := reflect.TypeOf(mt.Zero().Interface())
 
 	if msgType == nil {
-		return errors.Errorf("message of type %s unknown", msgType)
+		return fmt.Errorf("message of type %s unknown", msgType)
 	}
 	msg := reflect.New(msgType.Elem()).Interface().(proto.Message)
 
 	err = protolator.DeepUnmarshalJSON(input, msg)
 	if err != nil {
-		return errors.Wrapf(err, "error decoding input")
+		return fmt.Errorf("error decoding input: %w", err)
 	}
 
 	if msg == nil {
@@ -291,12 +291,12 @@ func encodeProto(msgName string, input, output *os.File) error {
 	}
 	out, err := proto.Marshal(msg)
 	if err != nil {
-		return errors.Wrapf(err, "error marshaling")
+		return fmt.Errorf("error marshaling: %w", err)
 	}
 
 	_, err = output.Write(out)
 	if err != nil {
-		return errors.Wrapf(err, "error writing output")
+		return fmt.Errorf("error writing output: %w", err)
 	}
 
 	return nil
@@ -305,29 +305,29 @@ func encodeProto(msgName string, input, output *os.File) error {
 func decodeProto(msgName string, input, output *os.File) error {
 	mt, err := protoregistry.GlobalTypes.FindMessageByName(protoreflect.FullName(msgName))
 	if err != nil {
-		return errors.Wrapf(err, "error encode input")
+		return fmt.Errorf("error encode input: %w", err)
 	}
 
 	msgType := reflect.TypeOf(mt.Zero().Interface())
 
 	if msgType == nil {
-		return errors.Errorf("message of type %s unknown", msgType)
+		return fmt.Errorf("message of type %s unknown", msgType)
 	}
 	msg := reflect.New(msgType.Elem()).Interface().(proto.Message)
 
 	in, err := io.ReadAll(input)
 	if err != nil {
-		return errors.Wrapf(err, "error reading input")
+		return fmt.Errorf("error reading input: %w", err)
 	}
 
 	err = proto.Unmarshal(in, msg)
 	if err != nil {
-		return errors.Wrapf(err, "error unmarshalling")
+		return fmt.Errorf("error unmarshalling: %w", err)
 	}
 
 	err = protolator.DeepMarshalJSON(output, msg)
 	if err != nil {
-		return errors.Wrapf(err, "error encoding output")
+		return fmt.Errorf("error encoding output: %w", err)
 	}
 
 	return nil
@@ -336,29 +336,29 @@ func decodeProto(msgName string, input, output *os.File) error {
 func computeUpdate(original, updated, output *os.File, channelID string) error {
 	origIn, err := io.ReadAll(original)
 	if err != nil {
-		return errors.Wrapf(err, "error reading original config")
+		return fmt.Errorf("error reading original config: %w", err)
 	}
 
 	origConf := &common.Config{}
 	err = proto.Unmarshal(origIn, origConf)
 	if err != nil {
-		return errors.Wrapf(err, "error unmarshalling original config")
+		return fmt.Errorf("error unmarshalling original config: %w", err)
 	}
 
 	updtIn, err := io.ReadAll(updated)
 	if err != nil {
-		return errors.Wrapf(err, "error reading updated config")
+		return fmt.Errorf("error reading updated config: %w", err)
 	}
 
 	updtConf := &common.Config{}
 	err = proto.Unmarshal(updtIn, updtConf)
 	if err != nil {
-		return errors.Wrapf(err, "error unmarshalling updated config")
+		return fmt.Errorf("error unmarshalling updated config: %w", err)
 	}
 
 	cu, err := update.Compute(origConf, updtConf)
 	if err != nil {
-		return errors.Wrapf(err, "error computing config update")
+		return fmt.Errorf("error computing config update: %w", err)
 	}
 
 	if cu == nil {
@@ -369,12 +369,12 @@ func computeUpdate(original, updated, output *os.File, channelID string) error {
 
 	outBytes, err := proto.Marshal(cu)
 	if err != nil {
-		return errors.Wrapf(err, "error marshaling computed config update")
+		return fmt.Errorf("error marshaling computed config update: %w", err)
 	}
 
 	_, err = output.Write(outBytes)
 	if err != nil {
-		return errors.Wrapf(err, "error writing config update to output")
+		return fmt.Errorf("error writing config update to output: %w", err)
 	}
 
 	return nil
@@ -1300,13 +1300,13 @@ func createAdminCertAndSigner(dir string, channelGroup string, org string) (*cry
 	keyPath := filepath.Join(dir, "crypto", channelGroup, org, "users", fmt.Sprintf("Admin@%s", org), "msp", "keystore", "priv_sk")
 	submittingAdminSigner, err := createSigner(keyPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed creating a signer, err: %s", err)
+		return nil, nil, fmt.Errorf("failed creating a signer, err: %w", err)
 	}
 
 	certPath := filepath.Join(dir, "crypto", channelGroup, org, "users", fmt.Sprintf("Admin@%s", org), "msp", "signcerts", fmt.Sprintf("Admin@%s-cert.pem", org))
 	submittingAdminCert, err := os.ReadFile(certPath)
 	if err != nil {
-		return nil, nil, fmt.Errorf("failed creating a certificate, err: %s", err)
+		return nil, nil, fmt.Errorf("failed creating a certificate, err: %w", err)
 	}
 
 	return submittingAdminSigner, submittingAdminCert, nil
@@ -1320,7 +1320,7 @@ func ReadConfigEnvelopeFromConfigBlock(configBlock *common.Block) (*common.Confi
 
 	payload, err := protoutil.UnmarshalPayload(envelope.Payload)
 	if err != nil {
-		return nil, errors.WithMessage(err, "error unmarshalling envelope to payload")
+		return nil, fmt.Errorf("error unmarshalling envelope to payload: %w", err)
 	}
 
 	configEnvelope, _ := configtx.UnmarshalConfigEnvelope(payload.Data)

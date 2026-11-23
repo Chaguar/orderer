@@ -15,6 +15,7 @@ import (
 	"crypto/x509"
 	"encoding/binary"
 	"encoding/pem"
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -61,7 +62,6 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
 )
@@ -711,7 +711,7 @@ func pullFromAssembler(t *testing.T, userConfig *armageddon.UserConfig, partyID 
 
 		if blockHandler != nil {
 			if err := blockHandler.HandleBlock(t, block); err != nil {
-				return errors.Wrapf(err, "error handling block %d", block.Header.Number)
+				return fmt.Errorf("error handling block %d: %w", block.Header.Number, err)
 			}
 		}
 
@@ -729,7 +729,7 @@ func pullFromAssembler(t *testing.T, userConfig *armageddon.UserConfig, partyID 
 				block.GetMetadata().GetMetadata()[common.BlockMetadataIndex_ORDERER],
 			)
 			if err != nil {
-				return errors.Wrap(err, "failed to parse assembler block metadata")
+				return fmt.Errorf("failed to parse assembler block metadata: %w", err)
 			}
 
 			if pr, ok := primaryMap[shardID]; !ok {
@@ -750,7 +750,7 @@ func pullFromAssembler(t *testing.T, userConfig *armageddon.UserConfig, partyID 
 			// create block verifier
 			blockVerificationAssistant, err = deliverclient.NewBlockVerificationAssistant(block, block, factory.GetDefault(), testutil.CreateLogger(t, int(partyID)))
 			if err != nil {
-				return errors.Wrap(err, "failed creating block verification assistant")
+				return fmt.Errorf("failed creating block verification assistant: %w", err)
 			}
 		}
 
@@ -759,14 +759,14 @@ func pullFromAssembler(t *testing.T, userConfig *armageddon.UserConfig, partyID 
 			sigsBytes := block.Metadata.Metadata[common.BlockMetadataIndex_SIGNATURES]
 			md := &common.Metadata{}
 			if err := proto.Unmarshal(sigsBytes, md); err != nil {
-				return errors.Wrapf(err, "error unmarshalling signatures from metadata: %v", err)
+				return fmt.Errorf("error unmarshalling signatures from metadata: %w", err)
 			}
 
 			verifiedSigns := 0
 			for _, metadataSignature := range md.Signatures {
 				identifierHeader, err := protoutil.UnmarshalIdentifierHeader(metadataSignature.IdentifierHeader)
 				if err != nil {
-					return fmt.Errorf("failed unmarshalling identifier header for block %d: %v", block.Header.GetNumber(), err)
+					return fmt.Errorf("failed unmarshalling identifier header for block %d: %w", block.Header.GetNumber(), err)
 				}
 				msg := &protoutil.MessageToSign{
 					IdentifierHeader:     metadataSignature.IdentifierHeader,
@@ -794,13 +794,13 @@ func pullFromAssembler(t *testing.T, userConfig *armageddon.UserConfig, partyID 
 			}
 			err = blockVerificationAssistant.VerifyBlock(block)
 			if err != nil {
-				return errors.Wrapf(err, "failed verifying block %d using the block verification assistant", block.Header.Number)
+				return fmt.Errorf("failed verifying block %d using the block verification assistant: %w", block.Header.Number, err)
 			}
 
 			if isConfigBlock {
 				err = blockVerificationAssistant.UpdateConfig(block)
 				if err != nil {
-					return errors.Wrapf(err, "failed updating block verification assistant with config block %d", block.Header.Number)
+					return fmt.Errorf("failed updating block verification assistant with config block %d: %w", block.Header.Number, err)
 				}
 			}
 		}
@@ -816,7 +816,7 @@ func pullFromAssembler(t *testing.T, userConfig *armageddon.UserConfig, partyID 
 		for i := range transactionsNumber {
 			envelope, err := protoutil.UnmarshalEnvelope(data[i])
 			if err != nil {
-				return errors.Wrapf(err, "failed to unmarshal envelope %v", err)
+				return fmt.Errorf("failed to unmarshal envelope: %w", err)
 			}
 
 			if needVerification && transactions > 0 {
