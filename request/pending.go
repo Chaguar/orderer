@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package request
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"sync/atomic"
@@ -42,6 +43,11 @@ type PendingStore struct {
 	resetChan             chan struct{}
 	finishResetChan       chan struct{}
 	stopChan              chan struct{}
+
+	// termCtx is the parent of every strike's context. A reset (a new term) and Close cancel it, which ends the
+	// forwarding of the strikes of the previous term. Only the run goroutine replaces it.
+	termCtx    context.Context
+	cancelTerm context.CancelFunc
 }
 
 func (ps *PendingStore) Init() {
@@ -53,6 +59,7 @@ func (ps *PendingStore) Init() {
 	ps.resetChan = make(chan struct{})
 	ps.finishResetChan = make(chan struct{})
 	ps.stopChan = make(chan struct{})
+	ps.termCtx, ps.cancelTerm = context.WithCancel(context.Background())
 	ps.lastEpochChange = ps.StartTime
 	ps.lastProcessedGC = ps.StartTime
 }
@@ -97,6 +104,9 @@ func (ps *PendingStore) ResetTimestamps() {
 func (ps *PendingStore) reset() {
 	ps.stop()
 	defer atomic.StoreUint32(&ps.stopped, 0)
+
+	ps.cancelTerm()
+	ps.termCtx, ps.cancelTerm = context.WithCancel(context.Background())
 
 	now := ps.now()
 	for _, bucket := range ps.buckets {
@@ -143,6 +153,9 @@ func (ps *PendingStore) Close() {
 		close(ps.closeChan)
 	})
 	ps.closedWG.Wait()
+	if ps.cancelTerm != nil {
+		ps.cancelTerm()
+	}
 }
 
 func (ps *PendingStore) isClosed() bool {
@@ -221,17 +234,40 @@ func (ps *PendingStore) checkFirstStrike(now time.Time) {
 			continue
 		}
 
-		ps.Logger.Infof("First strike occurred for bucket id %d of size %d", bucket.id, bucket.getSize())
+		ps.Logger.Debugf("First strike occurred for bucket id %d of size %d", bucket.id, bucket.getSize())
 		bucket.setFirstStrikeTimestamp(now)
 		buckets = append(buckets, bucket)
 	}
 
+	if len(buckets) == 0 {
+		return
+	}
+	total := 0
+	for _, bucket := range buckets {
+		total += int(bucket.getSize())
+	}
+	ps.Logger.Infof("First strike: forwarding %d requests from %d buckets", total, len(buckets))
+
+	// Forwarding a request is only useful before its second strike fires, so the forwarding of this strike stops
+	// then, or earlier at a new term or Close. Together with the bounded wait of the callback, that bounds the
+	// forwarding goroutines alive at once. The deadline runs on the wall clock and the strikes on the store's ticks;
+	// in production they agree to within an epoch.
+	ctx, cancel := context.WithTimeout(ps.termCtx, ps.SecondStrikeThreshold)
 	go func() {
+		defer cancel()
+		forwarded := 0
 		for _, bucket := range buckets {
 			bucket.requests.Range(func(_, v interface{}) bool {
+				if ctx.Err() != nil {
+					return false
+				}
 				ps.FirstStrikeCallback(v.([]byte))
+				forwarded++
 				return true
 			})
+		}
+		if err := ctx.Err(); err != nil && forwarded < total {
+			ps.Logger.Warnf("Forwarding of a first strike stopped after %d of %d requests: %v; the rest strike again", forwarded, total, err)
 		}
 	}()
 }

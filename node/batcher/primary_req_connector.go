@@ -8,163 +8,93 @@ package batcher
 
 import (
 	"context"
-	"sync"
 	"time"
 
 	"github.com/Chaguar/orderer/common/types"
 	node_config "github.com/Chaguar/orderer/node/config"
-	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-	"google.golang.org/grpc"
 )
 
+// forwardQueueSize bounds the requests waiting to be forwarded. While the queue is full, SendReq waits, holding back
+// the pending store's goroutine that forwards a strike.
+const forwardQueueSize = 1000
+
+// PrimaryReqConnector forwards requests whose first strike fired to the shard's primary. Callers put requests in a
+// bounded queue, each tagged with the primary it is for, and one goroutine takes them out and delivers them over the
+// link. A request whose primary is no longer the target is dropped, because the pool starts its strike over in the
+// new term.
 type PrimaryReqConnector struct {
-	logger               *flogging.FabricLogger
-	config               *node_config.BatcherNodeConfig
-	batchers             map[types.PartyID]*EndpointAndCerts
-	primaryID            types.PartyID
-	conn                 *grpc.ClientConn
-	stream               protos.BatcherControlService_FwdRequestStreamClient
-	connectorCtx         context.Context // used to stop connector
-	connectorCancelFunc  context.CancelFunc
-	connectionCtx        context.Context // used to stop the current connection
-	connectionCancelFunc context.CancelFunc
-	lock                 sync.RWMutex
+	link  *PrimaryLink
+	queue chan forwardRequest
 
-	minRetryInterval time.Duration
-	maxRetryDelay    time.Duration
-	sendTimeout      time.Duration
+	ctx    context.Context
+	cancel context.CancelFunc
+	done   chan struct{}
 }
 
-func (p *PrimaryReqConnector) SendReq(req []byte) {
-	sendTimer := time.NewTimer(p.sendTimeout)
-	var delay time.Duration
-	for {
-		if delay > 0 {
-			delayTimer := time.NewTimer(delay)
-			select {
-			case <-p.connectorCtx.Done():
-				delayTimer.Stop()
-				return
-			case <-delayTimer.C:
-				delay *= 2
-				if delay > p.maxRetryDelay {
-					delay = p.maxRetryDelay
-				}
-			case <-sendTimer.C:
-				delayTimer.Stop()
-				return
-			}
-		}
-		if delay == 0 {
-			delay = p.minRetryInterval
-		}
-		stream, primaryID := p.currentStream()
-		if stream == nil {
-			p.ConnectToPrimary()
-			stream, primaryID = p.currentStream()
-			if stream == nil { // connecting to primary failed
-				p.logger.Errorf("Failed sending req to primary %d; failed to connect", primaryID)
-				continue
-			}
-		}
-		// The lock is not held across Send: a Send blocked on a full stream would otherwise keep
-		// ResetConnection from taking the lock, so the connection could never be closed to unblock it.
-		if err := stream.Send(&protos.FwdRequest{Request: req}); err != nil {
-			p.logger.Errorf("Failed sending req to primary %d; error: %v", primaryID, err)
-			continue
-		}
-		return
-	}
-}
-
-// currentStream returns the stream to the current primary, nil if there is none, and the primary.
-func (p *PrimaryReqConnector) currentStream() (protos.BatcherControlService_FwdRequestStreamClient, types.PartyID) {
-	p.lock.RLock()
-	defer p.lock.RUnlock()
-	return p.stream, p.primaryID
-}
-
-func (p *PrimaryReqConnector) ConnectToNewPrimary(primaryID types.PartyID) {
-	p.lock.Lock()
-	p.primaryID = primaryID
-	p.lock.Unlock()
-	p.ConnectToPrimary()
-}
-
-func (p *PrimaryReqConnector) ConnectToPrimary() {
-	p.ResetConnection()
-	var primary types.PartyID
-	var ctx context.Context
-	p.lock.Lock()
-	p.connectionCtx, p.connectionCancelFunc = context.WithCancel(p.connectorCtx)
-	ctx = p.connectionCtx
-	primary = p.primaryID
-	p.lock.Unlock()
-
-	primaryEndpoint := p.batchers[primary].Endpoint
-	primaryTLSCACerts := p.batchers[primary].TLSCACerts
-
-	if primaryEndpoint == "" {
-		p.logger.Panicf("Could not find primaryID %d of shard %d within %v", primary, p.config.ShardId, p.batchers)
-		return
-	}
-
-	cc := clientConfig(p.config.TLSPrivateKeyFile, p.config.TLSCertificateFile, primaryTLSCACerts)
-
-	conn, err := cc.Dial(primaryEndpoint) // TODO create a new DialXXX(abortContext context.Context, address string) that accepts an abort context
-	if err != nil {
-		p.logger.Errorf("Failed connecting to primary %d (endpoint %s); error: %v", p.primaryID, primaryEndpoint, err)
-		return
-	}
-
-	p.lock.Lock()
-	p.conn = conn
-	p.lock.Unlock()
-
-	primaryClient := protos.NewBatcherControlServiceClient(conn)
-
-	reqStream, err := primaryClient.FwdRequestStream(ctx)
-	if err != nil {
-		p.logger.Errorf("Failed creating req stream to primary %d (endpoint %s); error: %v", primary, primaryEndpoint, err)
-		return
-	}
-
-	p.lock.Lock()
-	p.stream = reqStream
-	p.lock.Unlock()
-
-	p.logger.Debugf("Created streams to primary (party ID = %d)", primary)
-}
-
-func (p *PrimaryReqConnector) ResetConnection() {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-	// TODO abort dial
-	if p.connectionCancelFunc != nil {
-		p.connectionCancelFunc()
-	}
-	if p.conn != nil {
-		p.conn.Close()
-	}
-	p.stream = nil
-}
-
-func (p *PrimaryReqConnector) Stop() {
-	p.connectorCancelFunc()
-	p.ResetConnection()
+// forwardRequest is a request to forward, and the primary it is for.
+type forwardRequest struct {
+	target types.PartyID
+	req    []byte
 }
 
 func CreatePrimaryReqConnector(primaryID types.PartyID, logger *flogging.FabricLogger, config *node_config.BatcherNodeConfig, batchers map[types.PartyID]*EndpointAndCerts, ctx context.Context, timeout, minRetryInterval, maxRetryDelay time.Duration) *PrimaryReqConnector {
 	connector := &PrimaryReqConnector{
-		primaryID:        primaryID,
-		logger:           logger,
-		config:           config,
-		batchers:         batchers,
-		sendTimeout:      timeout,
-		minRetryInterval: minRetryInterval,
-		maxRetryDelay:    maxRetryDelay,
+		link:  NewPrimaryLink(logger, config, batchers, primaryID, timeout, minRetryInterval, maxRetryDelay),
+		queue: make(chan forwardRequest, forwardQueueSize),
+		done:  make(chan struct{}),
 	}
-	connector.connectorCtx, connector.connectorCancelFunc = context.WithCancel(ctx)
+	connector.ctx, connector.cancel = context.WithCancel(ctx)
+	go connector.run()
 	return connector
+}
+
+// SendReq queues req for the primary. While the queue is full it waits, at most the send timeout: the request is then
+// dropped, and it strikes again. It returns at once when this batcher is the primary or the connector is stopped. A
+// waiting call doesn't watch the term: after a term change it may still queue its request, which the new primary
+// either rejects or batches.
+func (p *PrimaryReqConnector) SendReq(req []byte) {
+	target := p.link.CurrentTarget()
+	if target == p.link.config.PartyId {
+		return
+	}
+	request := forwardRequest{target: target, req: req}
+	select {
+	case p.queue <- request:
+		return
+	default:
+	}
+	timer := time.NewTimer(p.link.sendTimeout)
+	defer timer.Stop()
+	select {
+	case p.queue <- request:
+	case <-timer.C:
+		p.link.logger.Warnf("Dropping a request to forward: the queue to primary %d stayed full for %v", target, p.link.sendTimeout)
+	case <-p.ctx.Done():
+	}
+}
+
+// ConnectToNewPrimary forwards to primaryID from now on. The queued requests for the old primary and the one being sent
+// are dropped, and the connection to the old primary is closed.
+func (p *PrimaryReqConnector) ConnectToNewPrimary(primaryID types.PartyID) {
+	p.link.Retarget(primaryID)
+}
+
+// Stop stops forwarding, and returns once the forwarding goroutine has returned and disconnected the link.
+func (p *PrimaryReqConnector) Stop() {
+	p.cancel()
+	<-p.done
+}
+
+func (p *PrimaryReqConnector) run() {
+	defer close(p.done)
+	defer p.link.Disconnect()
+	for {
+		select {
+		case <-p.ctx.Done():
+			return
+		case request := <-p.queue:
+			p.link.Deliver(p.ctx, request.target, request.req)
+		}
+	}
 }
