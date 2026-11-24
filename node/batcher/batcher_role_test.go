@@ -1438,6 +1438,16 @@ func newTestPrimary(t *testing.T, pool batcher.MemPool, batchTimeout time.Durati
 	termProvider := newTestTermProvider(batchers, 0, 4)
 	role.TermProvider = termProvider
 	ledger := &mocks.FakeBatchLedger{}
+	// A party's height is the number of batches stored for it, so a role that restarts continues at the next seq.
+	ledger.HeightCalls(func(party arma_types.PartyID) uint64 {
+		var height uint64
+		for i := 0; i < ledger.AppendCallCount(); i++ {
+			if appended, _, _, _, _, _ := ledger.AppendArgsForCall(i); appended == party {
+				height++
+			}
+		}
+		return height
+	})
 	role.Ledger = ledger
 	bafSender := &mocks.FakeBAFSender{}
 	role.BAFSender = bafSender
@@ -1633,6 +1643,10 @@ func TestStrandedBatchReturnedOnTermChangeSamePrimary(t *testing.T) {
 				return s.ledger.AppendCallCount() == 2
 			}, 10*time.Second, 10*time.Millisecond)
 			s.requireAppendedStranded(t, 1)
+			// The stranded batch stays in the ledger at seq 0, so the requests are stored again at seq 1, and both
+			// batches can be ordered.
+			_, seq, _, _, _, _ := s.ledger.AppendArgsForCall(1)
+			require.Equal(t, arma_types.BatchSequence(1), seq)
 		})
 	}
 }
