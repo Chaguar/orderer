@@ -248,6 +248,32 @@ func (rp *Pool) RemoveRequests(requestIDs ...string) {
 	rp.batchStore.RemoveRequests(requestIDs...)
 }
 
+// ReturnRequests returns requests that NextRequests returned, and that were not removed since, to the pool, so the
+// next NextRequests batches them again. It is for a batch whose BAF was not sent, so its requests must stay in the
+// pool. Each returned request keeps the place it holds in the pool, so the pool's size does not change. Ids that are
+// no longer in the pool are ignored, and so is the call when the pool is closed or batching is disabled.
+func (rp *Pool) ReturnRequests(requestIDs ...string) {
+	rp.lock.RLock()
+	defer rp.lock.RUnlock()
+
+	if rp.isClosed() || !rp.isBatchingEnabled() {
+		return
+	}
+
+	for _, reqID := range requestIDs {
+		rp.batchStore.Return(reqID, requestItemSize)
+	}
+}
+
+// requestItemSize returns the size in bytes of the request of v, a *requestItem.
+func requestItemSize(v any) uint32 {
+	item, ok := v.(*requestItem)
+	if !ok {
+		return 0
+	}
+	return uint32(len(item.request))
+}
+
 // Contains reports whether a request with the given id is currently in the pool.
 // It is only supported while batching is disabled (i.e. a secondary batcher); when
 // batching is enabled it conservatively returns false so callers fall back to full
