@@ -468,11 +468,11 @@ func TestSubmitOnBatcherStopAndRestart(t *testing.T) {
 
 	// send 1 request with Submit, should get server error
 	err = submitRequest(testSetup.clientConn)
-	require.EqualError(t, err, "receiving response with error: server error: connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later")
+	require.EqualError(t, err, "receiving response with error: server error (500): connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later")
 
 	// send same request again.
 	err = submitRequest(testSetup.clientConn)
-	require.EqualError(t, err, "receiving response with error: server error: connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later")
+	require.EqualError(t, err, "receiving response with error: server error (500): connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later")
 	// restart the batcher
 	testSetup.batchers[0].Restart()
 
@@ -516,7 +516,7 @@ func TestSubmitStreamOnBatcherStopAndRestart(t *testing.T) {
 	require.Equal(t, numOfRequests, res.failRequests)
 	require.Equal(t, numOfRequests, len(res.respondsErrors))
 	for _, e := range res.respondsErrors {
-		require.EqualError(t, e, "receiving response with error: server error: connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later")
+		require.EqualError(t, e, "receiving response with error: server error (500): connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later")
 	}
 
 	require.Eventually(t, func() bool {
@@ -530,7 +530,7 @@ func TestSubmitStreamOnBatcherStopAndRestart(t *testing.T) {
 	require.Equal(t, numOfRequests, res.failRequests)
 	require.Equal(t, numOfRequests, len(res.respondsErrors))
 	for _, e := range res.respondsErrors {
-		require.EqualError(t, e, "receiving response with error: server error: connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later")
+		require.EqualError(t, e, "receiving response with error: server error (500): connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later")
 	}
 	require.Equal(t, uint32(0), testSetup.batchers[0].ReceivedMessageCount())
 
@@ -584,7 +584,7 @@ func TestBroadcastOnBatcherStopAndRestart(t *testing.T) {
 	require.Equal(t, numOfRequests, res.other)
 	require.Len(t, res.infos, numOfRequests)
 	for _, info := range res.infos {
-		require.Equal(t, "server error: connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later", info)
+		require.Equal(t, "connection between router and batcher "+testSetup.batchers[0].Server().Address()+" is broken, try again later", info)
 	}
 
 	// restart the batcher
@@ -717,7 +717,7 @@ func TestRequestFilters(t *testing.T) {
 	}
 	resp, err = cl.Submit(ctx, req)
 	require.NoError(t, err)
-	require.Equal(t, "request verification error: empty payload field", resp.Error)
+	require.Equal(t, "client error (400): request verification error: empty payload field", resp.Error)
 	// 4) send request with payload too big. (3000 is more than 1 << 10, the maximal request size in bytes)
 	buff = make([]byte, 3000)
 	binary.BigEndian.PutUint32(buff, uint32(12345))
@@ -726,7 +726,7 @@ func TestRequestFilters(t *testing.T) {
 	}
 	resp, err = cl.Submit(ctx, req)
 	require.NoError(t, err)
-	require.Equal(t, "request verification error: the request's size exceeds the maximum size: actual = 3000, limit = 1024", resp.Error)
+	require.Equal(t, "client error (400): request verification error: the request's size exceeds the maximum size: actual = 3000, limit = 1024", resp.Error)
 
 	// 5) send request with invalid signature. Not implemented
 
@@ -743,15 +743,60 @@ func TestRequestFilters(t *testing.T) {
 	require.NoError(t, stream.Send(&protos.Request{Payload: nil}))
 	streamResp, err := stream.Recv()
 	require.NoError(t, err)
-	require.Equal(t, "request verification error: empty payload field", streamResp.Error)
+	require.Equal(t, "client error (400): request verification error: empty payload field", streamResp.Error)
 	require.Eventually(t, func() bool {
 		return testutil.FetchPrometheusMetricValue(t, rejected400, URL) == 3
 	}, 10*time.Second, 100*time.Millisecond)
 }
 
 // Scenario:
+//  1. Start a client, router and stub batcher, and open a Broadcast stream.
+//  2. Send an envelope with an empty payload, and expect BAD_REQUEST with the verification error in Info.
+//  3. Send an envelope that exceeds the maximal request size, and expect BAD_REQUEST with the verification error
+//     in Info.
+//  4. Send a valid envelope on the same stream, and expect SUCCESS.
+func TestBroadcastAnswersAnInvalidRequestWithBadRequest(t *testing.T) {
+	// 1) Start a client, router and stub batcher
+	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false)
+	err := createServerTLSClientConnection(testSetup, testSetup.ca)
+	require.NoError(t, err)
+	require.NotNil(t, testSetup.clientConn)
+	defer testSetup.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
+	defer cancel()
+	stream, err := ab.NewAtomicBroadcastClient(testSetup.clientConn).Broadcast(ctx)
+	require.NoError(t, err)
+
+	// Responses on a Broadcast stream may come out of order, so each envelope is answered before the next is sent.
+	send := func(env *common.Envelope) *ab.BroadcastResponse {
+		require.NoError(t, stream.Send(env))
+		resp, err := stream.Recv()
+		require.NoError(t, err)
+		return resp
+	}
+
+	// 2) an empty payload
+	resp := send(&common.Envelope{Payload: nil})
+	require.Equal(t, common.Status_BAD_REQUEST, resp.Status)
+	require.Equal(t, "request verification error: empty payload field", resp.Info)
+
+	// 3) a payload too big (3000 is more than 1 << 10, the maximal request size in bytes)
+	resp = send(&common.Envelope{Payload: make([]byte, 3000)})
+	require.Equal(t, common.Status_BAD_REQUEST, resp.Status)
+	require.Equal(t, "request verification error: the request's size exceeds the maximum size: actual = 3000, limit = 1024", resp.Info)
+
+	// 4) a valid request
+	buff := make([]byte, 300)
+	binary.BigEndian.PutUint32(buff, uint32(12345))
+	resp = send(tx.CreateStructuredEnvelope(buff))
+	require.Equal(t, common.Status_SUCCESS, resp.Status)
+	require.Empty(t, resp.Info)
+}
+
+// Scenario:
 //  1. Start a client, router and stub batcher, and make the batcher reject every request with an error.
-//  2. Submit a valid request and expect the client to get the batcher's error.
+//  2. Submit a valid request and expect the client to get the batcher's error, classified as a server error.
 //  3. Expect the request to be counted as rejected with code 500.
 func TestRouterCountsABatcherErrorAsServerError(t *testing.T) {
 	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false)
@@ -766,7 +811,7 @@ func TestRouterCountsABatcherErrorAsServerError(t *testing.T) {
 	defer cancel()
 	resp, err := protos.NewRequestTransmitClient(testSetup.clientConn).Submit(ctx, tx.CreateStructuredRequest(make([]byte, 300)))
 	require.NoError(t, err)
-	require.Equal(t, "request already exists", resp.Error)
+	require.Equal(t, "server error (500): request already exists", resp.Error)
 
 	URL := testSetup.router.MonitoringServiceAddress()
 	rejected500 := regexp.MustCompile(fmt.Sprintf(`router_requests_rejected\{code="500",party_id="%d"\} \d+`, types.PartyID(1)))

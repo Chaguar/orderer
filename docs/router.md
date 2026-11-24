@@ -103,9 +103,12 @@ A `SUCCESS` response means the router accepted the transaction and handed it to 
 not mean the transaction was ordered, and the client learns that from the blocks it reads from the
 assemblers. A configuration update is the exception: its response comes after the consenter of the
 router's party has answered it, and a `SUCCESS` then means only that the consenter accepted it into
-consensus, not that it was ordered. Every other outcome is either `SERVICE_UNAVAILABLE`, when the
-router's rate limit rejects the request, or `INTERNAL_SERVER_ERROR`, with an `Info` message that tells
-a request the router found invalid apart from a router that could not reach its batcher. An invalid
+consensus, not that it was ordered. Every other outcome carries an `Info` message that explains it,
+and one of three statuses: `SERVICE_UNAVAILABLE`, when the router's rate limit rejects the request;
+`BAD_REQUEST`, when the router finds the request invalid, for example a request that is empty, too
+large, or not signed as the channel's `Writers` policy requires, or a configuration update the router
+finds invalid; and `INTERNAL_SERVER_ERROR` for a failure on the server side, such as a router that cannot
+reach its batcher, or an error returned by the consenter for a configuration update. An invalid
 request does not end the stream, and the client may go on sending on it.
 
 Two properties of these responses differ from what a Fabric client may expect. They are not
@@ -120,7 +123,11 @@ The router also serves the `RequestTransmit` service, an alternative to `Broadca
 same requests in Arma's own message, as a single request or as a stream. Its responses carry an error
 string, empty on success, and a successful response is given only once the batcher has answered the
 request. For a configuration update the consenter answers instead, and an empty error means only that
-it accepted the update into consensus, not that the update was ordered.
+it accepted the update into consensus, not that the update was ordered. The response has no status
+field, so the error string starts with the status `Broadcast` would answer with, as
+`client error (400)`, `server error (500)` or `server error (503)`, for example
+`client error (400): request verification error: empty payload field`. An error returned by the
+batcher, or by the consenter for a configuration update, is a `server error (500)`.
 
 ```protobuf
 service RequestTransmit {
