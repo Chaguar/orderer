@@ -40,12 +40,16 @@ type PendingStore struct {
 	closedWG              sync.WaitGroup
 	closeOnce             sync.Once
 	closeChan             chan struct{}
-	resetChan             chan struct{}
-	finishResetChan       chan struct{}
-	stopChan              chan struct{}
+	// ResetTimestamps and Stop hand their work to the run goroutine, which owns termCtx: each sends on its request
+	// channel (resetChan, stopChan) and then waits on its finish channel (finishResetChan, finishStopChan), which the
+	// run goroutine signals once the work is done. So when Stop returns, the forwarding is already canceled.
+	resetChan       chan struct{}
+	finishResetChan chan struct{}
+	stopChan        chan struct{}
+	finishStopChan  chan struct{}
 
-	// termCtx is the parent of every strike's context. A reset (a new term) and Close cancel it, which ends the
-	// forwarding of the strikes of the previous term. Only the run goroutine replaces it.
+	// termCtx is the parent of every strike's context. A reset (a new term), Stop and Close cancel it, which ends the
+	// forwarding of the strikes so far. Only the run goroutine replaces it.
 	termCtx    context.Context
 	cancelTerm context.CancelFunc
 }
@@ -59,6 +63,7 @@ func (ps *PendingStore) Init() {
 	ps.resetChan = make(chan struct{})
 	ps.finishResetChan = make(chan struct{})
 	ps.stopChan = make(chan struct{})
+	ps.finishStopChan = make(chan struct{})
 	ps.termCtx, ps.cancelTerm = context.WithCancel(context.Background())
 	ps.lastEpochChange = ps.StartTime
 	ps.lastProcessedGC = ps.StartTime
@@ -77,8 +82,12 @@ func (ps *PendingStore) run() {
 		case <-ps.closeChan:
 			return
 		case <-ps.stopChan:
+			ps.cancelTerm()
 			ps.Logger.Info("Stopped - waiting for reset or close")
-			continue
+			select {
+			case ps.finishStopChan <- struct{}{}: // tell Stop the forwarding is canceled
+			case <-ps.closeChan:
+			}
 		case <-ps.resetChan:
 			ps.reset()
 		case now := <-ps.Time:
@@ -124,6 +133,8 @@ func (ps *PendingStore) stop() {
 }
 
 // Stop temporarily halts processing while keeping the pending store alive.
+// It also ends the forwarding of the strikes so far: each forwarding goroutine stops before its next request, and the
+// requests not forwarded strike again after the resume.
 // The store can be resumed via ResetTimestamps().
 // Use Close() for permanent shutdown.
 func (ps *PendingStore) Stop() {
@@ -137,6 +148,10 @@ func (ps *PendingStore) Stop() {
 	select {
 	case ps.stopChan <- struct{}{}:
 	case <-ps.closeChan:
+	}
+	select {
+	case <-ps.finishStopChan: // wait until the forwarding is canceled
+	case <-ps.closeChan: // Close cancels the forwarding once the run goroutine returns
 	}
 }
 
@@ -249,7 +264,7 @@ func (ps *PendingStore) checkFirstStrike(now time.Time) {
 	ps.Logger.Infof("First strike: forwarding %d requests from %d buckets", total, len(buckets))
 
 	// Forwarding a request is only useful before its second strike fires, so the forwarding of this strike stops
-	// then, or earlier at a new term or Close. Together with the bounded wait of the callback, that bounds the
+	// then, or earlier at a new term, Stop or Close. Together with the bounded wait of the callback, that bounds the
 	// forwarding goroutines alive at once. The deadline runs on the wall clock and the strikes on the store's ticks;
 	// in production they agree to within an epoch.
 	ctx, cancel := context.WithTimeout(ps.termCtx, ps.SecondStrikeThreshold)

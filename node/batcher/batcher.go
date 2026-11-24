@@ -93,6 +93,10 @@ type Batcher struct {
 
 	metrics   *BatcherMetrics
 	opsSystem *operations.System
+
+	// strikeLock guards the assignment of metrics and primaryConnector against their reads in OnFirstStrikeTimeout,
+	// which the pending store's forwarding goroutines call, also while configureBatcher replaces them.
+	strikeLock sync.Mutex
 }
 
 func (b *Batcher) MonitoringServiceAddress() string {
@@ -712,9 +716,11 @@ func (b *Batcher) NotifyAck(stream protos.BatcherControlService_NotifyAckServer)
 }
 
 func (b *Batcher) OnFirstStrikeTimeout(req []byte) {
-	b.metrics.firstResendsTotal.Add(1)
-	b.logger.Debugf("First strike timeout occurred on request %s", b.requestsInspectorVerifier.RequestID(req))
-	b.sendReq(req)
+	b.strikeLock.Lock()
+	firstResends, connector := b.metrics.firstResendsTotal, b.primaryConnector
+	b.strikeLock.Unlock()
+	firstResends.Add(1)
+	connector.SendReq(req)
 }
 
 func (b *Batcher) OnSecondStrikeTimeout() {
@@ -780,16 +786,6 @@ func (b *Batcher) createComplaint(term uint64, reason string) *state.Complaint {
 	}
 	b.logger.Infof("Created complaint with term %d and reason %s", term, reason)
 	return c
-}
-
-func (b *Batcher) sendReq(req []byte) {
-	t1 := time.Now()
-
-	defer func() {
-		b.logger.Debugf("Sending req took %v", time.Since(t1))
-	}()
-
-	b.primaryConnector.SendReq(req)
 }
 
 func (b *Batcher) Ack(seq types.BatchSequence, to types.PartyID) {

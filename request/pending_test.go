@@ -755,15 +755,18 @@ func TestPendingStoreForwardingOfAStrikeStopsAtTheSecondStrike(t *testing.T) {
 //  1. Start a pending store with the first strike after 1 s and no second strike within the test, whose first-strike
 //     callback waits until released.
 //  2. Submit two requests together, and wait for the callback of one of them.
-//  3. Reset the store, as a new term does (or close it), then release the callback.
+//  3. Reset the store, as a new term does (or stop it, as a soft stop does, or close it), then release the callback.
 //  4. Expect the other request not to be passed to the callback in the old term.
-func TestPendingStoreForwardingOfAStrikeStopsAtResetOrClose(t *testing.T) {
-	for _, closeStore := range []bool{false, true} {
-		name := "reset"
-		if closeStore {
-			name = "close"
-		}
-		t.Run(name, func(t *testing.T) {
+func TestPendingStoreForwardingOfAStrikeStopsAtResetStopOrClose(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		end  func(ps *request.PendingStore)
+	}{
+		{name: "reset", end: func(ps *request.PendingStore) { ps.ResetTimestamps() }},
+		{name: "stop", end: func(ps *request.PendingStore) { ps.Stop() }},
+		{name: "close", end: func(ps *request.PendingStore) { ps.Close() }},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
 			gate := make(chan struct{})
 			var calls, running, maxRunning atomic.Int32
 			ps := newCountingStrikeStore(t, 100*time.Millisecond, time.Second, time.Hour, &calls, &running, &maxRunning,
@@ -775,11 +778,7 @@ func TestPendingStoreForwardingOfAStrikeStopsAtResetOrClose(t *testing.T) {
 			ps.Start()
 			require.Eventually(t, func() bool { return calls.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
 
-			if closeStore {
-				ps.Close()
-			} else {
-				ps.ResetTimestamps()
-			}
+			tc.end(ps)
 			close(gate)
 			require.Never(t, func() bool { return calls.Load() > 1 }, 500*time.Millisecond, 10*time.Millisecond)
 		})

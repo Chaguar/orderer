@@ -132,7 +132,7 @@ func (b *Batcher) configureBatcher(
 	b.batchers = batchers
 	b.Ledger = ledgerArray
 	b.batcherCerts2IDs = make(map[string]types.PartyID)
-	b.metrics = NewBatcherMetrics(b.config, batchers, ledgerMetrics, ledgerArray, b.logger)
+	metrics := NewBatcherMetrics(b.config, batchers, ledgerMetrics, ledgerArray, b.logger)
 	b.opsSystem = operations.NewOperationsSystem(*b.config.Operations, *b.config.Metrics)
 
 	b.controlEventSenders = make([]controlevent.Sender, len(b.config.Consenters))
@@ -152,10 +152,13 @@ func (b *Batcher) configureBatcher(
 	ctxBroadcast, cancelBroadcast := context.WithCancel(context.Background())
 	b.controlEventBroadcaster = NewControlEventBroadcaster(b.controlEventSenders, int(n), int(f), 100*time.Millisecond, 10*time.Second, b.logger, ctxBroadcast, cancelBroadcast)
 
-	b.primaryConnector = CreatePrimaryConnector(b.primaryID, b.logger, b.config, GetBatchersEndpointsAndCerts(b.batchers), context.Background(),
+	connector := CreatePrimaryConnector(b.primaryID, b.logger, b.config, GetBatchersEndpointsAndCerts(b.batchers), context.Background(),
 		LinkTiming{SendTimeout: 10 * time.Second, MinRetryInterval: 100 * time.Millisecond, MaxRetryDelay: time.Second},       // forwards
 		LinkTiming{SendTimeout: time.Second, MinRetryInterval: 100 * time.Millisecond, MaxRetryDelay: 500 * time.Millisecond}, // acks
 	)
+	b.strikeLock.Lock()
+	b.metrics, b.primaryConnector = metrics, connector
+	b.strikeLock.Unlock()
 
 	b.sigVerifier = buildVerifier(batchers, b.config.ShardId, b.logger)
 
