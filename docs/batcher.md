@@ -233,6 +233,17 @@ mempool. So on a term change, each batcher looks for its own BAFs that the conse
 pending for the previous primary, reads those batches from its ledger, and returns their requests to
 its mempool.
 
+The primary removes a batch's requests from its mempool only once the batch's BAF has reached the
+consenters. If the term changes while the BAF is being sent, the primary cancels the send, and unless
+a quorum of consenters had already accepted the BAF, it returns the batch's requests to its mempool
+instead. They are then batched again in the new term, or held in the pending store if the batcher is
+now a secondary. If the batcher stops while the BAF is being sent, the stop cancels the send in the
+same way, and a batch the primary would cut as it stops is not stored at all. Sends to
+consenters that were already under way, and the secondaries' BAFs, can still get the original batch
+ordered, so returned requests may be ordered twice. A batcher that is now a secondary also forwards
+the returned requests to the new primary at the first strike, and if the new primary pulled the
+original batch, it has removed them and batches them again.
+
 ### 3.4 The Memory Pool and Censorship Resistance
 
 The mempool works in one of two modes, chosen by the batcher's role:
@@ -435,7 +446,9 @@ identity changes (its endpoint or certificates), or, in the current version, if 
 parameters change (`BatchCreationTimeout` is applied live), the batcher enters the **pending-admin**
 state and waits for an administrator. Anything else it applies in the running process: it rebuilds its
 configuration and services against the new topology, keeps its mempool but removes the requests that
-no longer pass verification under the new configuration, and starts again.
+no longer pass verification under the new configuration, and starts again. A batch the primary cut but
+whose BAF it had not sent yet is back in the mempool by then, so its requests are verified in the same
+way and batched again.
 
 Batches attested under the previous configuration may not have been ordered. When a decision reports
 such a BAF of this batcher, the batcher returns the batch's requests to its mempool, verifying each

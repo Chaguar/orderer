@@ -22,6 +22,7 @@ import (
 	"github.com/Chaguar/orderer/node/config"
 	"github.com/Chaguar/orderer/node/consensus/state"
 	node_ledger "github.com/Chaguar/orderer/node/ledger"
+	"github.com/Chaguar/orderer/request"
 	"github.com/Chaguar/orderer/testutil"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/stretchr/testify/require"
@@ -1257,6 +1258,7 @@ func createBatcher(t *testing.T, batcherID arma_types.PartyID, shardID arma_type
 		BAFSender:               &mocks.FakeBAFSender{},
 		BatchAcker:              &mocks.FakeBatchAcker{},
 		MemPool:                 &mocks.FakeMemPool{},
+		ConfigSequenceGetter:    &mocks.FakeConfigSequenceGetter{},
 		BatchedRequestsVerifier: &mocks.FakeBatchedRequestsVerifier{},
 		SigVerifier:             &mocks.FakeSigVerifier{},
 		BatchSequenceGap:        arma_types.BatchSequence(10),
@@ -1333,11 +1335,13 @@ func TestPrimaryBAFContextPerRole(t *testing.T) {
 	bafSender := &mocks.FakeBAFSender{}
 	// The last BAF blocks until its context is cancelled.
 	inFlightDone := make(chan struct{})
-	bafSender.SendBAFCalls(func(baf arma_types.BatchAttestationFragment, ctx context.Context) {
+	bafSender.SendBAFCalls(func(baf arma_types.BatchAttestationFragment, ctx context.Context) error {
 		if baf.Seq() == 9 {
 			<-ctx.Done()
 			close(inFlightDone)
+			return ctx.Err()
 		}
+		return nil
 	})
 	b.BAFSender = bafSender
 	b.ConfigSequenceGetter = &mocks.FakeConfigSequenceGetter{}
@@ -1377,11 +1381,13 @@ func TestSecondaryBAFContextPerRole(t *testing.T) {
 	bafSender := &mocks.FakeBAFSender{}
 	// The last BAF blocks until its context is cancelled.
 	inFlightDone := make(chan struct{})
-	bafSender.SendBAFCalls(func(baf arma_types.BatchAttestationFragment, ctx context.Context) {
+	bafSender.SendBAFCalls(func(baf arma_types.BatchAttestationFragment, ctx context.Context) error {
 		if baf.Seq() == 9 {
 			<-ctx.Done()
 			close(inFlightDone)
+			return ctx.Err()
 		}
+		return nil
 	})
 	b.BAFSender = bafSender
 	b.ConfigSequenceGetter = &mocks.FakeConfigSequenceGetter{}
@@ -1411,4 +1417,339 @@ func TestSecondaryBAFContextPerRole(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		t.Fatal("the in-flight SendBAF did not get a cancelled context")
 	}
+}
+
+var strandedRequestIDs = []string{"req-0", "req-1", "req-2"}
+
+// testPrimary is batcher 1 of 4 in shard 0, the primary in term 0, with a fake ledger and BAF sender.
+type testPrimary struct {
+	role         *batcher.BatcherRole
+	termProvider *testTermProvider
+	ledger       *mocks.FakeBatchLedger
+	bafSender    *mocks.FakeBAFSender
+	puller       *mocks.FakeBatchesPuller
+}
+
+func newTestPrimary(t *testing.T, pool batcher.MemPool, batchTimeout time.Duration) *testPrimary {
+	batchers := []arma_types.PartyID{1, 2, 3, 4}
+	role := createBatcher(t, 1, 0, batchers, 4, testutil.CreateLogger(t, 1))
+	role.BatchTimeout = batchTimeout
+	role.MemPool = pool
+	termProvider := newTestTermProvider(batchers, 0, 4)
+	role.TermProvider = termProvider
+	ledger := &mocks.FakeBatchLedger{}
+	role.Ledger = ledger
+	bafSender := &mocks.FakeBAFSender{}
+	role.BAFSender = bafSender
+	batchPuller := &mocks.FakeBatchesPuller{}
+	batchPuller.PullBatchesReturns(make(chan arma_types.Batch))
+	role.BatchPuller = batchPuller
+	return &testPrimary{role: role, termProvider: termProvider, ledger: ledger, bafSender: bafSender, puller: batchPuller}
+}
+
+// softStopWithin soft stops the role, and fails the test if that takes longer than timeout, as when the role waits
+// for a BAF send that the stop does not cancel.
+func (p *testPrimary) softStopWithin(t *testing.T, timeout time.Duration) {
+	stopped := make(chan struct{})
+	go func() {
+		p.role.SoftStop()
+		close(stopped)
+	}()
+	select {
+	case <-stopped:
+	case <-time.After(timeout):
+		t.Fatal("the role did not soft stop")
+	}
+}
+
+// setTerm moves the shard to term, notifying the role as the batcher's decision loop does. With 4 batchers, the
+// primary of term 4 is the primary of term 0.
+func (p *testPrimary) setTerm(term uint64) {
+	p.termProvider.setState(p.role, &state.State{Shards: []state.ShardTerm{{Shard: 0, Term: term}}})
+}
+
+// requireAppendedStranded checks that the i-th batch the primary stored holds strandedRequestIDs.
+func (p *testPrimary) requireAppendedStranded(t *testing.T, i int) {
+	_, _, _, reqs, _, _ := p.ledger.AppendArgsForCall(i)
+	ids := make([]string, len(reqs))
+	for j, req := range reqs {
+		ids[j] = string(req)
+	}
+	require.ElementsMatch(t, strandedRequestIDs, ids)
+}
+
+// newStrandedTestPool returns a pool, holding strandedRequestIDs, whose request ids are the requests themselves.
+func newStrandedTestPool(t *testing.T) *request.Pool {
+	requestID := func(req []byte) string { return string(req) }
+	pool := request.NewPool(testutil.CreateLogger(t, 1), requestID, request.PoolOptions{
+		MaxSize:               10,
+		BatchMaxSize:          10,
+		BatchMaxSizeBytes:     100000,
+		RequestMaxBytes:       1024,
+		SubmitTimeout:         200 * time.Millisecond,
+		FirstStrikeThreshold:  time.Minute,
+		SecondStrikeThreshold: time.Minute,
+		AutoRemoveTimeout:     10 * time.Second,
+	}, noopStriker{})
+	t.Cleanup(pool.Close)
+	for _, id := range strandedRequestIDs {
+		require.NoError(t, pool.Submit([]byte(id)))
+	}
+	return pool
+}
+
+// containsAll reports whether the pool's pending store holds all of strandedRequestIDs.
+func containsAll(pool *request.Pool) bool {
+	for _, id := range strandedRequestIDs {
+		if !pool.Contains(id) {
+			return false
+		}
+	}
+	return true
+}
+
+// First BAF sends of a stranded batch: one that blocks until cancelled, as when the BAF does not reach enough
+// consenters, and one that fails, as when the batcher stopped sending control events.
+func blockUntilCancelled(ctx context.Context) error {
+	<-ctx.Done()
+	return ctx.Err()
+}
+
+func failSend(context.Context) error {
+	return errors.New("broadcast cancelled by object context")
+}
+
+// acceptedAsCancelled is a first BAF send that a quorum accepts as the role cancels it, so the send reports the
+// acceptance: it closes cancelled once its context is cancelled, and succeeds once release is closed.
+func acceptedAsCancelled(cancelled chan<- struct{}, release <-chan struct{}) func(ctx context.Context) error {
+	return func(ctx context.Context) error {
+		<-ctx.Done()
+		close(cancelled)
+		<-release
+		return nil
+	}
+}
+
+// strandedBatch is a primary whose first batch holds strandedRequestIDs and whose first BAF send is firstSend.
+type strandedBatch struct {
+	*testPrimary
+	pool *request.Pool
+}
+
+// newStrandedBatch starts the primary and returns once it has stored the batch and started sending its BAF.
+func newStrandedBatch(t *testing.T, firstSend func(ctx context.Context) error) *strandedBatch {
+	pool := newStrandedTestPool(t)
+	p := newTestPrimary(t, pool, 50*time.Millisecond)
+	inFlight := make(chan struct{})
+	var sends atomic.Int32
+	p.bafSender.SendBAFCalls(func(_ arma_types.BatchAttestationFragment, ctx context.Context) error {
+		if sends.Add(1) > 1 {
+			return nil
+		}
+		close(inFlight)
+		return firstSend(ctx)
+	})
+
+	p.role.Start()
+	select {
+	case <-inFlight:
+	case <-time.After(10 * time.Second):
+		t.Fatal("the primary did not send a BAF")
+	}
+	require.Equal(t, 1, p.ledger.AppendCallCount())
+	p.requireAppendedStranded(t, 0)
+	return &strandedBatch{testPrimary: p, pool: pool}
+}
+
+// requireBatchedAfterRestart starts a new primary on pool, as the batcher does after a reconfiguration, and checks
+// that it batches strandedRequestIDs.
+func requireBatchedAfterRestart(t *testing.T, pool *request.Pool) {
+	p := newTestPrimary(t, pool, 50*time.Millisecond)
+	p.role.Start()
+	defer p.role.Stop()
+
+	require.Eventually(t, func() bool {
+		return p.ledger.AppendCallCount() == 1
+	}, 10*time.Second, 10*time.Millisecond)
+	p.requireAppendedStranded(t, 0)
+	require.Eventually(t, func() bool {
+		return pool.RequestCount() == 0
+	}, 10*time.Second, 10*time.Millisecond)
+}
+
+// TestStrandedBatchReturnedOnReconfig checks that the requests of a batch whose BAF was not sent when the primary
+// soft stops for a reconfiguration stay in the pool, are pruned under the new config, and are batched again.
+func TestStrandedBatchReturnedOnReconfig(t *testing.T) {
+	s := newStrandedBatch(t, blockUntilCancelled)
+	s.softStopWithin(t, 5*time.Second)
+
+	s.pool.Prune(func([]byte) error { return nil })
+	require.Equal(t, int64(3), s.pool.RequestCount())
+	requireBatchedAfterRestart(t, s.pool)
+}
+
+// TestStrandedBatchReturnedWhenBAFSendFails checks that the requests of a batch whose BAF send fails stay in the
+// pool. The batcher stops sending control events before it stops the role, so on a soft stop the send can fail
+// before the role learns that it stops. The role must not batch the requests again until it is restarted.
+func TestStrandedBatchReturnedWhenBAFSendFails(t *testing.T) {
+	s := newStrandedBatch(t, failSend)
+
+	require.Never(t, func() bool {
+		return s.ledger.AppendCallCount() > 1
+	}, 300*time.Millisecond, 10*time.Millisecond)
+
+	s.softStopWithin(t, 5*time.Second)
+	s.pool.Prune(func([]byte) error { return nil })
+	require.Equal(t, int64(3), s.pool.RequestCount())
+	requireBatchedAfterRestart(t, s.pool)
+}
+
+// TestStrandedBatchReturnedOnTermChangeToSecondary checks that the requests of a batch whose BAF was not sent when
+// the primary becomes a secondary are held in its pending store.
+func TestStrandedBatchReturnedOnTermChangeToSecondary(t *testing.T) {
+	s := newStrandedBatch(t, blockUntilCancelled)
+	defer s.role.Stop()
+
+	s.setTerm(1)
+
+	require.Eventually(t, func() bool { return containsAll(s.pool) }, 10*time.Second, 10*time.Millisecond)
+	require.Equal(t, int64(3), s.pool.RequestCount())
+}
+
+// TestStrandedBatchReturnedOnTermChangeSamePrimary checks that the requests of a batch whose BAF was not sent, or
+// whose send failed, are batched again when the term changes and the primary stays the same.
+func TestStrandedBatchReturnedOnTermChangeSamePrimary(t *testing.T) {
+	for name, firstSend := range map[string]func(context.Context) error{
+		"send blocks": blockUntilCancelled,
+		"send fails":  failSend,
+	} {
+		t.Run(name, func(t *testing.T) {
+			s := newStrandedBatch(t, firstSend)
+			defer s.role.Stop()
+
+			s.setTerm(4)
+
+			require.Eventually(t, func() bool {
+				return s.ledger.AppendCallCount() == 2
+			}, 10*time.Second, 10*time.Millisecond)
+			s.requireAppendedStranded(t, 1)
+		})
+	}
+}
+
+// TestStrandedBatchRemovedWhenBAFAcceptedAsTermChanges checks that a primary whose term changes while its BAF is in
+// flight cancels the send, and removes the batch's requests when the send reports that a quorum accepted the BAF.
+func TestStrandedBatchRemovedWhenBAFAcceptedAsTermChanges(t *testing.T) {
+	cancelled, release := make(chan struct{}), make(chan struct{})
+	s := newStrandedBatch(t, acceptedAsCancelled(cancelled, release))
+	defer s.role.Stop()
+
+	s.setTerm(1)
+	<-cancelled
+	close(release)
+
+	require.Eventually(t, func() bool {
+		return s.puller.PullBatchesCallCount() > 0
+	}, 10*time.Second, 10*time.Millisecond)
+	require.Equal(t, 1, s.ledger.AppendCallCount())
+	require.Equal(t, int64(0), s.pool.RequestCount())
+	for _, id := range strandedRequestIDs {
+		require.False(t, s.pool.Contains(id))
+	}
+}
+
+// TestStrandedBatchFailedSendWaitsThroughSameTermNotification checks that a primary whose BAF send failed keeps
+// waiting when it is notified of a term change that leaves the term as it is, rather than batching the requests
+// again in a BAF it cannot send.
+func TestStrandedBatchFailedSendWaitsThroughSameTermNotification(t *testing.T) {
+	s := newStrandedBatch(t, failSend)
+	defer s.role.Stop()
+
+	s.role.NotifyTermChange()
+
+	require.Never(t, func() bool {
+		return s.ledger.AppendCallCount() > 1
+	}, 300*time.Millisecond, 10*time.Millisecond)
+	require.Equal(t, int64(3), s.pool.RequestCount())
+}
+
+// TestStrandedBatchRemovedWhenBAFAcceptedAsStopping checks that a primary that stops while its BAF is in flight
+// waits for the send, which the stop cancels, and removes the batch's requests when the send reports that a quorum
+// accepted the BAF.
+func TestStrandedBatchRemovedWhenBAFAcceptedAsStopping(t *testing.T) {
+	cancelled, release := make(chan struct{}), make(chan struct{})
+	s := newStrandedBatch(t, acceptedAsCancelled(cancelled, release))
+	go func() {
+		<-cancelled
+		close(release)
+	}()
+
+	s.softStopWithin(t, 5*time.Second)
+
+	require.Equal(t, int64(0), s.pool.RequestCount())
+}
+
+// enteringPool is a pool that closes entered when NextRequests is first called.
+type enteringPool struct {
+	*request.Pool
+	entered chan struct{}
+	once    sync.Once
+}
+
+func (p *enteringPool) NextRequests(ctx context.Context) ([][]byte, []string) {
+	p.once.Do(func() { close(p.entered) })
+	return p.Pool.NextRequests(ctx)
+}
+
+// newWaitingPrimary returns a primary on a pool that holds strandedRequestIDs, and that waits up to batchTimeout in
+// NextRequests for a batch, and the pool, whose entered is closed once the primary waits there.
+func newWaitingPrimary(t *testing.T, batchTimeout time.Duration) (*testPrimary, *enteringPool) {
+	pool := &enteringPool{Pool: newStrandedTestPool(t), entered: make(chan struct{})}
+	return newTestPrimary(t, pool, batchTimeout), pool
+}
+
+// TestSoftStopDoesNotCutABatch checks that a primary waiting for a batch when it soft stops does not cut, store and
+// send a batch of the requests it holds, since it also keeps them in the pool, to batch them again once it restarts.
+func TestSoftStopDoesNotCutABatch(t *testing.T) {
+	p, pool := newWaitingPrimary(t, 10*time.Second)
+
+	p.role.Start()
+	<-pool.entered
+	p.softStopWithin(t, 5*time.Second)
+
+	require.Equal(t, 0, p.ledger.AppendCallCount())
+	require.Equal(t, 0, p.bafSender.SendBAFCallCount())
+	require.Equal(t, int64(3), pool.RequestCount())
+	requireBatchedAfterRestart(t, pool.Pool)
+}
+
+// TestTermChangeDuringNextRequestsDoesNotCutABatch checks that a primary whose term changes while it waits for a
+// batch does not cut, store and send that batch in the term it left, but keeps its requests in the pool.
+func TestTermChangeDuringNextRequestsDoesNotCutABatch(t *testing.T) {
+	p, pool := newWaitingPrimary(t, time.Second)
+
+	p.role.Start()
+	defer p.role.Stop()
+	<-pool.entered
+	p.setTerm(1)
+
+	require.Eventually(t, func() bool { return containsAll(pool.Pool) }, 10*time.Second, 10*time.Millisecond)
+	require.Equal(t, 0, p.ledger.AppendCallCount())
+	require.Equal(t, 0, p.bafSender.SendBAFCallCount())
+}
+
+// TestTermChangeBeforeNotificationDoesNotCutABatch checks that a primary whose term moved on, but which was not yet
+// notified of it, does not cut, store and send a batch in the term it left. The batcher updates the term before it
+// notifies the role.
+func TestTermChangeBeforeNotificationDoesNotCutABatch(t *testing.T) {
+	p, pool := newWaitingPrimary(t, 200*time.Millisecond)
+
+	p.role.Start()
+	defer p.role.Stop()
+	<-pool.entered
+	p.termProvider.setTerm(1)
+
+	require.Eventually(t, func() bool { return containsAll(pool.Pool) }, 10*time.Second, 10*time.Millisecond)
+	require.Equal(t, 0, p.ledger.AppendCallCount())
+	require.Equal(t, 0, p.bafSender.SendBAFCallCount())
 }

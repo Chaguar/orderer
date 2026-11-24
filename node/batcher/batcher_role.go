@@ -30,6 +30,7 @@ type RequestInspector interface {
 type MemPool interface {
 	NextRequests(ctx context.Context) ([][]byte, []string)
 	RemoveRequests(requestIDs ...string)
+	ReturnRequests(requestIDs ...string)
 	Submit(request []byte) error
 	Halt()
 	Restart(bool)
@@ -81,7 +82,9 @@ type BatchAcker interface {
 
 // BAFSender sends the baf to the consenters
 type BAFSender interface {
-	SendBAF(baf types.BatchAttestationFragment, ctx context.Context)
+	// SendBAF returns once enough consenters accepted the baf, or with an error as soon as ctx is cancelled or the
+	// sender is stopped.
+	SendBAF(baf types.BatchAttestationFragment, ctx context.Context) error
 }
 
 //go:generate counterfeiter -o mocks/baf_creator.go . BAFCreator
@@ -408,6 +411,16 @@ func (b *BatcherRole) runPrimary(term uint64) {
 				continue
 			}
 
+			// A stop, which cancels ctx, or a term change can end the wait in NextRequests. The role then no
+			// longer acts in this term, so it does not store or send the batch, and returns its requests instead.
+			if b.stoppedActingIn(term) {
+				cancel()
+				b.Logger.Infof("Primary batcher %d (shard %d) stopped acting in term %d; "+
+					"returning the next batch's requests to the mem pool", b.ID, b.Shard, term)
+				b.MemPool.ReturnRequests(reqIDs...)
+				return
+			}
+
 			b.Logger.Infof("Batcher batched a total of %d requests for sequence %d", len(currentBatch), b.seq)
 			digestStart := time.Now()
 			digest = currentBatch.Digest()
@@ -425,24 +438,39 @@ func (b *BatcherRole) runPrimary(term uint64) {
 		// The digest was already computed for the BAF above.
 		b.Ledger.Append(b.ID, b.seq, b.ConfigSequenceGetter.ConfigSequence(), currentBatch, digest, baf.Signature())
 		sendBAFDone := make(chan struct{})
+		var sendErr error
 		go func() {
-			b.BAFSender.SendBAF(baf, sendCtx)
+			sendErr = b.BAFSender.SendBAF(baf, sendCtx)
 			close(sendBAFDone)
 		}()
+		// The batch's requests are removed once a quorum of consenters accepted the BAF, and returned to the mem
+		// pool otherwise. A term change cancels the send, and so does a stop, through the role's stop context; the
+		// send then ends at once, reporting success only if a quorum already accepted the BAF. Sends the broadcast
+		// already started, and the secondaries' BAFs, can still get the batch ordered, so returned requests may be
+		// ordered twice.
+		termChan := b.termChan
 	waitBAFSent:
 		for {
 			select {
 			case <-sendBAFDone:
 				break waitBAFSent
-			case <-b.termChan:
+			case <-termChan:
 				if !b.termChangedFrom(term) {
 					continue
 				}
 				b.Logger.Infof("Primary batcher %d (shard %d) term change from term %d", b.ID, b.Shard, term)
-				return
-			case <-b.stopChan:
-				return
+				cancelSend()
+				termChan = nil
 			}
+		}
+		if sendErr != nil {
+			b.Logger.Warnf("Primary batcher %d (shard %d) did not send the BAF for seq %d; "+
+				"returning its requests to the mem pool: %v", b.ID, b.Shard, b.seq, sendErr)
+			b.MemPool.ReturnRequests(reqIDs...)
+			// The send fails only when it is cancelled, and the batcher stops sending control events before it
+			// stops the role, so the role waits rather than batching the requests again in a BAF it cannot send.
+			b.waitForStopOrTermChange(term)
+			return
 		}
 
 		b.Metrics.batchedTxsTotal.Add(float64(len(currentBatch)))
@@ -454,8 +482,9 @@ func (b *BatcherRole) runPrimary(term uint64) {
 		b.seq++
 
 		b.removeRequestsByIDs(reqIDs)
-
-		// TODO find out from the state if old batches need to be resubmitted (not enough BAFs collected)
+		if b.stoppedActingIn(term) {
+			return
+		}
 	}
 }
 
@@ -463,6 +492,28 @@ func (b *BatcherRole) runPrimary(term uint64) {
 func (b *BatcherRole) removeRequestsByIDs(reqIDs []string) {
 	b.MemPool.RemoveRequests(reqIDs...)
 	b.Metrics.memPoolSize.Set(float64(b.MemPool.RequestCount()))
+}
+
+// stoppedActingIn reports, without waiting, whether the role stops or the term moved on from term. It reads the
+// term rather than a notification, since the batcher updates the term before it notifies the role.
+func (b *BatcherRole) stoppedActingIn(term uint64) bool {
+	select {
+	case <-b.stopChan:
+		return true
+	default:
+		return b.termChangedFrom(term)
+	}
+}
+
+// waitForStopOrTermChange waits until the role stops or the term moves on from term.
+func (b *BatcherRole) waitForStopOrTermChange(term uint64) {
+	for !b.termChangedFrom(term) {
+		select {
+		case <-b.termChan:
+		case <-b.stopChan:
+			return
+		}
+	}
 }
 
 func (b *BatcherRole) runSecondary(term uint64) {
@@ -523,7 +574,8 @@ func (b *BatcherRole) runSecondary(term uint64) {
 
 			sendBAFDone := make(chan struct{})
 			go func() {
-				b.BAFSender.SendBAF(baf, sendCtx)
+				// The secondary removes the batch's requests whether or not its BAF is sent.
+				_ = b.BAFSender.SendBAF(baf, sendCtx)
 				close(sendBAFDone)
 			}()
 		waitBAFSent:

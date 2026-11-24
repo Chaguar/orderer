@@ -10,28 +10,40 @@ import (
 )
 
 type FakeBAFSender struct {
-	SendBAFStub        func(types.BatchAttestationFragment, context.Context)
+	SendBAFStub        func(types.BatchAttestationFragment, context.Context) error
 	sendBAFMutex       sync.RWMutex
 	sendBAFArgsForCall []struct {
 		arg1 types.BatchAttestationFragment
 		arg2 context.Context
 	}
+	sendBAFReturns struct {
+		result1 error
+	}
+	sendBAFReturnsOnCall map[int]struct {
+		result1 error
+	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeBAFSender) SendBAF(arg1 types.BatchAttestationFragment, arg2 context.Context) {
+func (fake *FakeBAFSender) SendBAF(arg1 types.BatchAttestationFragment, arg2 context.Context) error {
 	fake.sendBAFMutex.Lock()
+	ret, specificReturn := fake.sendBAFReturnsOnCall[len(fake.sendBAFArgsForCall)]
 	fake.sendBAFArgsForCall = append(fake.sendBAFArgsForCall, struct {
 		arg1 types.BatchAttestationFragment
 		arg2 context.Context
 	}{arg1, arg2})
 	stub := fake.SendBAFStub
+	fakeReturns := fake.sendBAFReturns
 	fake.recordInvocation("SendBAF", []interface{}{arg1, arg2})
 	fake.sendBAFMutex.Unlock()
 	if stub != nil {
-		fake.SendBAFStub(arg1, arg2)
+		return stub(arg1, arg2)
 	}
+	if specificReturn {
+		return ret.result1
+	}
+	return fakeReturns.result1
 }
 
 func (fake *FakeBAFSender) SendBAFCallCount() int {
@@ -40,7 +52,7 @@ func (fake *FakeBAFSender) SendBAFCallCount() int {
 	return len(fake.sendBAFArgsForCall)
 }
 
-func (fake *FakeBAFSender) SendBAFCalls(stub func(types.BatchAttestationFragment, context.Context)) {
+func (fake *FakeBAFSender) SendBAFCalls(stub func(types.BatchAttestationFragment, context.Context) error) {
 	fake.sendBAFMutex.Lock()
 	defer fake.sendBAFMutex.Unlock()
 	fake.SendBAFStub = stub
@@ -51,6 +63,29 @@ func (fake *FakeBAFSender) SendBAFArgsForCall(i int) (types.BatchAttestationFrag
 	defer fake.sendBAFMutex.RUnlock()
 	argsForCall := fake.sendBAFArgsForCall[i]
 	return argsForCall.arg1, argsForCall.arg2
+}
+
+func (fake *FakeBAFSender) SendBAFReturns(result1 error) {
+	fake.sendBAFMutex.Lock()
+	defer fake.sendBAFMutex.Unlock()
+	fake.SendBAFStub = nil
+	fake.sendBAFReturns = struct {
+		result1 error
+	}{result1}
+}
+
+func (fake *FakeBAFSender) SendBAFReturnsOnCall(i int, result1 error) {
+	fake.sendBAFMutex.Lock()
+	defer fake.sendBAFMutex.Unlock()
+	fake.SendBAFStub = nil
+	if fake.sendBAFReturnsOnCall == nil {
+		fake.sendBAFReturnsOnCall = make(map[int]struct {
+			result1 error
+		})
+	}
+	fake.sendBAFReturnsOnCall[i] = struct {
+		result1 error
+	}{result1}
 }
 
 func (fake *FakeBAFSender) Invocations() map[string][][]interface{} {
