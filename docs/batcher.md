@@ -113,7 +113,7 @@ them in full.
 **Used by the batcher**
 
 - `Consensus.NotifyEvent`, on every consenter — to send BAFs and complaints. Each is broadcast to all
-  consenters.
+  consenters, and the broadcast returns once `n − f` of them accepted it.
 - `Deliver`, on the consenter of its own party — to pull the decision stream. A decision carries the
   current term of every shard, which is how the batcher learns who the primary is, and it may carry a
   config block.
@@ -143,7 +143,8 @@ until the term changes.
 Around the **batcher role** and the **mempool** run a few units. A **decision puller** follows the
 decision stream of the consenter of its own party; it writes each decision header to a write-ahead log
 (WAL), hands the latest state to the batcher role, and stores any config block in the **config store**.
-A **control-event broadcaster** sends BAFs and complaints to all consenters. A **primary connector**
+A **control-event broadcaster** sends BAFs and complaints to all consenters, and returns once `n − f`
+accepted each one. A **primary connector**
 sends to the current primary over two **lanes**, one for acks and one for forwarded requests, each with its
 own queue, connection and sending goroutine, so an ack never waits behind a forward. A lane connects when
 it has something to send; on a primary change it drops what it holds for the old primary and closes the
@@ -411,7 +412,10 @@ The shard tolerates up to `f` faulty batchers out of `N ≥ 3f+1`.
 - **A slow or failed secondary** does not stop the shard, as long as `f` secondaries keep acking. If
   fewer do, the primary stops cutting batches once it is `BatchSequenceGap` ahead.
 - **A failed consenter** does not stop the batcher either: BAFs and complaints are broadcast to
-  all consenters, and the consensus cluster tolerates up to `f` faulty consenters.
+  all consenters, a broadcast returns once `n − f` of them accepted it, and the consensus cluster
+  tolerates up to `f` faulty consenters. A consenter whose send is stuck, because it is unreachable
+  or stopped reading, has at most one send in flight and misses the events broadcast until that send
+  returns; consensus brings it up to date.
 
 ## 7. Reconfiguration
 
