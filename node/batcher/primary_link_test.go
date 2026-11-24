@@ -17,8 +17,10 @@ import (
 	"github.com/Chaguar/orderer/node/batcher"
 	"github.com/Chaguar/orderer/node/comm/tlsgen"
 	node_config "github.com/Chaguar/orderer/node/config"
+	protos "github.com/Chaguar/orderer/node/protos/comm"
 	"github.com/Chaguar/orderer/testutil"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 )
 
 // Scenario:
@@ -35,7 +37,7 @@ func TestPrimaryLinkConnectsOnTheFirstDeliverAndReusesTheStream(t *testing.T) {
 
 	require.Never(t, func() bool { return primary.streams.Load() > 0 }, 300*time.Millisecond, 10*time.Millisecond)
 	for mark := range byte(3) {
-		link.Deliver(context.Background(), 1, []byte{mark + 1})
+		link.Deliver(context.Background(), 1, &protos.FwdRequest{Request: []byte{mark + 1}})
 	}
 	require.Eventually(t, func() bool {
 		return primary.byMark[1].Load() == 1 && primary.byMark[2].Load() == 1 && primary.byMark[3].Load() == 1
@@ -56,11 +58,11 @@ func TestPrimaryLinkReconnectsAfterTheStreamEnds(t *testing.T) {
 	nodes, batchers := serveFakePrimaries(t, ca, primary)
 	link := newLink(t, nodes, batchers, 2, 1, 30*time.Second, 100*time.Millisecond)
 
-	link.Deliver(context.Background(), 1, []byte{1})
+	link.Deliver(context.Background(), 1, &protos.FwdRequest{Request: []byte{1}})
 	require.Eventually(t, func() bool { return primary.ended.Load() == 1 }, 10*time.Second, 10*time.Millisecond)
 
 	require.Eventually(t, func() bool {
-		link.Deliver(context.Background(), 1, []byte{2})
+		link.Deliver(context.Background(), 1, &protos.FwdRequest{Request: []byte{2}})
 		return primary.byMark[2].Load() > 0
 	}, 10*time.Second, 20*time.Millisecond)
 	require.Equal(t, int32(2), primary.streams.Load())
@@ -84,7 +86,7 @@ func TestPrimaryLinkCutsASendThatHangs(t *testing.T) {
 	go func() {
 		request := make([]byte, 64*1024)
 		for ctx.Err() == nil {
-			link.Deliver(ctx, 1, request)
+			link.Deliver(ctx, 1, &protos.FwdRequest{Request: request})
 		}
 	}()
 	for i := range 2 {
@@ -245,9 +247,14 @@ func newLink(t *testing.T, nodes []*node, batchers map[types.PartyID]*batcher.En
 		TLSPrivateKeyFile:  nodes[0].TLSKey,
 		TLSCertificateFile: nodes[0].TLSCert,
 	}
-	link := batcher.NewPrimaryLink(testutil.CreateLogger(t, int(self)), conf, batchers, primary, sendTimeout, minRetry, max(minRetry, time.Minute))
+	link := batcher.NewPrimaryLink(testutil.CreateLogger(t, int(self)), conf, batchers, "forwarded requests", openFwdRequestStream, primary,
+		batcher.LinkTiming{SendTimeout: sendTimeout, MinRetryInterval: minRetry, MaxRetryDelay: max(minRetry, time.Minute)})
 	t.Cleanup(link.Disconnect)
 	return link
+}
+
+func openFwdRequestStream(ctx context.Context, conn *grpc.ClientConn) (grpc.ClientStream, error) {
+	return protos.NewBatcherControlServiceClient(conn).FwdRequestStream(ctx)
 }
 
 // deliverInBackground delivers req to target from a new goroutine, and returns a channel closed when the call returns.
@@ -255,7 +262,7 @@ func deliverInBackground(link *batcher.PrimaryLink, ctx context.Context, target 
 	returned := make(chan struct{})
 	go func() {
 		defer close(returned)
-		link.Deliver(ctx, target, req)
+		link.Deliver(ctx, target, &protos.FwdRequest{Request: req})
 	}()
 	return returned
 }
@@ -270,7 +277,7 @@ func deliverUntilBlocked(t *testing.T, link *batcher.PrimaryLink, ctx context.Co
 		defer close(done)
 		request := make([]byte, 64*1024)
 		for !blocked.Load() {
-			link.Deliver(ctx, target, request)
+			link.Deliver(ctx, target, &protos.FwdRequest{Request: request})
 			returned.Add(1)
 		}
 	}()

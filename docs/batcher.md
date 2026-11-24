@@ -143,9 +143,11 @@ until the term changes.
 Around the **batcher role** and the **mempool** run a few units. A **decision puller** follows the
 decision stream of the consenter of its own party; it writes each decision header to a write-ahead log
 (WAL), hands the latest state to the batcher role, and stores any config block in the **config store**.
-A **control-event broadcaster** sends BAFs and complaints to all consenters. Two **primary connectors**
-keep a stream open to the current primary, one for acks and one for forwarded requests, and reconnect
-when the primary changes. A **batch puller** streams batches from the primary, and a **request
+A **control-event broadcaster** sends BAFs and complaints to all consenters. A **primary connector**
+sends to the current primary over two **lanes**, one for acks and one for forwarded requests, each with its
+own queue, connection and sending goroutine, so an ack never waits behind a forward. A lane connects when
+it has something to send; on a primary change it drops what it holds for the old primary and closes the
+connection to it. A **batch puller** streams batches from the primary, and a **request
 verifier** checks requests coming from the router, from other batchers, and inside pulled batches. The
 **batch ledger array** is written by the batcher role and read by the `Deliver` service. Around these
 run the operations subsystem, the metrics tracker, and a health checker.
@@ -299,7 +301,7 @@ each holding the batches that party created while it was primary.*
 | Pulling and serving batches | [`puller.go`](../node/batcher/puller.go), [`batcher_deliver_service.go`](../node/batcher/batcher_deliver_service.go) |
 | Request and batch verification | [`requests_inspector_verifier.go`](../node/batcher/requests_inspector_verifier.go) |
 | Sending BAFs and complaints to the consenters | [`control_event_broadcaster.go`](../node/batcher/control_event_broadcaster.go), [`common/controlevent/sender.go`](../common/controlevent/sender.go) |
-| Acks and forwarded requests to the primary | [`primary_ack_connector.go`](../node/batcher/primary_ack_connector.go), [`primary_req_connector.go`](../node/batcher/primary_req_connector.go) |
+| Acks and forwarded requests to the primary | [`primary_connector.go`](../node/batcher/primary_connector.go), [`primary_link.go`](../node/batcher/primary_link.go) |
 | Memory pool: batch store, pending store, strikes | [`request/`](../request) |
 | Batch ledger array | [`node/ledger/batch_ledger_array.go`](../node/ledger/batch_ledger_array.go) |
 | Metrics | [`metrics.go`](../node/batcher/metrics.go) |
@@ -378,7 +380,7 @@ most useful are:
 | `batcher_batches_pulled_total` | How many batches a secondary has pulled and verified. |
 | `batch_ledger_batches_size_bytes_total` | The bytes of the batches appended to the ledger. With the batch rate, it gives the ledger's write bandwidth. |
 | `batcher_batch_size_avg_bytes` | The average size of the batches appended during the last `Metrics.MetricsLogInterval`. It is 0 for an interval with no batches. |
-| `batcher_first_resends_total`, `batcher_complaints_total` | How many requests were forwarded after the first strike, and how many complaints were sent. These are the early signals of a primary in trouble. |
+| `batcher_first_resends_total`, `batcher_complaints_total` | How many requests the first strike handed to the primary connector, and how many complaints were sent. The connector drops a request that finds the forward queue full for the forward send timeout, and one still queued when the primary changes; a batcher that is the primary sends none. These are the early signals of a primary in trouble. |
 
 The full list, including the latency histograms of batch cutting, hashing and verification, is in the
 [monitoring and metrics guide](monitoring/metrics.md).

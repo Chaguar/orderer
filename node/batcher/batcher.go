@@ -72,8 +72,7 @@ type Batcher struct {
 	batcherCerts2IDs                   map[string]types.PartyID
 	controlEventSenders                []controlevent.Sender
 	controlEventBroadcaster            *ControlEventBroadcaster
-	primaryAckConnector                *PrimaryAckConnector
-	primaryReqConnector                *PrimaryReqConnector
+	primaryConnector                   *PrimaryConnector
 	sigVerifier                        SigVerifier
 	Net                                Net
 	Ledger                             *node_ledger.BatchLedgerArray
@@ -184,8 +183,7 @@ func (b *Batcher) Stop() {
 		close(b.stopChan)
 		b.controlEventBroadcaster.Stop()
 		b.batcher.Stop()
-		b.primaryAckConnector.Stop()
-		b.primaryReqConnector.Stop()
+		b.primaryConnector.Stop()
 		b.running.Wait()
 		b.controlEventBroadcaster.Close()
 		b.metrics.StopMetricsTracker()
@@ -217,8 +215,7 @@ func (b *Batcher) SoftStop() {
 	close(b.stopChan)
 	b.controlEventBroadcaster.Stop()
 	b.batcher.SoftStop()
-	b.primaryAckConnector.Stop()
-	b.primaryReqConnector.Stop()
+	b.primaryConnector.Stop()
 	b.running.Wait()
 	b.controlEventBroadcaster.Close()
 	b.metrics.StopMetricsTracker()
@@ -290,16 +287,15 @@ func (b *Batcher) replicateDecision() {
 			if term == prevTerm {
 				continue
 			}
-			b.batcher.NotifyTermChange()
-			// Switch the connectors before resubmitting, since the role, already notified, restarts
-			// as a secondary of the new primary and acks its batches, and an ack to a primary the
-			// connector does not have yet is dropped.
+			// Switch the connector before notifying the role: the role restarts as a secondary of the new
+			// primary and acks its batches, and an ack to a primary the connector does not have yet is
+			// dropped. Acks to the old primary are already rejected by Ack, since primaryID is updated.
 			if primaryID != prevPrimaryID {
 				b.logger.Infof("Primary changed from %d to %d", prevPrimaryID, primaryID)
 				b.metrics.roleChangesTotal.Add(1)
-				b.primaryAckConnector.ConnectToNewPrimary(primaryID)
-				b.primaryReqConnector.ConnectToNewPrimary(primaryID)
+				b.primaryConnector.ConnectToNewPrimary(primaryID)
 			}
+			b.batcher.NotifyTermChange()
 			b.batcher.ResubmitOnTermChange(state, prevPrimaryID)
 		case <-b.stopChan:
 			return
@@ -793,7 +789,7 @@ func (b *Batcher) sendReq(req []byte) {
 		b.logger.Debugf("Sending req took %v", time.Since(t1))
 	}()
 
-	b.primaryReqConnector.SendReq(req)
+	b.primaryConnector.SendReq(req)
 }
 
 func (b *Batcher) Ack(seq types.BatchSequence, to types.PartyID) {
@@ -809,7 +805,7 @@ func (b *Batcher) Ack(seq types.BatchSequence, to types.PartyID) {
 		return
 	}
 
-	b.primaryAckConnector.SendAck(seq, to)
+	b.primaryConnector.SendAck(seq, to)
 }
 
 func (b *Batcher) Complain(term uint64, reason string) {

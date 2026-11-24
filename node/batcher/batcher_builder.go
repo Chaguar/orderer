@@ -152,8 +152,10 @@ func (b *Batcher) configureBatcher(
 	ctxBroadcast, cancelBroadcast := context.WithCancel(context.Background())
 	b.controlEventBroadcaster = NewControlEventBroadcaster(b.controlEventSenders, int(n), int(f), 100*time.Millisecond, 10*time.Second, b.logger, ctxBroadcast, cancelBroadcast)
 
-	b.primaryAckConnector = CreatePrimaryAckConnector(b.primaryID, b.config.ShardId, b.logger, b.config, GetBatchersEndpointsAndCerts(b.batchers), context.Background(), 1*time.Second, 100*time.Millisecond, 500*time.Millisecond)
-	b.primaryReqConnector = CreatePrimaryReqConnector(b.primaryID, b.logger, b.config, GetBatchersEndpointsAndCerts(b.batchers), context.Background(), 10*time.Second, 100*time.Millisecond, 1*time.Second)
+	b.primaryConnector = CreatePrimaryConnector(b.primaryID, b.logger, b.config, GetBatchersEndpointsAndCerts(b.batchers), context.Background(),
+		LinkTiming{SendTimeout: 10 * time.Second, MinRetryInterval: 100 * time.Millisecond, MaxRetryDelay: time.Second},       // forwards
+		LinkTiming{SendTimeout: time.Second, MinRetryInterval: 100 * time.Millisecond, MaxRetryDelay: 500 * time.Millisecond}, // acks
+	)
 
 	b.sigVerifier = buildVerifier(batchers, b.config.ShardId, b.logger)
 
