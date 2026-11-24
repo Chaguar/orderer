@@ -169,7 +169,7 @@ func TestBatchLedgerArrayMissingPartyID(t *testing.T) {
 	part := a.Part(missing)
 	require.Nil(t, part)
 
-	// Height, Append and RetrieveBatchByNumber should panic for non-existent party
+	// Height, Append, RetrieveBatchByNumber and PruneBefore should panic for non-existent party
 	require.Panics(t, func() { _ = a.Height(missing) })
 
 	require.Panics(t, func() {
@@ -177,6 +177,8 @@ func TestBatchLedgerArrayMissingPartyID(t *testing.T) {
 	})
 
 	require.Panics(t, func() { _ = a.RetrieveBatchByNumber(missing, 0) })
+
+	require.Panics(t, func() { _ = a.PruneBefore(missing, 0) })
 
 	a.Close()
 }
@@ -247,4 +249,56 @@ func TestBatchLedgerArrayWithPrimarySignature(t *testing.T) {
 	require.Equal(t, primarySignature2, batch2AfterReopen.PrimarySignature())
 
 	a.Close()
+}
+
+// Scenario:
+//  1. Open a four-party array and append 30 batches to each party's ledger.
+//  2. Call PruneBefore(party 2, 20).
+//  3. Expect batches below the prune point to be gone from party 2 and its Height to stay 30.
+//  4. Expect the other parties' ledgers to be untouched, so routing went to the right part.
+//  5. Close and reopen the array, and expect party 2's bound to hold and appending to carry on.
+func TestBatchLedgerArrayPruneBefore(t *testing.T) {
+	dir := t.TempDir()
+	logger := flogging.MustGetLogger("test")
+
+	parties := []types.PartyID{1, 2, 3, 4}
+	a, err := NewBatchLedgerArray(1, 1, parties, "test-channel", dir, logger, newTestBatchLedgerMetrics())
+	require.NoError(t, err)
+
+	const numBatches = 30
+	for _, pID := range parties {
+		for seq := uint64(0); seq < numBatches; seq++ {
+			reqs := types.BatchedRequests{[]byte(fmt.Sprintf("tx-%d-%d", pID, seq))}
+			a.Append(pID, types.BatchSequence(seq), 0, reqs, reqs.Digest(), nil)
+		}
+	}
+
+	const pruned = types.PartyID(2)
+	require.NoError(t, a.PruneBefore(pruned, 20))
+
+	require.Nil(t, a.RetrieveBatchByNumber(pruned, 0))
+	require.NotNil(t, a.RetrieveBatchByNumber(pruned, 20))
+	require.Equal(t, uint64(numBatches), a.Height(pruned))
+
+	for _, pID := range parties {
+		if pID == pruned {
+			continue
+		}
+		require.NotNil(t, a.RetrieveBatchByNumber(pID, 0), "party %d should be untouched", pID)
+		require.Equal(t, uint64(numBatches), a.Height(pID))
+	}
+
+	a.Close()
+	a, err = NewBatchLedgerArray(1, 1, parties, "test-channel", dir, logger, newTestBatchLedgerMetrics())
+	require.NoError(t, err)
+	defer a.Close()
+
+	require.Nil(t, a.RetrieveBatchByNumber(pruned, 19))
+	require.NotNil(t, a.RetrieveBatchByNumber(pruned, 20))
+	require.Equal(t, uint64(numBatches), a.Height(pruned))
+
+	reqs := types.BatchedRequests{[]byte("tx-after-reopen")}
+	a.Append(pruned, types.BatchSequence(numBatches), 0, reqs, reqs.Digest(), nil)
+	require.Equal(t, uint64(numBatches+1), a.Height(pruned))
+	require.NotNil(t, a.RetrieveBatchByNumber(pruned, numBatches))
 }

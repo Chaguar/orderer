@@ -157,7 +157,9 @@ Reconfiguration (membership, identity, endpoints, params) flows through new conf
 ### Coding guidelines
 
 - **Simplicity first** — prefer concrete types over interfaces (the `ireturn` linter enforces
-  this), reserve generics for `utils/`-style plumbing, favor explicit over clever.
+  this), reserve generics for `utils/`-style plumbing, favor explicit over clever. The exception is
+  an injected dependency: take a small interface rather than a function-typed parameter or field,
+  so its implementations can be found.
 - **Code organization** — collate a struct's methods together, and place a method above the
   functions it calls (caller before callee).
 - **Reuse** existing helpers in `common/`, `node/utils`, and `Chaguar/common` before adding new

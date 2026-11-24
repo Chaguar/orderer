@@ -86,9 +86,9 @@ func (store *BlockStore) RetrieveConfigBlockByNumber(blockNum uint64) (*common.B
 // boundaries, so the bound lands at or below it. Height() is unchanged, and the last block always survives.
 // Idempotent and monotone: a request below the bound in force does not lower it.
 //
-// A store opened with a config-block locator keeps a copy of the config block the new bound would hide, so
+// A store whose config-block locator finds the config block the new bound would hide keeps a copy of it, so
 // that RetrieveConfigBlockByNumber still serves it; every other read refuses it like any other pruned block.
-// A store opened without one retains nothing.
+// A store opened with Open retains nothing.
 func (store *BlockStore) PruneBefore(blockNum uint64) error {
 	return store.fileMgr.pruneBefore(blockNum)
 }

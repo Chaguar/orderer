@@ -131,7 +131,7 @@ func newBlockfileMgr(
 
 	// Construct the pruner before syncIndex, since a pruned ledger's block files no longer start at
 	// blockfile_000000 and the index rebuild has to know where they do start.
-	if mgr.pruner, err = newPruneMgr(rootDir, mgr.index, mgr.retrieveBlockBytesByNumber, locateLastConfig); err != nil {
+	if mgr.pruner, err = newPruneMgr(rootDir, mgr.index, mgr, locateLastConfig); err != nil {
 		return nil, err
 	}
 

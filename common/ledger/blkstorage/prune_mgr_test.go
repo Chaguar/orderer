@@ -46,7 +46,7 @@ const blocksPerFileForTest = 10
 func newPrunableTestLedger(
 	t *testing.T, path string, numBlocks int,
 ) (*testEnv, *testBlockfileMgrWrapper, []*common.Block) {
-	return newPrunableTestLedgerWithLocator(t, path, numBlocks, nil)
+	return newPrunableTestLedgerWithLocator(t, path, numBlocks, NoConfigBlocks{})
 }
 
 // newPrunableTestLedgerWithLocator is newPrunableTestLedger for a ledger opened with a config-block locator,
@@ -97,7 +97,7 @@ func pruneFilesUpTo(t *testing.T, mgr *blockfileMgr, firstStoredBlockfileNum int
 // It has neither an index nor a way to read blocks, which is enough because only pruneBefore reaches for
 // either.
 func newInfoOnlyPruneMgr(t *testing.T, rootDir string) *pruneMgr {
-	p, err := newPruneMgr(rootDir, nil, nil, nil)
+	p, err := newPruneMgr(rootDir, nil, nil, NoConfigBlocks{})
 	require.NoError(t, err)
 	return p
 }
@@ -1515,17 +1515,35 @@ func TestErrAfterFailedReadAttributesOnlyPrunedBlocks(t *testing.T) {
 
 // configBlocksAt returns a locator that treats the given block numbers as the ledger's config blocks. Which
 // block is a config block is role knowledge the block store does not have, so a test supplies its own.
-// Passing none makes a locator that never finds one, as a batcher's ledger of batches would.
-func configBlocksAt(configNums ...uint64) LastConfigBlockLocator {
-	return func(block *common.Block) (uint64, bool, error) {
-		newest, found := uint64(0), false
-		for _, n := range configNums {
-			if n <= block.Header.Number && (!found || n > newest) {
-				newest, found = n, true
-			}
+func configBlocksAt(configNums ...uint64) configBlocks {
+	return configBlocks(configNums)
+}
+
+// configBlocks is the locator configBlocksAt returns.
+type configBlocks []uint64
+
+func (c configBlocks) LocateLastConfigBlock(block *common.Block) (uint64, bool, error) {
+	newest, found := uint64(0), false
+	for _, n := range c {
+		if n <= block.Header.Number && (!found || n > newest) {
+			newest, found = n, true
 		}
-		return newest, found, nil
 	}
+	return newest, found, nil
+}
+
+// aheadLocator is a locator that breaks its contract by naming a block after the one it was given.
+type aheadLocator struct{}
+
+func (aheadLocator) LocateLastConfigBlock(block *common.Block) (uint64, bool, error) {
+	return block.Header.Number + 1, true, nil
+}
+
+// failingLocator is a locator that cannot tell which block is a config block.
+type failingLocator struct{}
+
+func (failingLocator) LocateLastConfigBlock(*common.Block) (uint64, bool, error) {
+	return 0, false, errors.New("cannot tell which block is a config block")
 }
 
 // Scenario:
@@ -1659,13 +1677,13 @@ func TestPruneBeforeRetainsBlockZeroAsAConfigBlock(t *testing.T) {
 }
 
 // Scenario:
-//  1. Store 50 blocks across 5 block files.
-//  2. Call pruneBefore(20) on a ledger whose locator finds no config block, as a ledger of batches has
-//     none to find.
+//  1. Store 50 blocks across 5 block files, in a ledger opened with Open, whose locator is NoConfigBlocks, as
+//     a ledger of batches is.
+//  2. Call pruneBefore(20).
 //  3. Expect the prune to succeed, nothing to have been retained, and every block below the bound to be
 //     pruned, block 0 included.
 func TestPruneBeforeRetainsNothingWhenTheLedgerHasNoConfigBlock(t *testing.T) {
-	env, w, blocks := newPrunableTestLedgerWithLocator(t, t.TempDir(), 50, configBlocksAt())
+	env, w, blocks := newPrunableTestLedger(t, t.TempDir(), 50)
 	defer env.Cleanup()
 	mgr := w.blockfileMgr
 
@@ -1677,20 +1695,14 @@ func TestPruneBeforeRetainsNothingWhenTheLedgerHasNoConfigBlock(t *testing.T) {
 }
 
 // Scenario:
-//  1. Store 50 blocks across 5 block files, in a ledger opened without a config-block locator, as a ledger
-//     holding no config blocks is.
-//  2. Call pruneBefore(20).
-//  3. Expect nothing to have been retained and every block below the bound to be pruned.
-func TestPruneBeforeWithoutALocatorRetainsNothing(t *testing.T) {
-	env, w, blocks := newPrunableTestLedger(t, t.TempDir(), 50)
+//  1. Open a block store with a nil config-block locator.
+//  2. Expect the open to fail, so that NoConfigBlocks is the only way to say a ledger holds none.
+func TestOpenRefusesANilLocator(t *testing.T) {
+	env := newTestEnv(t, NewConf(t.TempDir(), 0))
 	defer env.Cleanup()
-	mgr := w.blockfileMgr
 
-	require.NoError(t, mgr.pruneBefore(20))
-
-	require.Equal(t, retainedConfig{}, mgr.pruner.info.Load().retained)
-	require.Empty(t, retainedConfigNames(t, mgr.rootDir))
-	requireBlocksPruned(t, mgr, blocks, 20)
+	_, err := env.provider.OpenWithLastConfigLocator("testLedger", nil)
+	require.ErrorContains(t, err, "no config block locator")
 }
 
 // Scenario:
@@ -1781,10 +1793,7 @@ func TestRetainedConfigBlockSurvivesReopen(t *testing.T) {
 //  2. Call pruneBefore(20) on a ledger whose locator fails.
 //  3. Expect the failure to be returned, no block file to have been removed, and the bound to stay 0.
 func TestPruneBeforeFailsBeforeRemovingWhenTheLocatorFails(t *testing.T) {
-	locate := func(block *common.Block) (uint64, bool, error) {
-		return 0, false, errors.New("cannot tell which block is a config block")
-	}
-	env, w, blocks := newPrunableTestLedgerWithLocator(t, t.TempDir(), 50, locate)
+	env, w, blocks := newPrunableTestLedgerWithLocator(t, t.TempDir(), 50, failingLocator{})
 	defer env.Cleanup()
 	mgr := w.blockfileMgr
 
@@ -1797,8 +1806,26 @@ func TestPruneBeforeFailsBeforeRemovingWhenTheLocatorFails(t *testing.T) {
 }
 
 // Scenario:
-//  1. Store 50 blocks across 5 block files in a ledger opened without a locator, and call pruneBefore(20),
-//     so block 5 is hidden without being retained.
+//  1. Store 50 blocks across 5 block files, in a ledger whose locator names a block after the one it is asked
+//     about.
+//  2. Call pruneBefore(20).
+//  3. Expect the prune to fail naming both blocks, no block file to have been removed, and the bound to stay 0.
+func TestPruneBeforeFailsWhenTheLocatorNamesALaterBlock(t *testing.T) {
+	env, w, blocks := newPrunableTestLedgerWithLocator(t, t.TempDir(), 50, aheadLocator{})
+	defer env.Cleanup()
+	mgr := w.blockfileMgr
+
+	err := mgr.pruneBefore(20)
+	require.ErrorContains(t, err, "the config block locator named block [21], after block [20] it was asked about")
+
+	require.Equal(t, uint64(0), mgr.pruner.firstReadableBlockNum())
+	require.Equal(t, []int{0, 1, 2, 3, 4}, blockfileNums(t, mgr.rootDir))
+	requireBlocksPruned(t, mgr, blocks, 0)
+}
+
+// Scenario:
+//  1. Store 50 blocks across 5 block files in a ledger opened with Open, whose locator finds no config block,
+//     and call pruneBefore(20), so block 5 is hidden without being retained.
 //  2. Reopen the ledger with a locator naming block 5 as the config block.
 //  3. Call pruneBefore(20) again, at the bound already in force, and expect it to succeed, since it hides
 //     nothing new.
@@ -1820,7 +1847,7 @@ func TestPruneBeforeFailsWhenTheConfigBlockWasAlreadyPruned(t *testing.T) {
 
 	err = mgr.pruneBefore(40)
 	require.ErrorIs(t, err, ErrPruned)
-	require.ErrorContains(t, err, "cannot read config block [5] to retain it")
+	require.ErrorContains(t, err, "config block [5] lies below the bound [20] and was not retained")
 
 	require.Equal(t, uint64(20), mgr.pruner.firstReadableBlockNum())
 	require.Equal(t, []int{2, 3, 4}, blockfileNums(t, mgr.rootDir))

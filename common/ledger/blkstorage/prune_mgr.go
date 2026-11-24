@@ -21,18 +21,35 @@ import (
 // still on disk.
 var ErrPruned = errors.New("block has been pruned")
 
-// LastConfigBlockLocator returns the number of the newest config block at or before the given block, and
+// LastConfigBlockLocator finds the number of the newest config block at or before a given block, and
 // whether there is one. Which block is a config block is the caller's knowledge, not the block store's: an
 // assembler ledger reads a block's LAST_CONFIG metadata, while on a consensus ledger the config block is
 // nested inside a decision.
 //
 // found is a separate result rather than a sentinel number, because block 0 is the config block of a ledger
-// that has never been reconfigured. A batcher's ledger holds batches and no configuration at all, so it is
-// opened without a locator.
+// that has never been reconfigured. A batcher's ledger holds batches and no configuration at all, so it uses
+// NoConfigBlocks. found=false means the ledger holds no config blocks, and a prune then retains nothing; a
+// locator for a ledger that does hold them returns an error when it cannot tell, never found=false.
 //
 // It is given once, when the store is opened: a locator that varied between prunes could let one prune hide
 // a newer config block without keeping it.
-type LastConfigBlockLocator func(block *common.Block) (blockNum uint64, found bool, err error)
+type LastConfigBlockLocator interface {
+	LocateLastConfigBlock(block *common.Block) (blockNum uint64, found bool, err error)
+}
+
+// NoConfigBlocks is the locator of a ledger that holds no config blocks: it never finds one, so a prune
+// retains nothing.
+type NoConfigBlocks struct{}
+
+// LocateLastConfigBlock reports that there is no config block.
+func (NoConfigBlocks) LocateLastConfigBlock(*common.Block) (uint64, bool, error) {
+	return 0, false, nil
+}
+
+// blockBytesReader is how the prune manager reads blocks; the block file manager implements it.
+type blockBytesReader interface {
+	retrieveBlockBytesByNumber(blockNum uint64) ([]byte, error)
+}
 
 // pruneMgr owns the prune info -- the live value readers consult, and the store that makes it durable --
 // and the removal of the block files a new bound covers.
@@ -40,13 +57,11 @@ type pruneMgr struct {
 	rootDir string
 	index   *blockIndex
 
-	// locateLastConfig is nil for a ledger that holds no config blocks.
 	locateLastConfig LastConfigBlockLocator
 
-	// readBlockBytes reads a block the ledger still holds, in the block store's own serialization. Retaining
-	// a config block has to read it before the bound that hides it is published, and copies its bytes as they
-	// are.
-	readBlockBytes func(blockNum uint64) ([]byte, error)
+	// blocks reads a block the ledger still holds, in the block store's own serialization. Retaining a config
+	// block has to read it before the bound that hides it is published, and copies its bytes as they are.
+	blocks blockBytesReader
 
 	// store is only touched while the ledger opens, and under mutex.
 	store *pruneStore
@@ -65,9 +80,12 @@ type pruneMgr struct {
 func newPruneMgr(
 	rootDir string,
 	index *blockIndex,
-	readBlockBytes func(blockNum uint64) ([]byte, error),
+	blocks blockBytesReader,
 	locateLastConfig LastConfigBlockLocator,
 ) (*pruneMgr, error) {
+	if locateLastConfig == nil {
+		return nil, errors.New("no config block locator; a ledger without config blocks uses NoConfigBlocks")
+	}
 	store := newPruneStore(rootDir)
 
 	// A ledger that has never been pruned has nothing stored, which reads as a zero bound.
@@ -80,7 +98,7 @@ func newPruneMgr(
 		rootDir:          rootDir,
 		index:            index,
 		locateLastConfig: locateLastConfig,
-		readBlockBytes:   readBlockBytes,
+		blocks:           blocks,
 		store:            store,
 	}
 	if info.retained.present {
@@ -246,11 +264,11 @@ func (p *pruneMgr) retainConfigBlock(
 	unchanged := func() (retainedConfig, *retainedBlock, error) {
 		return current.retained, p.retained.Load(), nil
 	}
-	if p.locateLastConfig == nil || firstAvailable == current.firstReadableBlockNum {
+	if firstAvailable == current.firstReadableBlockNum {
 		return unchanged()
 	}
 
-	boundBytes, err := p.readBlockBytes(firstAvailable)
+	boundBytes, err := p.blocks.retrieveBlockBytesByNumber(firstAvailable)
 	if err != nil {
 		return retainedConfig{}, nil, fmt.Errorf(
 			"cannot read block [%d] to find its config block: %w", firstAvailable, err,
@@ -262,20 +280,34 @@ func (p *pruneMgr) retainConfigBlock(
 			"cannot decode block [%d] to find its config block: %w", firstAvailable, err,
 		)
 	}
-	configNum, found, err := p.locateLastConfig(boundBlock)
+	configNum, found, err := p.locateLastConfig.LocateLastConfigBlock(boundBlock)
 	if err != nil {
 		return retainedConfig{}, nil, fmt.Errorf(
 			"cannot locate the config block of block [%d]: %w", firstAvailable, err,
 		)
 	}
 
-	// A ledger of batches has no configuration to keep; above the bound it needs no help; and the block
-	// already retained needs no second copy.
-	if !found || configNum >= firstAvailable || current.retains(configNum) {
+	// A ledger of batches has no configuration to keep.
+	if !found {
 		return unchanged()
 	}
+	if configNum > firstAvailable {
+		return retainedConfig{}, nil, fmt.Errorf(
+			"the config block locator named block [%d], after block [%d] it was asked about", configNum, firstAvailable,
+		)
+	}
+	// At the bound it stays readable on its own, and the block already retained needs no second copy.
+	if configNum == firstAvailable || current.retains(configNum) {
+		return unchanged()
+	}
+	if configNum < current.firstReadableBlockNum {
+		return retainedConfig{}, nil, fmt.Errorf(
+			"config block [%d] lies below the bound [%d] and was not retained: an earlier prune hid it, so a node "+
+				"can no longer resume from this ledger: %w", configNum, current.firstReadableBlockNum, ErrPruned,
+		)
+	}
 
-	blockBytes, err := p.readBlockBytes(configNum)
+	blockBytes, err := p.blocks.retrieveBlockBytesByNumber(configNum)
 	if err != nil {
 		return retainedConfig{}, nil, fmt.Errorf(
 			"cannot read config block [%d] to retain it: %w", configNum, err,

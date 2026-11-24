@@ -36,10 +36,6 @@ func NewBatchLedgerArray(shardID types.ShardID, partyID types.PartyID, parties [
 
 	ledgerPartsMap := make(map[types.PartyID]*BatchLedgerPart)
 
-	// TODO We are using the Fabric block storage for now even though it is not ideal:
-	// we don't need the hash chain.
-	// In addition, in the future we may want to prune batches that had already been received by a quorum of
-	// assemblers; this however requires additional protocols between assemblers and consensus.
 	provider, err := blkstorage.NewProvider(blkstorage.NewConf(batchLedgerDir, -1), &disabled.Provider{})
 	if err != nil {
 		return nil, fmt.Errorf("failed creating block provider: %w", err)
@@ -118,6 +114,16 @@ func (bla *BatchLedgerArray) RetrieveBatchByNumber(partyID types.PartyID, seq ui
 		bla.logger.Panicf("partyID does not exist: %d", partyID)
 	}
 	return part.RetrieveBatchByNumber(seq)
+}
+
+// PruneBefore prunes the batches below seq from the ledger part of the given primary party. Like the other
+// per-party methods, it panics on a party the array does not hold.
+func (bla *BatchLedgerArray) PruneBefore(primaryPartyID types.PartyID, seq uint64) error {
+	part, ok := bla.ledgerParts[primaryPartyID]
+	if !ok {
+		bla.logger.Panicf("partyID does not exist: %d", primaryPartyID)
+	}
+	return part.PruneBefore(seq)
 }
 
 func (bla *BatchLedgerArray) Part(partyID types.PartyID) *BatchLedgerPart {

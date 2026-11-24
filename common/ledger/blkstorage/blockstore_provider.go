@@ -62,11 +62,12 @@ func NewProvider(conf *Conf, metricsProvider metrics.Provider) (*BlockStoreProvi
 // If a blockstore is not existing, this method creates one
 // This method should be invoked only once for a particular ledgerid
 func (p *BlockStoreProvider) Open(ledgerid string) (*BlockStore, error) {
-	return p.OpenWithLastConfigLocator(ledgerid, nil)
+	return p.OpenWithLastConfigLocator(ledgerid, NoConfigBlocks{})
 }
 
 // OpenWithLastConfigLocator opens a block store whose prunes keep a copy of the config block the new bound
-// would hide, as located by locateLastConfig. A ledger without config blocks, such as a batcher's, uses Open.
+// would hide, as located by locateLastConfig. A ledger without config blocks, such as a batcher's, uses Open,
+// which passes NoConfigBlocks.
 func (p *BlockStoreProvider) OpenWithLastConfigLocator(
 	ledgerid string, locateLastConfig LastConfigBlockLocator,
 ) (*BlockStore, error) {
