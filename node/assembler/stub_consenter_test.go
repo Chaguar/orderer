@@ -12,6 +12,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"sync"
 	"testing"
 
 	"github.com/Chaguar/common/protoutil"
@@ -40,6 +41,9 @@ type stubConsenter struct {
 	decisions      chan *common.Block
 	decisionSentCh chan struct{} // decision sent signal
 	logger         *flogging.FabricLogger
+
+	lock    sync.Mutex
+	reports []state.AssemblerDecisionReport // the assembler decision reports received through NotifyEvent
 }
 
 func NewStubConsenter(t *testing.T, partyID types.PartyID, ca tlsgen.CA) *stubConsenter {
@@ -111,6 +115,7 @@ func (sc *stubConsenter) Restart() {
 	sc.server = server
 
 	orderer.RegisterAtomicBroadcastServer(server.Server(), sc)
+	protos.RegisterConsensusServer(server.Server(), sc)
 
 	go func() {
 		address := server.Address()
@@ -225,8 +230,30 @@ func (sc *stubConsenter) AckConfig(ctx context.Context, req *protos.ConfigAck) (
 	return &protos.ConfigAckResponse{}, nil
 }
 
+// NotifyEvent records the assembler decision reports it receives, and ignores other control events.
 func (sc *stubConsenter) NotifyEvent(stream protos.Consensus_NotifyEventServer) error {
-	return errors.New("NotifyEvent not implemented")
+	for {
+		event, err := stream.Recv()
+		if err != nil {
+			return err
+		}
+		ce := state.ControlEvent{}
+		if err := ce.FromBytes(event.GetPayload()); err != nil {
+			return err
+		}
+		if ce.AssemblerReport != nil {
+			sc.lock.Lock()
+			sc.reports = append(sc.reports, *ce.AssemblerReport)
+			sc.lock.Unlock()
+		}
+	}
+}
+
+// receivedReports returns the assembler decision reports received so far, in order.
+func (sc *stubConsenter) receivedReports() []state.AssemblerDecisionReport {
+	sc.lock.Lock()
+	defer sc.lock.Unlock()
+	return append([]state.AssemblerDecisionReport(nil), sc.reports...)
 }
 
 func (sc *stubConsenter) SubmitConfig(ctx context.Context, request *protos.Request) (*protos.SubmitResponse, error) {

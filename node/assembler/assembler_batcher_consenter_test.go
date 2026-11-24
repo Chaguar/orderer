@@ -299,14 +299,16 @@ func TestAssembler_DifferentDigestSameSeq(t *testing.T) {
 	}, 10*time.Second, 100*time.Millisecond, fmt.Sprintf("TXs: %d", assembler.GetTxCount()))
 }
 
-func newAssemblerTest(t *testing.T, partyID types.PartyID, ca tlsgen.CA, shards []config.ShardInfo, consenterInfo config.ConsenterInfo, popWaitMonitorTimeout time.Duration, ClientAuthRequired bool, clientRootCAs [][]byte) (*assembler.Assembler, string) {
-	return newAssemblerTestWithBundle(t, partyID, ca, shards, consenterInfo, popWaitMonitorTimeout, ClientAuthRequired, clientRootCAs, testutil.CreateAssemblerBundleForTest(0))
+// newAssemblerTest starts an assembler that pulls decisions from consenterInfo, the consenter of its own party.
+// otherConsenters are the consenters of the other parties.
+func newAssemblerTest(t *testing.T, partyID types.PartyID, ca tlsgen.CA, shards []config.ShardInfo, consenterInfo config.ConsenterInfo, popWaitMonitorTimeout time.Duration, ClientAuthRequired bool, clientRootCAs [][]byte, otherConsenters ...config.ConsenterInfo) (*assembler.Assembler, string) {
+	return newAssemblerTestWithBundle(t, partyID, ca, shards, consenterInfo, popWaitMonitorTimeout, ClientAuthRequired, clientRootCAs, testutil.CreateAssemblerBundleForTest(0), otherConsenters...)
 }
 
 // newAssemblerTestWithBundle starts an assembler that authorizes deliver requests against the
 // policies of the given config bundle. Pass a bundle built from a real config block to exercise
 // authorization; newAssemblerTest passes one that accepts every identity.
-func newAssemblerTestWithBundle(t *testing.T, partyID types.PartyID, ca tlsgen.CA, shards []config.ShardInfo, consenterInfo config.ConsenterInfo, popWaitMonitorTimeout time.Duration, ClientAuthRequired bool, clientRootCAs [][]byte, bundle channelconfig.Resources) (*assembler.Assembler, string) {
+func newAssemblerTestWithBundle(t *testing.T, partyID types.PartyID, ca tlsgen.CA, shards []config.ShardInfo, consenterInfo config.ConsenterInfo, popWaitMonitorTimeout time.Duration, ClientAuthRequired bool, clientRootCAs [][]byte, bundle channelconfig.Resources, otherConsenters ...config.ConsenterInfo) (*assembler.Assembler, string) {
 	genesisBlock := utils.EmptyGenesisBlock("arma")
 
 	ckp, err := ca.NewServerCertKeyPair("127.0.0.1")
@@ -325,7 +327,7 @@ func newAssemblerTestWithBundle(t *testing.T, partyID types.PartyID, ca tlsgen.C
 		ReplicationChannelSize:    100,
 		BatchRequestsChannelSize:  1000,
 		Shards:                    shards,
-		Consenters:                []config.ConsenterInfo{consenterInfo},
+		Consenters:                append([]config.ConsenterInfo{consenterInfo}, otherConsenters...),
 		UseTLS:                    true,
 		ClientAuthRequired:        ClientAuthRequired,
 		Operations: &operations.Operations{
