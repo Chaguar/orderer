@@ -9,6 +9,7 @@ package state_test
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/Chaguar/orderer/common/utils"
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -235,6 +237,7 @@ func TestStateSerializeDeserialize(t *testing.T) {
 					{Shard: 2, Primary: 1, Seq: 5},
 				},
 				DurableWatermark: 7,
+				Timestamp:        time.Unix(1_700_000_000, 123_456_789).UTC(),
 				AppContext:       []byte{1},
 			},
 		},
@@ -270,6 +273,7 @@ func TestStateString(t *testing.T) {
 		Complaints: []consensus_state.Complaint{
 			{ShardTerm: consensus_state.ShardTerm{Shard: 1, Term: 1}, Signer: 2},
 		},
+		Timestamp: time.Unix(42, 0).UTC(),
 	}
 
 	// Test that String() returns a non-empty string
@@ -281,6 +285,7 @@ func TestStateString(t *testing.T) {
 	assert.Contains(t, str, "AssemblerHeights: 0")
 	assert.Contains(t, str, "PrunePoints: 0")
 	assert.Contains(t, str, "DurableWatermark: 0")
+	assert.Contains(t, str, "Timestamp: 1970-01-01T00:00:42Z")
 	assert.Contains(t, str, "Pending: none")
 	assert.Contains(t, str, "Complaints: 1")
 	assert.Contains(t, str, "Complaint: Signer: 2")
@@ -1116,12 +1121,14 @@ func TestProcessAdvancesDurableWatermark(t *testing.T) {
 	assert.Equal(t, types.DecisionNum(20), st.DurableWatermark)
 }
 
-func TestStateCloneAssemblerHeightsAndPrunePoints(t *testing.T) {
+func TestStateClone(t *testing.T) {
 	st := initialState.Clone()
 	st.AssemblerHeights = []consensus_state.AssemblerHeight{{Party: 1, DecisionNum: 5}}
 	st.PrunePoints = []consensus_state.PrunePoint{{Shard: 1, Primary: 1, Seq: 3}}
+	st.Timestamp = time.Unix(5, 0)
 
 	clone := st.Clone()
+	assert.Equal(t, st.Timestamp, clone.Timestamp)
 	clone.AssemblerHeights[0].DecisionNum = 6
 	clone.PrunePoints[0].Seq = 4
 
@@ -1187,6 +1194,42 @@ func TestStateDeserializeRejectsOutOfRangePruningFields(t *testing.T) {
 			require.NoError(t, err)
 			var s consensus_state.State
 			require.ErrorContains(t, s.Deserialize(raw), "exceeds uint16 maximum")
+		})
+	}
+}
+
+// TestStateSerializeZeroTimestamp verifies that a zero timestamp is not encoded, so a state without a
+// timestamp serializes to the same bytes as before the field existed.
+func TestStateSerializeZeroTimestamp(t *testing.T) {
+	raw := (&consensus_state.State{}).Serialize()
+	require.Empty(t, raw)
+
+	var st consensus_state.State
+	require.NoError(t, st.Deserialize(raw))
+	require.True(t, st.Timestamp.IsZero())
+}
+
+// TestStateSerializePanicsOnOutOfRangeTimestamp verifies that a state never encodes a timestamp it could
+// not decode.
+func TestStateSerializePanicsOnOutOfRangeTimestamp(t *testing.T) {
+	st := consensus_state.State{Timestamp: time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)}
+	require.Panics(t, func() { st.Serialize() })
+}
+
+// TestStateDeserializeRejectsInvalidTimestamp verifies that a state whose timestamp is out of range, or is
+// present but holds the zero time that means unset, does not deserialize.
+func TestStateDeserializeRejectsInvalidTimestamp(t *testing.T) {
+	tests := map[string]*timestamppb.Timestamp{
+		"nanos out of range": {Nanos: 1_000_000_000},
+		"zero time":          timestamppb.New(time.Time{}),
+	}
+	for name, ts := range tests {
+		t.Run(name, func(t *testing.T) {
+			raw, err := proto.Marshal(&stateprotos.State{Timestamp: ts})
+			require.NoError(t, err)
+
+			var st consensus_state.State
+			require.ErrorContains(t, st.Deserialize(raw), "invalid timestamp")
 		})
 	}
 }
