@@ -328,12 +328,16 @@ func PrimaryIndex(shard types.ShardID, term uint64, n int) int {
 }
 
 // Process applies the control events of a decision to the state and returns the next state, the batch
-// attestation fragments that reached the threshold, and the config requests. parties are the party IDs
-// of the config in force, sorted by party ID; the thresholds are derived from their number.
-func (s *State) Process(l *flogging.FabricLogger, configSeq types.ConfigSequence, parties []types.PartyID, ces ...ControlEvent) (*State, []types.BatchAttestationFragment, []*ConfigRequest) {
+// attestation fragments that reached the threshold, and the config requests. ts is the agreed time of the
+// decision, recorded in the next state. parties are the party IDs of the config in force, sorted by party
+// ID; the thresholds are derived from their number.
+func (s *State) Process(
+	l *flogging.FabricLogger, configSeq types.ConfigSequence, ts time.Time, parties []types.PartyID, ces ...ControlEvent,
+) (*State, []types.BatchAttestationFragment, []*ConfigRequest) {
 	f, threshold, _ := utils.ComputeFTQ(uint16(len(parties)))
 
 	nextState := s.Clone()
+	nextState.Timestamp = ts.UTC().Round(0)
 
 	filteredCEs, staleConfigBAFs := filterCEsWithDiffConfigSeq(configSeq, l, ces...)
 	nextState.StaleConfigBAFs = staleConfigBAFs

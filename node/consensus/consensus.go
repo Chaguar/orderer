@@ -81,7 +81,10 @@ type SigVerifier interface {
 }
 
 type Arma interface {
-	SimulateStateTransition(prevState *state.State, configSeq arma_types.ConfigSequence, parties []arma_types.PartyID, events [][]byte) (*state.State, [][]arma_types.BatchAttestationFragment, []*state.ConfigRequest)
+	SimulateStateTransition(
+		prevState *state.State, configSeq arma_types.ConfigSequence, ts time.Time,
+		parties []arma_types.PartyID, events [][]byte,
+	) (*state.State, [][]arma_types.BatchAttestationFragment, []*state.ConfigRequest)
 	Index([][]byte)
 }
 
@@ -532,7 +535,9 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 		return nil, fmt.Errorf("verification sequence changed from %d to %d while verifying the proposal", verificationSeq, currentSeq)
 	}
 	parties := c.parties()
-	computedState, attestations, configRequests := c.Arma.SimulateStateTransition(c.State, arma_types.ConfigSequence(verificationSeq), parties, requests)
+	computedState, attestations, configRequests := c.Arma.SimulateStateTransition(
+		c.State, arma_types.ConfigSequence(verificationSeq), c.State.Timestamp, parties, requests,
+	)
 	if configRequests != nil {
 		if computedState, err = c.ConfigApplier.ApplyConfigToState(computedState, configRequests[0], parties); err != nil {
 			c.lock.Unlock()
@@ -1002,7 +1007,9 @@ func (c *Consensus) AssembleProposal(metadata []byte, requests [][]byte) smartbf
 	c.lock.Lock()
 	parties := c.parties()
 	verificationSeq := c.VerificationSequence() // the proposal carries the sequence its state was computed with
-	newState, attestations, configRequests := c.Arma.SimulateStateTransition(c.State, arma_types.ConfigSequence(verificationSeq), parties, requests)
+	newState, attestations, configRequests := c.Arma.SimulateStateTransition(
+		c.State, arma_types.ConfigSequence(verificationSeq), c.State.Timestamp, parties, requests,
+	)
 	if configRequests != nil {
 		var err error
 		if newState, err = c.ConfigApplier.ApplyConfigToState(newState, configRequests[0], parties); err != nil {
