@@ -17,7 +17,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/api/ordererpb"
+	"github.com/Chaguar/common/common/channelconfig"
+	fabmsp "github.com/Chaguar/common/msp"
+	"github.com/Chaguar/common/protoutil"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
 	"github.com/stretchr/testify/require"
 )
 
@@ -537,6 +543,105 @@ func TestValidateUniqueSigningCerts(t *testing.T) {
 		err = validateUniqueSigningCerts([]*ordererpb.PartyConfig{party})
 		require.EqualError(t, err, "assembler of party 1 and consenter of party 1 share the same signing key")
 	})
+}
+
+func TestValidateKnownCerts(t *testing.T) {
+	now := time.Now()
+	caCert, caKey, caPEM := generateTestCAWithKey(t, now.Add(-time.Hour), now.Add(time.Hour))
+	otherCACert, otherCAKey, _ := generateTestCAWithKey(t, now.Add(-time.Hour), now.Add(time.Hour))
+	valid := generateTestSigningCert(t, caCert, caKey, now.Add(-time.Hour), now.Add(time.Hour))
+	expired := generateTestSigningCert(t, caCert, caKey, now.Add(-time.Hour), now.Add(-time.Minute))
+	notYetValid := generateTestSigningCert(t, caCert, caKey, now.Add(time.Minute), now.Add(time.Hour))
+	unknownCA := generateTestSigningCert(t, otherCACert, otherCAKey, now.Add(-time.Hour), now.Add(time.Hour))
+
+	tests := []struct {
+		name       string
+		config     *common.Config
+		prev       *common.Config
+		wantErrors []string
+	}{
+		{
+			name:   "valid known certs",
+			config: knownCertsConfig(t, caPEM, [][]byte{valid}, [][]byte{valid}),
+		},
+		{
+			name:       "expired orderer organization known cert",
+			config:     knownCertsConfig(t, caPEM, [][]byte{valid, expired}, [][]byte{valid}),
+			wantErrors: []string{"invalid known certificate of MSP OrdererOrgMSP", "has expired or is not yet valid"},
+		},
+		{
+			name:       "not yet valid application organization known cert",
+			config:     knownCertsConfig(t, caPEM, [][]byte{valid}, [][]byte{notYetValid}),
+			wantErrors: []string{"invalid known certificate of MSP AppOrgMSP", "has expired or is not yet valid"},
+		},
+		{
+			name:       "known cert not issued by the MSP CA",
+			config:     knownCertsConfig(t, caPEM, [][]byte{unknownCA}, nil),
+			wantErrors: []string{"invalid known certificate of MSP OrdererOrgMSP", "certificate signed by unknown authority"},
+		},
+		{
+			name:       "invalid known cert",
+			config:     knownCertsConfig(t, caPEM, [][]byte{[]byte("not a certificate")}, nil),
+			wantErrors: []string{"invalid known certificate of MSP OrdererOrgMSP", "no PEM data found in certificate"},
+		},
+		{
+			name:   "unchanged expired known cert",
+			config: knownCertsConfig(t, caPEM, [][]byte{expired, valid}, nil),
+			prev:   knownCertsConfig(t, caPEM, [][]byte{expired}, nil),
+		},
+		{
+			name:       "expired known cert added to another MSP",
+			config:     knownCertsConfig(t, caPEM, [][]byte{expired}, [][]byte{expired}),
+			prev:       knownCertsConfig(t, caPEM, [][]byte{expired}, nil),
+			wantErrors: []string{"invalid known certificate of MSP AppOrgMSP", "has expired or is not yet valid"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			err := validateKnownCerts(tc.config, tc.prev)
+			if len(tc.wantErrors) == 0 {
+				require.NoError(t, err)
+				return
+			}
+
+			for _, expected := range tc.wantErrors {
+				require.ErrorContains(t, err, expected)
+			}
+		})
+	}
+}
+
+// knownCertsConfig returns a config with one orderer organization and one application organization,
+// whose MSPs trust the given root CA and hold the given known certificates.
+func knownCertsConfig(t *testing.T, rootCA []byte, ordererKnownCerts, appKnownCerts [][]byte) *common.Config {
+	t.Helper()
+
+	org := func(mspID string, knownCerts [][]byte) map[string]*common.ConfigGroup {
+		mspConfig := &msp.MSPConfig{
+			Type: int32(fabmsp.FABRIC),
+			Config: protoutil.MarshalOrPanic(&msppb.FabricMSPConfig{
+				Name:       mspID,
+				RootCerts:  [][]byte{rootCA},
+				KnownCerts: knownCerts,
+			}),
+		}
+
+		return map[string]*common.ConfigGroup{
+			mspID: {Values: map[string]*common.ConfigValue{
+				channelconfig.MSPKey: {Value: protoutil.MarshalOrPanic(mspConfig)},
+			}},
+		}
+	}
+
+	return &common.Config{
+		ChannelGroup: &common.ConfigGroup{
+			Groups: map[string]*common.ConfigGroup{
+				channelconfig.OrdererGroupKey:     {Groups: org("OrdererOrgMSP", ordererKnownCerts)},
+				channelconfig.ApplicationGroupKey: {Groups: org("AppOrgMSP", appKnownCerts)},
+			},
+		},
+	}
 }
 
 func generateTestCAWithKey(t *testing.T, notBefore, notAfter time.Time) (*x509.Certificate, *ecdsa.PrivateKey, []byte) {

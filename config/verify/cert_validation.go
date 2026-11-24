@@ -11,10 +11,17 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
+	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/api/ordererpb"
+	"github.com/Chaguar/common/common/channelconfig"
+	fabmsp "github.com/Chaguar/common/msp"
 	arma_types "github.com/Chaguar/orderer/common/types"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
+	"google.golang.org/protobuf/proto"
 )
 
 // validatePartyCertificates validates TLS CA and CA certificates, and verifies TLS and signing certificates for the party.
@@ -153,6 +160,71 @@ func validateUniqueSigningCerts(parties []*ordererpb.PartyConfig) error {
 	}
 
 	return nil
+}
+
+// validateKnownCerts verifies the known certificates of every orderer and application organization MSP in config
+// against the MSP's root and intermediate CA certificates, with expiration enforced. A known certificate that prev
+// already holds in the same MSP is skipped, so only added and changed known certificates are checked; a nil prev
+// checks them all.
+func validateKnownCerts(config, prev *common.Config) error {
+	mspConfigs, err := orgMSPConfigs(config)
+	if err != nil {
+		return err
+	}
+	prevMSPConfigs, err := orgMSPConfigs(prev)
+	if err != nil {
+		return err
+	}
+
+	for mspID, mspConfig := range mspConfigs {
+		opts := x509.VerifyOptions{
+			Roots:         x509.NewCertPool(),
+			Intermediates: x509.NewCertPool(),
+			KeyUsages:     []x509.ExtKeyUsage{x509.ExtKeyUsageAny},
+		}
+		for _, cert := range mspConfig.RootCerts {
+			opts.Roots.AppendCertsFromPEM(cert)
+		}
+		for _, cert := range mspConfig.IntermediateCerts {
+			opts.Intermediates.AppendCertsFromPEM(cert)
+		}
+
+		for _, cert := range mspConfig.KnownCerts {
+			if slices.ContainsFunc(prevMSPConfigs[mspID].GetKnownCerts(), func(c []byte) bool { return slices.Equal(c, cert) }) {
+				continue
+			}
+			if err := verifyCert(cert, opts, false); err != nil {
+				return fmt.Errorf("invalid known certificate of MSP %s: %w", mspID, err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// orgMSPConfigs returns the Fabric MSP config of every orderer and application organization, keyed by MSP ID.
+// An MSP ID defined in both groups has the same config in each, as channelconfig enforces.
+func orgMSPConfigs(config *common.Config) (map[string]*msppb.FabricMSPConfig, error) {
+	mspConfigs := make(map[string]*msppb.FabricMSPConfig)
+	for _, groupKey := range []string{channelconfig.OrdererGroupKey, channelconfig.ApplicationGroupKey} {
+		for orgName, org := range config.GetChannelGroup().GetGroups()[groupKey].GetGroups() {
+			mspConfig := &msp.MSPConfig{}
+			if err := proto.Unmarshal(org.GetValues()[channelconfig.MSPKey].GetValue(), mspConfig); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal MSP config of organization %s: %w", orgName, err)
+			}
+			if mspConfig.Type != int32(fabmsp.FABRIC) {
+				continue
+			}
+
+			fabricConfig := &msppb.FabricMSPConfig{}
+			if err := proto.Unmarshal(mspConfig.Config, fabricConfig); err != nil {
+				return nil, fmt.Errorf("failed to unmarshal Fabric MSP config of organization %s: %w", orgName, err)
+			}
+			mspConfigs[fabricConfig.Name] = fabricConfig
+		}
+	}
+
+	return mspConfigs, nil
 }
 
 // validateCACert decodes PEM cert, parses and ensures it is a CA.
