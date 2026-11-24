@@ -39,7 +39,7 @@ type stream struct {
 	srReconnectChan          chan reconnectReq
 	notifiedReconnect        bool
 	verifier                 *requestfilter.RulesVerifier
-	configSubmitter          ConfigurationSubmitter
+	configSubmitter          *configSubmitter
 	reconnectBackoffInterval time.Duration
 	forwarded                metrics.Counter
 }

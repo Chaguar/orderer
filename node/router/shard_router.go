@@ -71,7 +71,7 @@ type ShardRouter struct {
 	initOnce                     sync.Once
 	reconnectRequests            chan reconnectReq
 	verifier                     *requestfilter.RulesVerifier
-	configSubmitter              ConfigurationSubmitter
+	configSubmitter              *configSubmitter
 	batcherReconnects            metrics.Counter
 	batcherConnected             metrics.Gauge
 	wasConnected                 bool
@@ -92,7 +92,7 @@ func NewShardRouter(l *flogging.FabricLogger,
 	numOfConnectionsForBatcher int,
 	numOfgRPCStreamsPerConnection int,
 	verifier *requestfilter.RulesVerifier,
-	configSubmitter ConfigurationSubmitter,
+	configSubmitter *configSubmitter,
 	shardID types.ShardID,
 	routerMetrics *RouterMetrics,
 ) *ShardRouter {

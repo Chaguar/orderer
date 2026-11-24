@@ -10,6 +10,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Chaguar/common/common/channelconfig"
@@ -25,15 +26,12 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
-type ConfigurationSubmitter interface {
-	Start()
-	Stop()
-	// Update() // TODO implement a thread-safe update method for config submitter
-	Forward(tr *TrackedRequest)
-}
-
+// configSubmitter submits the config updates handed to it to the consenter of its party, one at a time, from a
+// single goroutine that runs from its creation until Stop.
 type configSubmitter struct {
 	consensusEndpoint     string
 	consensusRootCAs      [][]byte
@@ -41,24 +39,32 @@ type configSubmitter struct {
 	tlsKey                []byte
 	logger                *flogging.FabricLogger
 	configRequestsChannel chan *TrackedRequest
-	ctx                   context.Context
-	cancelFunc            func()
-	bundle                channelconfig.Resources
-	verifier              *requestfilter.RulesVerifier
-	signer                identity.SignerSerializer
-	configUpdateProposer  policy.ConfigUpdateProposer
-	configRulesVerifier   verify.OrdererRules
-	partyID               types.PartyID
-	bccsp                 bccsp.BCCSP
-	metrics               *RouterMetrics
+	// ctx is cancelled by Stop. It aborts the config update being submitted, and marks the submitter stopped.
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+	// lock orders a send on configRequestsChannel in Forward against its close in Stop.
+	lock sync.Mutex
+	// done is closed once the goroutine reading configRequestsChannel has answered every config update in it.
+	done                 chan struct{}
+	bundle               channelconfig.Resources
+	verifier             *requestfilter.RulesVerifier
+	signer               identity.SignerSerializer
+	configUpdateProposer policy.ConfigUpdateProposer
+	configRulesVerifier  verify.OrdererRules
+	partyID              types.PartyID
+	bccsp                bccsp.BCCSP
+	metrics              *RouterMetrics
 }
 
+// NewConfigSubmitter creates a config submitter and starts the goroutine that submits the config updates
+// forwarded to it.
 func NewConfigSubmitter(conf *nodeconfig.RouterNodeConfig, logger *flogging.FabricLogger, verifier *requestfilter.RulesVerifier, signer identity.SignerSerializer, configUpdateProposer policy.ConfigUpdateProposer, configRulesVerifier verify.OrdererRules, metrics *RouterMetrics) *configSubmitter {
 	var tlsCAsOfConsenter [][]byte
 	for _, rawTLSCA := range conf.Consenter.TLSCACerts {
 		tlsCAsOfConsenter = append(tlsCAsOfConsenter, rawTLSCA)
 	}
 
+	ctx, cancel := context.WithCancel(context.Background())
 	cs := &configSubmitter{
 		consensusEndpoint:     conf.Consenter.Endpoint,
 		consensusRootCAs:      tlsCAsOfConsenter,
@@ -66,6 +72,9 @@ func NewConfigSubmitter(conf *nodeconfig.RouterNodeConfig, logger *flogging.Fabr
 		tlsKey:                conf.TLSPrivateKeyFile,
 		logger:                logger,
 		configRequestsChannel: make(chan *TrackedRequest, 100),
+		ctx:                   ctx,
+		cancelFunc:            cancel,
+		done:                  make(chan struct{}),
 		bundle:                conf.Bundle,
 		verifier:              verifier,
 		signer:                signer,
@@ -75,44 +84,25 @@ func NewConfigSubmitter(conf *nodeconfig.RouterNodeConfig, logger *flogging.Fabr
 		bccsp:                 conf.BCCSP,
 		metrics:               metrics,
 	}
+
+	go cs.run()
+
 	return cs
-}
-
-func (cs *configSubmitter) Start() {
-	cs.logger.Infof("config submitter is starting")
-	cs.ctx, cs.cancelFunc = context.WithCancel(context.Background())
-	go cs.readConfigRequests()
-}
-
-func (cs *configSubmitter) Stop() {
-	cs.logger.Infof("config submitter is stopping")
-	cs.cancelFunc()
-}
-
-func (cs *configSubmitter) readConfigRequests() {
-	cs.logger.Infof("config submitter start listening for requests")
-	for {
-		select {
-		case <-cs.ctx.Done():
-			cs.logger.Infof("context is done, stop listening on channel for config requests")
-			return
-		case tr, ok := <-cs.configRequestsChannel:
-			if !ok {
-				cs.logger.Infof("config requests channel was closed, stop listening for requests")
-				return
-			}
-			err := cs.forwardRequest(tr)
-			if err != nil {
-				cs.logger.Errorf("error forwarding config request to consenter: %v", err)
-			}
-		}
-	}
 }
 
 // Forward forwards the config request from the shard router to the config submitter
 // requests channel. A full queue means the path to the consenter is stuck; the
 // request is rejected rather than blocking the submitting client indefinitely.
+// A request forwarded after Stop is rejected as well.
 func (cs *configSubmitter) Forward(tr *TrackedRequest) {
+	cs.lock.Lock()
+	defer cs.lock.Unlock()
+
+	if cs.ctx.Err() != nil {
+		tr.feedback.reply(Response{err: fmt.Errorf("router is stopping, cannot process request %x", tr.reqID), reqID: tr.reqID})
+		return
+	}
+
 	select {
 	case cs.configRequestsChannel <- tr:
 	default:
@@ -122,6 +112,45 @@ func (cs *configSubmitter) Forward(tr *TrackedRequest) {
 			reqID: tr.reqID,
 		})
 	}
+}
+
+// Stop rejects every config update forwarded from now on and aborts the one being submitted. It returns
+// once that update is answered and every config update still in the queue is answered with an error, so that
+// the router can deliver these answers before it stops sending them.
+// Calling it again only waits for that.
+func (cs *configSubmitter) Stop() {
+	cs.lock.Lock()
+	if cs.ctx.Err() == nil {
+		cs.logger.Infof("config submitter is stopping")
+		cs.cancelFunc()
+		close(cs.configRequestsChannel)
+	}
+	cs.lock.Unlock()
+
+	<-cs.done
+}
+
+// run submits the config updates in the queue one at a time, until Stop closes it. The updates still in the
+// queue by then are answered with an error.
+func (cs *configSubmitter) run() {
+	defer close(cs.done)
+
+	for tr := range cs.configRequestsChannel {
+		if cs.ctx.Err() != nil {
+			tr.feedback.reply(Response{err: fmt.Errorf("router is stopping, cannot process request %x", tr.reqID), reqID: tr.reqID})
+			continue
+		}
+		if err := cs.forwardRequest(tr); err != nil {
+			// Stop cancelled the dial or the SubmitConfig call; any other error is a real failure.
+			if errors.Is(err, context.Canceled) || status.Code(err) == codes.Canceled {
+				cs.logger.Infof("config request %x aborted, config submitter is stopping: %v", tr.reqID, err)
+				continue
+			}
+			cs.logger.Errorf("error forwarding config request to consenter: %v", err)
+		}
+	}
+
+	cs.logger.Infof("config submitter has stopped")
 }
 
 // forwardRequest forwards the config request from the config submitter to the consensus
@@ -164,7 +193,6 @@ func (cs *configSubmitter) forwardRequest(tr *TrackedRequest) error {
 		feedback.err = fmt.Errorf("error forwarding config request to consenter: %w", err)
 	} else {
 		cs.metrics.forwardedToConsenter.Add(1)
-		feedback.SubmitResponse = resp
 		if resp.Error != "" {
 			feedback.err = errors.New(resp.Error)
 		}
@@ -200,14 +228,17 @@ func (cs *configSubmitter) connectToConsenter() (*grpc.ClientConn, error) {
 	for {
 		select {
 		case <-cs.ctx.Done():
-			return nil, fmt.Errorf("reconnection to consensus %s aborted, because context is done and configSubmitter stopped", cs.consensusEndpoint)
+			return nil, fmt.Errorf("reconnection to consensus %s aborted, because context is done and configSubmitter stopped: %w", cs.consensusEndpoint, cs.ctx.Err())
 		case <-time.After(interval):
 			cs.logger.Debugf("Retry attempt #%d", numOfRetries)
 			numOfRetries++
 			conn, err := cs.tryToConnect()
 			if err != nil {
 				interval = min(interval*2, maxRetryInterval)
-				cs.logger.Errorf("Reconnection to consensus failed: %v, trying again in: %s", err, interval)
+				// a dial aborted by Stop is not a failure; the next iteration returns on ctx.Done.
+				if cs.ctx.Err() == nil {
+					cs.logger.Errorf("Reconnection to consensus failed: %v, trying again in: %s", err, interval)
+				}
 				continue
 			} else {
 				cs.logger.Debugf("Reconnection to consensus %s succeeded", cs.consensusEndpoint)
@@ -218,8 +249,6 @@ func (cs *configSubmitter) connectToConsenter() (*grpc.ClientConn, error) {
 }
 
 func (cs *configSubmitter) tryToConnect() (*grpc.ClientConn, error) {
-	// TODO - make it thread-safe, when implementing the update method
-
 	cc := comm.ClientConfig{
 		AsyncConnect: false,
 		KaOpts: comm.KeepaliveOptions{
@@ -236,7 +265,7 @@ func (cs *configSubmitter) tryToConnect() (*grpc.ClientConn, error) {
 		DialTimeout: time.Second * 20,
 	}
 
-	conn, err := cc.Dial(cs.consensusEndpoint)
+	conn, err := cc.DialContext(cs.ctx, cs.consensusEndpoint)
 	if err != nil {
 		return nil, err
 	}
