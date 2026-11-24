@@ -813,11 +813,13 @@ func (b *Batcher) Complain(term uint64, reason string) {
 	b.metrics.complaintsTotal.Add(1)
 }
 
-func (b *Batcher) SendBAF(baf types.BatchAttestationFragment, ctx context.Context) {
+func (b *Batcher) SendBAF(baf types.BatchAttestationFragment, ctx context.Context) error {
 	b.logger.Infof("Sending batch attestation fragment for seq %d with digest %x", baf.Seq(), baf.Digest())
 	if err := b.controlEventBroadcaster.BroadcastControlEvent(state.ControlEvent{BAF: baf}, ctx); err != nil {
 		b.logger.Errorf("Failed to broadcast batch attestation fragment; err: %v", err)
+		return err
 	}
+	return nil
 }
 
 func CreateComplaint(signer identity.SignerSerializer, id types.PartyID, shard types.ShardID, term uint64, configSeq types.ConfigSequence, reason string) (*state.Complaint, error) {

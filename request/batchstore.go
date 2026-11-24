@@ -168,6 +168,34 @@ func (bs *BatchStore) Remove(key string) {
 	bs.onDelete(key)
 }
 
+// Return moves a request of a batch that Fetch returned, and that was not removed since, back into the current
+// batch. It is the reverse of Remove without onDelete: the request keeps its place in the pool, unless a concurrent
+// Insert of the same key takes it first. sizeOf gives the request's size in bytes. Return each such key at most once;
+// a key that is no longer in the store is ignored.
+func (bs *BatchStore) Return(key string, sizeOf func(value any) uint32) {
+	val, exists := bs.keys2Batches.Load(key)
+	if !exists {
+		return
+	}
+	fetched, ok := val.(*batch)
+	if !ok {
+		return
+	}
+	value, exists := fetched.Load(key)
+	if !exists {
+		return
+	}
+	if !bs.keys2Batches.CompareAndDelete(key, fetched) {
+		return // removed in the meantime
+	}
+	fetched.Delete(key)
+
+	if !bs.Insert(key, value, sizeOf(value)) {
+		// A concurrent Insert of the same key won, so that copy now holds the request's place in the pool.
+		bs.onDelete(key)
+	}
+}
+
 // Fetch returns a batch of requests and their corresponding ids.
 func (bs *BatchStore) Fetch(ctx context.Context) ([]interface{}, []interface{}) {
 	bs.lock.Lock()

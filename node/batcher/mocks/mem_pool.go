@@ -66,6 +66,11 @@ type FakeMemPool struct {
 	restartArgsForCall []struct {
 		arg1 bool
 	}
+	ReturnRequestsStub        func(...string)
+	returnRequestsMutex       sync.RWMutex
+	returnRequestsArgsForCall []struct {
+		arg1 []string
+	}
 	SubmitStub        func([]byte) error
 	submitMutex       sync.RWMutex
 	submitArgsForCall []struct {
@@ -403,6 +408,38 @@ func (fake *FakeMemPool) RestartArgsForCall(i int) bool {
 	return argsForCall.arg1
 }
 
+func (fake *FakeMemPool) ReturnRequests(arg1 ...string) {
+	fake.returnRequestsMutex.Lock()
+	fake.returnRequestsArgsForCall = append(fake.returnRequestsArgsForCall, struct {
+		arg1 []string
+	}{arg1})
+	stub := fake.ReturnRequestsStub
+	fake.recordInvocation("ReturnRequests", []interface{}{arg1})
+	fake.returnRequestsMutex.Unlock()
+	if stub != nil {
+		fake.ReturnRequestsStub(arg1...)
+	}
+}
+
+func (fake *FakeMemPool) ReturnRequestsCallCount() int {
+	fake.returnRequestsMutex.RLock()
+	defer fake.returnRequestsMutex.RUnlock()
+	return len(fake.returnRequestsArgsForCall)
+}
+
+func (fake *FakeMemPool) ReturnRequestsCalls(stub func(...string)) {
+	fake.returnRequestsMutex.Lock()
+	defer fake.returnRequestsMutex.Unlock()
+	fake.ReturnRequestsStub = stub
+}
+
+func (fake *FakeMemPool) ReturnRequestsArgsForCall(i int) []string {
+	fake.returnRequestsMutex.RLock()
+	defer fake.returnRequestsMutex.RUnlock()
+	argsForCall := fake.returnRequestsArgsForCall[i]
+	return argsForCall.arg1
+}
+
 func (fake *FakeMemPool) Submit(arg1 []byte) error {
 	var arg1Copy []byte
 	if arg1 != nil {
@@ -488,6 +525,8 @@ func (fake *FakeMemPool) Invocations() map[string][][]interface{} {
 	defer fake.requestCountMutex.RUnlock()
 	fake.restartMutex.RLock()
 	defer fake.restartMutex.RUnlock()
+	fake.returnRequestsMutex.RLock()
+	defer fake.returnRequestsMutex.RUnlock()
 	fake.submitMutex.RLock()
 	defer fake.submitMutex.RUnlock()
 	copiedInvocations := map[string][][]interface{}{}

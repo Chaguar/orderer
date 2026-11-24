@@ -915,3 +915,159 @@ func TestMoveToPendingStoreReleasesFetchedPermits(t *testing.T) {
 	require.Error(t, pool.Submit(makeTestRequest("over", "foo")))
 	require.Equal(t, int64(10), pool.RequestCount())
 }
+
+func newReturnTestPool(t *testing.T) *Pool {
+	insp := &testRequestInspector{}
+	pool := NewPool(testutil.CreateLogger(t, 0), insp.RequestID, PoolOptions{
+		FirstStrikeThreshold:  time.Minute,
+		SecondStrikeThreshold: time.Minute,
+		BatchMaxSize:          10,
+		BatchMaxSizeBytes:     100 * 1024,
+		MaxSize:               10,
+		RequestMaxBytes:       1024,
+		AutoRemoveTimeout:     time.Second * 10,
+		SubmitTimeout:         time.Millisecond * 200,
+	}, &striker{})
+	t.Cleanup(pool.Close)
+	return pool
+}
+
+// submitAndFetch submits the requests with the given ids to a batching pool and fetches them as one batch.
+func submitAndFetch(t *testing.T, pool *Pool, ids ...string) ([][]byte, []string) {
+	for _, id := range ids {
+		require.NoError(t, pool.Submit(makeTestRequest(id, "foo")))
+	}
+	fetched, fetchedIDs := pool.NextRequests(doneContext())
+	require.ElementsMatch(t, ids, fetchedIDs)
+	return fetched, fetchedIDs
+}
+
+func nextBatchIDs(pool *Pool) []string {
+	_, ids := pool.NextRequests(doneContext())
+	return ids
+}
+
+// doneContext returns a context that is already done, so NextRequests returns the current batch without waiting.
+func doneContext() context.Context {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return ctx
+}
+
+// requireCapacity checks that exactly n new requests fit in the pool.
+func requireCapacity(t *testing.T, pool *Pool, n int) {
+	for i := 0; i < n; i++ {
+		require.NoError(t, pool.Submit(makeTestRequest(fmt.Sprintf("capacity-%d", i), "foo")))
+	}
+	require.Error(t, pool.Submit(makeTestRequest("capacity-over", "foo")))
+}
+
+func TestReturnRequestsRebatches(t *testing.T) {
+	pool := newReturnTestPool(t)
+	pool.Restart(true)
+	fetched, ids := submitAndFetch(t, pool, "0", "1", "2")
+
+	pool.ReturnRequests(ids...)
+	require.Equal(t, int64(3), pool.RequestCount())
+	err := pool.Submit(fetched[0])
+	require.ErrorContains(t, err, "already inserted")
+
+	require.ElementsMatch(t, ids, nextBatchIDs(pool))
+	pool.RemoveRequests(ids...)
+	require.Equal(t, int64(0), pool.RequestCount())
+	requireCapacity(t, pool, 10)
+}
+
+func TestReturnRequestsIgnoresRemoved(t *testing.T) {
+	pool := newReturnTestPool(t)
+	pool.Restart(true)
+	_, ids := submitAndFetch(t, pool, "0", "1", "2")
+
+	pool.RemoveRequests(ids[0])
+	pool.ReturnRequests(ids...)
+	require.Equal(t, int64(2), pool.RequestCount())
+
+	require.ElementsMatch(t, ids[1:], nextBatchIDs(pool))
+	pool.RemoveRequests(ids[1:]...)
+	require.Equal(t, int64(0), pool.RequestCount())
+	requireCapacity(t, pool, 10)
+}
+
+func TestReturnRequestsThenPrune(t *testing.T) {
+	pool := newReturnTestPool(t)
+	pool.Restart(true)
+	fetched, ids := submitAndFetch(t, pool, "0", "1", "2")
+
+	pool.ReturnRequests(ids...)
+	pool.Prune(func(req []byte) error {
+		if id, _ := parseTestRequest(req); id == ids[0] {
+			return errors.New("fails under the new config")
+		}
+		return nil
+	})
+	require.Equal(t, int64(2), pool.RequestCount())
+	require.NoError(t, pool.Submit(fetched[0]))
+	require.Equal(t, int64(3), pool.RequestCount())
+}
+
+func TestReturnRequestsThenRestartPending(t *testing.T) {
+	pool := newReturnTestPool(t)
+	pool.Restart(true)
+	_, ids := submitAndFetch(t, pool, "0", "1", "2")
+
+	pool.ReturnRequests(ids...)
+	pool.Restart(false)
+	require.Equal(t, int64(3), pool.RequestCount())
+	for _, id := range ids {
+		require.True(t, pool.Contains(id), "request %s is not in the pending store", id)
+	}
+}
+
+func TestReturnRequestsNoop(t *testing.T) {
+	t.Run("closed pool", func(t *testing.T) {
+		pool := newReturnTestPool(t)
+		pool.Restart(true)
+		_, ids := submitAndFetch(t, pool, "0", "1", "2")
+		pool.Close()
+		pool.ReturnRequests(ids...)
+		require.Equal(t, int64(0), pool.RequestCount())
+	})
+
+	t.Run("batching disabled", func(t *testing.T) {
+		pool := newReturnTestPool(t)
+		require.NoError(t, pool.Submit(makeTestRequest("x", "foo")))
+		pool.ReturnRequests("x")
+		require.Equal(t, int64(1), pool.RequestCount())
+		require.True(t, pool.Contains("x"))
+	})
+}
+
+func TestReturnRequestsConcurrentSubmit(t *testing.T) {
+	pool := newReturnTestPool(t)
+	pool.Restart(true)
+	for i := 0; i < 100; i++ {
+		fetched, ids := submitAndFetch(t, pool, "0", "1", "2")
+
+		var wg sync.WaitGroup
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			pool.ReturnRequests(ids...)
+		}()
+		go func() {
+			defer wg.Done()
+			for _, req := range fetched {
+				_ = pool.Submit(req)
+			}
+		}()
+		wg.Wait()
+		require.Equal(t, int64(3), pool.RequestCount(), "iteration %d", i)
+
+		for pool.RequestCount() > 0 {
+			batchIDs := nextBatchIDs(pool)
+			require.NotEmpty(t, batchIDs, "iteration %d", i)
+			pool.RemoveRequests(batchIDs...)
+		}
+	}
+	requireCapacity(t, pool, 10)
+}
