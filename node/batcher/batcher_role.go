@@ -465,39 +465,15 @@ func (b *BatcherRole) runPrimary(term uint64) {
 
 		// The digest was already computed for the BAF above.
 		b.Ledger.Append(b.ID, b.seq, b.ConfigSequenceGetter.ConfigSequence(), currentBatch, digest, baf.Signature())
-		sendBAFDone := make(chan struct{})
-		var sendErr error
-		go func() {
-			sendErr = b.BAFSender.SendBAF(baf, runCtx)
-			close(sendBAFDone)
-		}()
 		// The batch's requests are removed once a quorum of consenters accepted the BAF, and returned to the mem
-		// pool otherwise. A term change cancels the send, and so does a stop, through the role's stop context; the
-		// send then ends at once, reporting success only if a quorum already accepted the BAF. Sends the broadcast
-		// already started, and the secondaries' BAFs, can still get the batch ordered, so returned requests may be
-		// ordered twice.
-		termChan := b.termChan
-	waitBAFSent:
-		for {
-			select {
-			case <-sendBAFDone:
-				break waitBAFSent
-			case <-termChan:
-				if !b.termChangedFrom(term) {
-					continue
-				}
-				b.Logger.Infof("Primary batcher %d (shard %d) term change from term %d", b.ID, b.Shard, term)
-				cancelRun()
-				termChan = nil
-			}
-		}
-		if sendErr != nil {
+		// pool otherwise. The send fails only when the run's context ends, on a stop or a term change, and it then
+		// ends at once, reporting success only if a quorum already accepted the BAF. Sends the broadcast already
+		// started, and the secondaries' BAFs, can still get the batch ordered, so returned requests may be ordered
+		// twice.
+		if err := b.BAFSender.SendBAF(baf, runCtx); err != nil {
 			b.Logger.Warnf("Primary batcher %d (shard %d) did not send the BAF for seq %d; "+
-				"returning its requests to the mem pool: %v", b.ID, b.Shard, b.seq, sendErr)
+				"returning its requests to the mem pool: %v", b.ID, b.Shard, b.seq, err)
 			b.MemPool.ReturnRequests(reqIDs...)
-			// The send fails only when it is cancelled, and the batcher stops sending control events before it
-			// stops the role, so the role waits rather than batching the requests again in a BAF it cannot send.
-			b.waitForStopOrTermChange(term)
 			return
 		}
 
@@ -530,17 +506,6 @@ func (b *BatcherRole) stoppedActingIn(term uint64) bool {
 		return true
 	default:
 		return b.termChangedFrom(term)
-	}
-}
-
-// waitForStopOrTermChange waits until the role stops or the term moves on from term.
-func (b *BatcherRole) waitForStopOrTermChange(term uint64) {
-	for !b.termChangedFrom(term) {
-		select {
-		case <-b.termChan:
-		case <-b.stopChan:
-			return
-		}
 	}
 }
 
@@ -598,29 +563,13 @@ func (b *BatcherRole) runSecondary(term uint64) {
 			b.Ledger.Append(b.primary, b.seq, b.ConfigSequenceGetter.ConfigSequence(), requests, digest, batch.PrimarySignature())
 			baf := b.BAFCreator.CreateBAF(b.seq, b.primary, b.Shard, digest, uint64(len(requests)), batch.PrimarySignature())
 
-			sendBAFDone := make(chan struct{})
-			go func() {
-				// The secondary removes the batch's requests whether or not its BAF is sent.
-				_ = b.BAFSender.SendBAF(baf, runCtx)
-				close(sendBAFDone)
-			}()
-		waitBAFSent:
-			for {
-				select {
-				case <-sendBAFDone:
-					break waitBAFSent
-				case <-b.termChan:
-					if !b.termChangedFrom(term) {
-						continue
-					}
-					b.Logger.Infof("Secondary batcher %d (shard %d) term change from term %d", b.ID, b.Shard, term)
-					b.BatchPuller.Stop()
-					return
-				case <-b.stopChan:
-					b.Logger.Infof("Batcher %d stopped acting as secondary (shard %d; primary %d)", b.ID, b.Shard, b.primary)
-					b.BatchPuller.Stop()
-					return
-				}
+			// The send fails only when the run's context ends, on a stop or a term change. The BAF may then not have
+			// reached the consenters, so the secondary keeps the batch's requests and does not ack the batch.
+			if err := b.BAFSender.SendBAF(baf, runCtx); err != nil {
+				b.Logger.Infof("Secondary batcher %d (shard %d) did not send the BAF for seq %d of primary %d; "+
+					"keeping its requests: %v", b.ID, b.Shard, b.seq, b.primary, err)
+				b.BatchPuller.Stop()
+				return
 			}
 
 			b.Metrics.batchedTxsTotal.Add(float64(len(requests)))

@@ -186,8 +186,9 @@ func (b *Batcher) Stop() {
 	b.logger.Infof("Stopping batcher node")
 	if currentState != node_utils.StateSoftStopped && currentState != node_utils.StatePendingAdmin {
 		close(b.stopChan)
-		b.controlEventBroadcaster.Stop()
+		// The role's broadcasts end with its run, so the role stops before the broadcaster it sends them with.
 		b.batcher.Stop()
+		b.controlEventBroadcaster.Stop()
 		b.primaryConnector.Stop()
 		b.running.Wait()
 		b.controlEventBroadcaster.Close()
@@ -218,8 +219,9 @@ func (b *Batcher) SoftStop() {
 
 	b.logger.Infof("Soft stopping batcher node")
 	close(b.stopChan)
-	b.controlEventBroadcaster.Stop()
+	// The role's broadcasts end with its run, so the role stops before the broadcaster it sends them with.
 	b.batcher.SoftStop()
+	b.controlEventBroadcaster.Stop()
 	b.primaryConnector.Stop()
 	b.running.Wait()
 	b.controlEventBroadcaster.Close()

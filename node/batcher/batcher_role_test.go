@@ -1519,7 +1519,7 @@ func containsAll(pool *request.Pool) bool {
 }
 
 // First BAF sends of a stranded batch: one that blocks until cancelled, as when the BAF does not reach enough
-// consenters, and one that fails, as when the batcher stopped sending control events.
+// consenters, and one that fails.
 func blockUntilCancelled(ctx context.Context) error {
 	<-ctx.Done()
 	return ctx.Err()
@@ -1598,20 +1598,16 @@ func TestStrandedBatchReturnedOnReconfig(t *testing.T) {
 	requireBatchedAfterRestart(t, s.pool)
 }
 
-// TestStrandedBatchReturnedWhenBAFSendFails checks that the requests of a batch whose BAF send fails stay in the
-// pool. The batcher stops sending control events before it stops the role, so on a soft stop the send can fail
-// before the role learns that it stops. The role must not batch the requests again until it is restarted.
+// TestStrandedBatchReturnedWhenBAFSendFails checks that the requests of a batch whose BAF send fails go back to the
+// pool, so that a primary still acting in its term batches them again.
 func TestStrandedBatchReturnedWhenBAFSendFails(t *testing.T) {
 	s := newStrandedBatch(t, failSend)
+	defer s.role.Stop()
 
-	require.Never(t, func() bool {
-		return s.ledger.AppendCallCount() > 1
-	}, 300*time.Millisecond, 10*time.Millisecond)
-
-	s.softStopWithin(t, 5*time.Second)
-	s.pool.Prune(func([]byte) error { return nil })
-	require.Equal(t, int64(3), s.pool.RequestCount())
-	requireBatchedAfterRestart(t, s.pool)
+	require.Eventually(t, func() bool {
+		return s.ledger.AppendCallCount() == 2
+	}, 10*time.Second, 10*time.Millisecond)
+	s.requireAppendedStranded(t, 1)
 }
 
 // TestStrandedBatchReturnedOnTermChangeToSecondary checks that the requests of a batch whose BAF was not sent when
@@ -1670,21 +1666,6 @@ func TestStrandedBatchRemovedWhenBAFAcceptedAsTermChanges(t *testing.T) {
 	for _, id := range strandedRequestIDs {
 		require.False(t, s.pool.Contains(id))
 	}
-}
-
-// TestStrandedBatchFailedSendWaitsThroughSameTermNotification checks that a primary whose BAF send failed keeps
-// waiting when it is notified of a term change that leaves the term as it is, rather than batching the requests
-// again in a BAF it cannot send.
-func TestStrandedBatchFailedSendWaitsThroughSameTermNotification(t *testing.T) {
-	s := newStrandedBatch(t, failSend)
-	defer s.role.Stop()
-
-	s.role.NotifyTermChange()
-
-	require.Never(t, func() bool {
-		return s.ledger.AppendCallCount() > 1
-	}, 300*time.Millisecond, 10*time.Millisecond)
-	require.Equal(t, int64(3), s.pool.RequestCount())
 }
 
 // TestStrandedBatchRemovedWhenBAFAcceptedAsStopping checks that a primary that stops while its BAF is in flight

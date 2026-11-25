@@ -220,3 +220,36 @@ func TestTermChangeDoesNotWaitForSecondStrikeComplaint(t *testing.T) {
 		return ledger.AppendCallCount() > 0
 	}, 10*time.Second, 10*time.Millisecond)
 }
+
+// TestSecondaryKeepsRequestsWhenBAFSendFails checks that a secondary whose BAF send fails, which happens only when
+// its run ends, as on a stop or a term change, keeps the batch's requests and does not ack the batch, since the BAF
+// may not have reached the consenters.
+func TestSecondaryKeepsRequestsWhenBAFSendFails(t *testing.T) {
+	batchers := []arma_types.PartyID{1, 2, 3, 4}
+	role := createBatcher(t, 3, 0, batchers, 4, testutil.CreateLogger(t, 3))
+	role.TermProvider = newTestTermProvider(batchers, 0, 4)
+	pool := &mocks.FakeMemPool{}
+	role.MemPool = pool
+	acker := &mocks.FakeBatchAcker{}
+	role.BatchAcker = acker
+	bafSender := &mocks.FakeBAFSender{}
+	bafSender.SendBAFCalls(func(arma_types.BatchAttestationFragment, context.Context) error {
+		return errors.New("broadcast cancelled by input context")
+	})
+	role.BAFSender = bafSender
+	puller := &mocks.FakeBatchesPuller{}
+	batches := make(chan arma_types.Batch, 1)
+	batches <- arma_types.NewSimpleBatch(0, 1, 0, arma_types.BatchedRequests{[]byte("req")}, 0, nil)
+	puller.PullBatchesReturns(batches)
+	role.BatchPuller = puller
+
+	role.Start()
+	defer role.Stop()
+
+	require.Eventually(t, func() bool {
+		return bafSender.SendBAFCallCount() == 1
+	}, 10*time.Second, 10*time.Millisecond)
+	require.Never(t, func() bool {
+		return pool.RemoveRequestsCallCount() > 0 || acker.AckCallCount() > 0
+	}, 300*time.Millisecond, 10*time.Millisecond)
+}

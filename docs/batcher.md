@@ -144,9 +144,11 @@ Around the **batcher role** and the **mempool** run a few units. A **decision pu
 decision stream of the consenter of its own party; it writes each decision header to a write-ahead log
 (WAL), hands the latest state to the batcher role, and stores any config block in the **config store**.
 A **control-event broadcaster** sends BAFs and complaints to all consenters, and returns once `n − f`
-accepted each one. A **primary connector**
-sends to the current primary over two **lanes**, one for acks and one for forwarded requests, each with its
-own queue, connection and sending goroutine, so an ack never waits behind a forward. A lane connects when
+accepted each one. A BAF or complaint is given up once the batcher role stops, or stops acting in the
+term it was sent for, so a quorum the consenters cannot reach does not hold up a stop or a term change.
+A **primary connector** sends to the current primary over two **lanes**, one for acks and one for
+forwarded requests, each with its own queue, connection and sending goroutine, so an ack never waits
+behind a forward. A lane connects when
 it has something to send; on a primary change it drops what it holds for the old primary and closes the
 connection to it. A **batch puller** streams batches from the primary, and a **request
 verifier** checks requests coming from the router, from other batchers, and inside pulled batches. The
