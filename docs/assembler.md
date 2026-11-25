@@ -211,7 +211,8 @@ sends to each consenter in a goroutine of its own. The ledger is written by the 
   <img alt="The assembler's units and how they connect" src="figures/assembler-units.svg">
 </picture>
 
-*Figure 2: The assembler's units, and how decisions, batches and blocks move between them.*
+*Figure 2: The assembler's units, and how decisions, batches, blocks and decision reports move between
+them.*
 
 ### 3.2 Collation
 
