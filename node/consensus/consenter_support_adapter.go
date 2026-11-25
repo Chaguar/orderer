@@ -83,21 +83,21 @@ func (c *ConsenterSupportAdapter) Height() uint64 {
 // with.
 // Implements synchronizer.ConsenterSupport.
 func (c *ConsenterSupportAdapter) ChannelID() string {
-	channelID := c.consensus.Config.Bundle.ConfigtxValidator().ChannelID()
+	channelID := c.consensus.configSnapshot().nodeConfig.Bundle.ConfigtxValidator().ChannelID()
 	return delivery.DecisionChannelName(channelID)
 }
 
 // Sequence returns the current configuration sequence number for the channel.
 // Implements synchronizer.ConsenterSupport.
 func (c *ConsenterSupportAdapter) Sequence() uint64 {
-	return c.consensus.Config.Bundle.ConfigtxValidator().Sequence()
+	return c.consensus.configSnapshot().nodeConfig.Bundle.ConfigtxValidator().Sequence()
 }
 
 // SharedConfig returns the orderer section of the channel's current config
 // bundle.
 // Implements synchronizer.ConsenterSupport.
 func (c *ConsenterSupportAdapter) SharedConfig() channelconfig.Orderer {
-	ordererConfig, ok := c.consensus.Config.Bundle.OrdererConfig()
+	ordererConfig, ok := c.consensus.configSnapshot().nodeConfig.Bundle.OrdererConfig()
 	if !ok {
 		c.consensus.Logger.Panic("Orderer config not found in config bundle")
 	}

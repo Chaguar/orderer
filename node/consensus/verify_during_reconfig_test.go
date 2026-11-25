@@ -69,6 +69,7 @@ func TestVerifyCEConcurrentWithReconfig(t *testing.T) {
 		SigVerifier: verifier0,
 		Storage:     storage0,
 	}
+	c.publishConfigSnapshot() // as configureConsensus does, before the reconfigurations below start
 
 	// A BAF at config sequence 0 is valid under both configs: current under config0, and one behind
 	// (accepted for revival) under config1.
@@ -102,6 +103,7 @@ func TestVerifyCEConcurrentWithReconfig(t *testing.T) {
 			} else {
 				c.Config, c.SigVerifier, c.Storage = config0, verifier0, storage0
 			}
+			c.publishConfigSnapshot() // as configureConsensus does, under the same lock
 			c.lock.Unlock()
 		}
 	}()
@@ -133,6 +135,7 @@ func (v *reconfiguringVerifier) VerifySignature(id types.NodeIdentity, msg, sig 
 	err := v.ECDSAVerifier.VerifySignature(id, msg, sig)
 	v.c.lock.Lock()
 	v.c.Config = v.newConfig
+	v.c.publishConfigSnapshot() // as configureConsensus does, under the same lock
 	v.c.lock.Unlock()
 	return err
 }
