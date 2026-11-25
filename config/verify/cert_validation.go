@@ -11,7 +11,6 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
-	"slices"
 	"time"
 
 	"github.com/Chaguar/common/api/msppb"
@@ -162,10 +161,11 @@ func validateUniqueSigningCerts(parties []*ordererpb.PartyConfig) error {
 	return nil
 }
 
-// validateKnownCerts verifies the known certificates of every orderer and application organization MSP in config
-// against the MSP's root and intermediate CA certificates, with expiration enforced. A known certificate that prev
-// already holds in the same MSP is skipped, so only added and changed known certificates are checked; a nil prev
-// checks them all.
+// validateKnownCerts verifies the known certificates of every orderer and application organization MSP in config:
+// each must be a PEM-encoded certificate that chains to the MSP's root or intermediate CA certificates, with
+// expiration enforced. A known certificate that prev already holds in the same MSP is skipped, so only added and
+// changed known certificates are checked; a nil prev checks them all. It is skipped also when the MSP's CA
+// certificates changed: the MSP setup already rejects an ECDSA-signed known certificate that does not chain to them.
 func validateKnownCerts(config, prev *common.Config) error {
 	mspConfigs, err := orgMSPConfigs(config)
 	if err != nil {
@@ -189,8 +189,14 @@ func validateKnownCerts(config, prev *common.Config) error {
 			opts.Intermediates.AppendCertsFromPEM(cert)
 		}
 
+		prevMSPConfig := prevMSPConfigs[mspID]
+		prevKnownCerts := make(map[string]struct{}, len(prevMSPConfig.GetKnownCerts()))
+		for _, cert := range prevMSPConfig.GetKnownCerts() {
+			prevKnownCerts[string(cert)] = struct{}{}
+		}
+
 		for _, cert := range mspConfig.KnownCerts {
-			if slices.ContainsFunc(prevMSPConfigs[mspID].GetKnownCerts(), func(c []byte) bool { return slices.Equal(c, cert) }) {
+			if _, unchanged := prevKnownCerts[string(cert)]; unchanged {
 				continue
 			}
 			if err := verifyCert(cert, opts, false); err != nil {
