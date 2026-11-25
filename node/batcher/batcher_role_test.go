@@ -915,7 +915,7 @@ func TestComplainInTermFaultSeenIn(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return complainer.ComplainCallCount() == 1
 	}, 10*time.Second, 10*time.Millisecond)
-	term, _ := complainer.ComplainArgsForCall(0)
+	_, term, _ := complainer.ComplainArgsForCall(0)
 	require.Equal(t, uint64(0), term)
 }
 
@@ -1519,7 +1519,7 @@ func containsAll(pool *request.Pool) bool {
 }
 
 // First BAF sends of a stranded batch: one that blocks until cancelled, as when the BAF does not reach enough
-// consenters, and one that fails, as when the batcher stopped sending control events.
+// consenters, and one that fails.
 func blockUntilCancelled(ctx context.Context) error {
 	<-ctx.Done()
 	return ctx.Err()
@@ -1598,20 +1598,16 @@ func TestStrandedBatchReturnedOnReconfig(t *testing.T) {
 	requireBatchedAfterRestart(t, s.pool)
 }
 
-// TestStrandedBatchReturnedWhenBAFSendFails checks that the requests of a batch whose BAF send fails stay in the
-// pool. The batcher stops sending control events before it stops the role, so on a soft stop the send can fail
-// before the role learns that it stops. The role must not batch the requests again until it is restarted.
+// TestStrandedBatchReturnedWhenBAFSendFails checks that the requests of a batch whose BAF send fails go back to the
+// pool, so that a primary still acting in its term batches them again.
 func TestStrandedBatchReturnedWhenBAFSendFails(t *testing.T) {
 	s := newStrandedBatch(t, failSend)
+	defer s.role.Stop()
 
-	require.Never(t, func() bool {
-		return s.ledger.AppendCallCount() > 1
-	}, 300*time.Millisecond, 10*time.Millisecond)
-
-	s.softStopWithin(t, 5*time.Second)
-	s.pool.Prune(func([]byte) error { return nil })
-	require.Equal(t, int64(3), s.pool.RequestCount())
-	requireBatchedAfterRestart(t, s.pool)
+	require.Eventually(t, func() bool {
+		return s.ledger.AppendCallCount() == 2
+	}, 10*time.Second, 10*time.Millisecond)
+	s.requireAppendedStranded(t, 1)
 }
 
 // TestStrandedBatchReturnedOnTermChangeToSecondary checks that the requests of a batch whose BAF was not sent when
@@ -1626,29 +1622,22 @@ func TestStrandedBatchReturnedOnTermChangeToSecondary(t *testing.T) {
 	require.Equal(t, int64(3), s.pool.RequestCount())
 }
 
-// TestStrandedBatchReturnedOnTermChangeSamePrimary checks that the requests of a batch whose BAF was not sent, or
-// whose send failed, are batched again when the term changes and the primary stays the same.
+// TestStrandedBatchReturnedOnTermChangeSamePrimary checks that the requests of a batch whose BAF was not sent are
+// batched again when the term changes and the primary stays the same.
 func TestStrandedBatchReturnedOnTermChangeSamePrimary(t *testing.T) {
-	for name, firstSend := range map[string]func(context.Context) error{
-		"send blocks": blockUntilCancelled,
-		"send fails":  failSend,
-	} {
-		t.Run(name, func(t *testing.T) {
-			s := newStrandedBatch(t, firstSend)
-			defer s.role.Stop()
+	s := newStrandedBatch(t, blockUntilCancelled)
+	defer s.role.Stop()
 
-			s.setTerm(4)
+	s.setTerm(4)
 
-			require.Eventually(t, func() bool {
-				return s.ledger.AppendCallCount() == 2
-			}, 10*time.Second, 10*time.Millisecond)
-			s.requireAppendedStranded(t, 1)
-			// The stranded batch stays in the ledger at seq 0, so the requests are stored again at seq 1, and both
-			// batches can be ordered.
-			_, seq, _, _, _, _ := s.ledger.AppendArgsForCall(1)
-			require.Equal(t, arma_types.BatchSequence(1), seq)
-		})
-	}
+	require.Eventually(t, func() bool {
+		return s.ledger.AppendCallCount() == 2
+	}, 10*time.Second, 10*time.Millisecond)
+	s.requireAppendedStranded(t, 1)
+	// The stranded batch stays in the ledger at seq 0, so the requests are stored again at seq 1, and both
+	// batches can be ordered.
+	_, seq, _, _, _, _ := s.ledger.AppendArgsForCall(1)
+	require.Equal(t, arma_types.BatchSequence(1), seq)
 }
 
 // TestStrandedBatchRemovedWhenBAFAcceptedAsTermChanges checks that a primary whose term changes while its BAF is in
@@ -1670,21 +1659,6 @@ func TestStrandedBatchRemovedWhenBAFAcceptedAsTermChanges(t *testing.T) {
 	for _, id := range strandedRequestIDs {
 		require.False(t, s.pool.Contains(id))
 	}
-}
-
-// TestStrandedBatchFailedSendWaitsThroughSameTermNotification checks that a primary whose BAF send failed keeps
-// waiting when it is notified of a term change that leaves the term as it is, rather than batching the requests
-// again in a BAF it cannot send.
-func TestStrandedBatchFailedSendWaitsThroughSameTermNotification(t *testing.T) {
-	s := newStrandedBatch(t, failSend)
-	defer s.role.Stop()
-
-	s.role.NotifyTermChange()
-
-	require.Never(t, func() bool {
-		return s.ledger.AppendCallCount() > 1
-	}, 300*time.Millisecond, 10*time.Millisecond)
-	require.Equal(t, int64(3), s.pool.RequestCount())
 }
 
 // TestStrandedBatchRemovedWhenBAFAcceptedAsStopping checks that a primary that stops while its BAF is in flight
