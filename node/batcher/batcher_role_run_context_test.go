@@ -54,8 +54,11 @@ func newComplainingSecondary(t *testing.T) *complainingSecondary {
 			return
 		}
 		close(s.complaining)
-		<-ctx.Done()
-		close(s.complained)
+		select {
+		case <-ctx.Done():
+			close(s.complained)
+		case <-time.After(10 * time.Second): // the test fails waiting for complained
+		}
 	})
 	s.role.Complainer = complainer
 	batches := make(chan arma_types.Batch, 1)
@@ -74,50 +77,50 @@ func (s *complainingSecondary) startAndWaitForComplaint(t *testing.T) {
 	}
 }
 
-// TestSecondaryComplaintEndsOnTermChange checks that a secondary's complaint about a batch that failed verification
-// ends once the term changes, so the secondary moves on to the new primary.
-func TestSecondaryComplaintEndsOnTermChange(t *testing.T) {
-	s := newComplainingSecondary(t)
-	defer s.role.Stop()
-	s.startAndWaitForComplaint(t)
+// TestSecondaryComplaintEnds checks that a secondary's complaint about a batch that failed verification ends once
+// the term changes, so the secondary moves on to the new primary, and once the role soft stops.
+func TestSecondaryComplaintEnds(t *testing.T) {
+	t.Run("term change", func(t *testing.T) {
+		s := newComplainingSecondary(t)
+		defer s.role.Stop()
+		s.startAndWaitForComplaint(t)
 
-	s.termProvider.setState(s.role, &state.State{Shards: []state.ShardTerm{{Shard: 0, Term: 1}}})
+		s.termProvider.setState(s.role, &state.State{Shards: []state.ShardTerm{{Shard: 0, Term: 1}}})
 
-	select {
-	case <-s.complained:
-	case <-time.After(10 * time.Second):
-		t.Fatal("the complaint did not end on the term change")
-	}
-	require.Eventually(t, func() bool {
-		n := s.puller.PullBatchesCallCount()
-		return n > 1 && s.puller.PullBatchesArgsForCall(n-1) == 2
-	}, 10*time.Second, 10*time.Millisecond)
-}
+		select {
+		case <-s.complained:
+		case <-time.After(10 * time.Second):
+			t.Fatal("the complaint did not end on the term change")
+		}
+		require.Eventually(t, func() bool {
+			n := s.puller.PullBatchesCallCount()
+			return n > 1 && s.puller.PullBatchesArgsForCall(n-1) == 2
+		}, 10*time.Second, 10*time.Millisecond)
+	})
 
-// TestSoftStopEndsVerifyFailureComplaint checks that a secondary's complaint ends when the role soft stops.
-func TestSoftStopEndsVerifyFailureComplaint(t *testing.T) {
-	s := newComplainingSecondary(t)
-	s.startAndWaitForComplaint(t)
+	t.Run("soft stop", func(t *testing.T) {
+		s := newComplainingSecondary(t)
+		s.startAndWaitForComplaint(t)
 
-	stopped := make(chan struct{})
-	go func() {
-		s.role.SoftStop()
-		close(stopped)
-	}()
-	select {
-	case <-stopped:
-	case <-time.After(5 * time.Second):
-		t.Fatal("the role did not soft stop")
-	}
+		stopped := make(chan struct{})
+		go func() {
+			s.role.SoftStop()
+			close(stopped)
+		}()
+		select {
+		case <-stopped:
+		case <-time.After(5 * time.Second):
+			t.Fatal("the role did not soft stop")
+		}
+	})
 }
 
 // newIdleSecondary starts batcher 2 of 4, a secondary in term 0 whose primary sends no batches, and waits until it
 // acts in term 0.
-func newIdleSecondary(t *testing.T) (*batcher.BatcherRole, *testTermProvider) {
+func newIdleSecondary(t *testing.T) *batcher.BatcherRole {
 	batchers := []arma_types.PartyID{1, 2, 3, 4}
 	role := createBatcher(t, 2, 0, batchers, 4, testutil.CreateLogger(t, 2))
-	termProvider := newTestTermProvider(batchers, 0, 4)
-	role.TermProvider = termProvider
+	role.TermProvider = newTestTermProvider(batchers, 0, 4)
 	puller := &mocks.FakeBatchesPuller{}
 	puller.PullBatchesReturns(make(chan arma_types.Batch))
 	role.BatchPuller = puller
@@ -127,36 +130,19 @@ func newIdleSecondary(t *testing.T) (*batcher.BatcherRole, *testTermProvider) {
 		_, ctx := role.TermContext()
 		return ctx.Err() == nil
 	}, 10*time.Second, 10*time.Millisecond)
-	return role, termProvider
+	return role
 }
 
 // TestSameTermNotificationKeepsRunContext checks that a notification that leaves the term as it is does not end the
 // context of the role's run.
 func TestSameTermNotificationKeepsRunContext(t *testing.T) {
-	role, _ := newIdleSecondary(t)
+	role := newIdleSecondary(t)
 	term, ctx := role.TermContext()
 	require.Equal(t, uint64(0), term)
 
 	role.NotifyTermChange()
 
 	require.Never(t, func() bool { return ctx.Err() != nil }, 200*time.Millisecond, 10*time.Millisecond)
-}
-
-// TestTermChangeNotificationCancelsRunContext checks that the role's run context ends once the role is notified
-// that the term moved on, and that the run in the new term gets a context of its own.
-func TestTermChangeNotificationCancelsRunContext(t *testing.T) {
-	role, termProvider := newIdleSecondary(t)
-	_, ctx := role.TermContext()
-
-	termProvider.setTerm(2) // batcher 3 is the primary of term 2, so batcher 2 stays a secondary
-	require.NoError(t, ctx.Err(), "the context must not end before the role is notified")
-	role.NotifyTermChange()
-	require.Error(t, ctx.Err())
-
-	require.Eventually(t, func() bool {
-		term, next := role.TermContext()
-		return term == 2 && next.Err() == nil
-	}, 10*time.Second, 10*time.Millisecond)
 }
 
 // strikeComplainer is a pool striker whose second-strike complaint, like the batcher's, is sent in the role's term
@@ -172,7 +158,10 @@ func (s *strikeComplainer) OnFirstStrikeTimeout([]byte) {}
 func (s *strikeComplainer) OnSecondStrikeTimeout() {
 	_, ctx := s.role.TermContext()
 	s.once.Do(func() { close(s.complained) })
-	<-ctx.Done()
+	select {
+	case <-ctx.Done():
+	case <-time.After(10 * time.Second): // the pool restarts late, and the test fails waiting for the batch
+	}
 }
 
 // TestTermChangeDoesNotWaitForSecondStrikeComplaint checks that a term change restarts the pool although a

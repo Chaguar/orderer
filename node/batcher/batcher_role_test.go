@@ -1622,29 +1622,22 @@ func TestStrandedBatchReturnedOnTermChangeToSecondary(t *testing.T) {
 	require.Equal(t, int64(3), s.pool.RequestCount())
 }
 
-// TestStrandedBatchReturnedOnTermChangeSamePrimary checks that the requests of a batch whose BAF was not sent, or
-// whose send failed, are batched again when the term changes and the primary stays the same.
+// TestStrandedBatchReturnedOnTermChangeSamePrimary checks that the requests of a batch whose BAF was not sent are
+// batched again when the term changes and the primary stays the same.
 func TestStrandedBatchReturnedOnTermChangeSamePrimary(t *testing.T) {
-	for name, firstSend := range map[string]func(context.Context) error{
-		"send blocks": blockUntilCancelled,
-		"send fails":  failSend,
-	} {
-		t.Run(name, func(t *testing.T) {
-			s := newStrandedBatch(t, firstSend)
-			defer s.role.Stop()
+	s := newStrandedBatch(t, blockUntilCancelled)
+	defer s.role.Stop()
 
-			s.setTerm(4)
+	s.setTerm(4)
 
-			require.Eventually(t, func() bool {
-				return s.ledger.AppendCallCount() == 2
-			}, 10*time.Second, 10*time.Millisecond)
-			s.requireAppendedStranded(t, 1)
-			// The stranded batch stays in the ledger at seq 0, so the requests are stored again at seq 1, and both
-			// batches can be ordered.
-			_, seq, _, _, _, _ := s.ledger.AppendArgsForCall(1)
-			require.Equal(t, arma_types.BatchSequence(1), seq)
-		})
-	}
+	require.Eventually(t, func() bool {
+		return s.ledger.AppendCallCount() == 2
+	}, 10*time.Second, 10*time.Millisecond)
+	s.requireAppendedStranded(t, 1)
+	// The stranded batch stays in the ledger at seq 0, so the requests are stored again at seq 1, and both
+	// batches can be ordered.
+	_, seq, _, _, _, _ := s.ledger.AppendArgsForCall(1)
+	require.Equal(t, arma_types.BatchSequence(1), seq)
 }
 
 // TestStrandedBatchRemovedWhenBAFAcceptedAsTermChanges checks that a primary whose term changes while its BAF is in

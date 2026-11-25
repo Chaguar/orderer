@@ -136,7 +136,7 @@ type BatcherRole struct {
 	cancelBatch             func()
 	primary                 types.PartyID
 	seq                     types.BatchSequence
-	acting                  atomic.Pointer[acting] // set once the pool is restarted in the term
+	currentRun              atomic.Pointer[termRun] // set once the pool is restarted in the run's term
 	termChan                chan struct{}
 	resubmitChan            chan termChange
 	ackerLock               sync.RWMutex
@@ -182,12 +182,12 @@ func (b *BatcherRole) run() {
 	}
 }
 
-// acting is a term the role acts in, and the context of its run in that term. The context ends when the run
-// returns, when the role stops, and once the role is notified that the term moved on.
-type acting struct {
+// termRun is a run of the role in a term, and its context. The context ends when the run returns, when the role
+// stops, and once the role is notified that the term moved on.
+type termRun struct {
 	term   uint64
 	ctx    context.Context
-	cancel context.CancelFunc
+	endRun context.CancelFunc
 }
 
 // Term returns the term the role acts in, which is the term in which the pool was last restarted.
@@ -201,23 +201,26 @@ func (b *BatcherRole) Term() uint64 {
 // of that term, such as a complaint, gives up on once it ends. Before the role first acts in a term, the context is
 // already done.
 func (b *BatcherRole) TermContext() (uint64, context.Context) {
-	if a := b.acting.Load(); a != nil {
-		return a.term, a.ctx
+	if r := b.currentRun.Load(); r != nil {
+		return r.term, r.ctx
 	}
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 	return 0, ctx
 }
 
-// restartPool restarts the pool for the role and only then sets the term the role acts in, and the context of its
-// run, so that a second-strike complaint about a request the pool held in the previous term is never sent in the
-// new term, and is given up with the previous run. If the term already moved on, the run's context ends at once.
-func (b *BatcherRole) restartPool(batching bool, term uint64, runCtx context.Context, cancelRun context.CancelFunc) {
+// startRun starts a run of the role in term: it restarts the pool, with batching if the role is the primary, and
+// only then publishes the run, so that a second-strike complaint about a request the pool held in the previous term
+// is never sent in the new term, and is given up with the previous run. It returns the run's context and the function
+// that ends it, which the run calls when it returns. If the term already moved on, the context ends at once.
+func (b *BatcherRole) startRun(term uint64, batching bool) (context.Context, context.CancelFunc) {
+	runCtx, endRun := context.WithCancel(b.stopCtx)
 	b.MemPool.Restart(batching)
-	b.acting.Store(&acting{term: term, ctx: runCtx, cancel: cancelRun})
+	b.currentRun.Store(&termRun{term: term, ctx: runCtx, endRun: endRun})
 	if b.termChangedFrom(term) {
-		cancelRun()
+		endRun()
 	}
+	return runCtx, endRun
 }
 
 // termChangedFrom reports whether the batcher's term moved on from term, the term the role acts in.
@@ -278,8 +281,8 @@ func (b *BatcherRole) NotifyTermChange() {
 	case b.termChan <- struct{}{}:
 	default:
 	}
-	if a := b.acting.Load(); a != nil && b.termChangedFrom(a.term) {
-		a.cancel()
+	if r := b.currentRun.Load(); r != nil && b.termChangedFrom(r.term) {
+		r.endRun()
 	}
 }
 
@@ -404,9 +407,8 @@ func (b *BatcherRole) runPrimary(term uint64) {
 	b.ackerLock.Lock()
 	b.acker = NewAcker(b.seq, b.BatchSequenceGap, b.N, uint16(b.Threshold), b.Logger)
 	b.ackerLock.Unlock()
-	runCtx, cancelRun := context.WithCancel(b.stopCtx)
-	defer cancelRun()
-	b.restartPool(true, term, runCtx, cancelRun)
+	runCtx, endRun := b.startRun(term, true)
+	defer endRun()
 
 	var currentBatch types.BatchedRequests
 	var reqIDs []string
@@ -511,9 +513,8 @@ func (b *BatcherRole) stoppedActingIn(term uint64) bool {
 
 func (b *BatcherRole) runSecondary(term uint64) {
 	b.Logger.Infof("Batcher %d acting as secondary (shard %d; primary %d)", b.ID, b.Shard, b.primary)
-	runCtx, cancelRun := context.WithCancel(b.stopCtx)
-	defer cancelRun()
-	b.restartPool(false, term, runCtx, cancelRun)
+	runCtx, endRun := b.startRun(term, false)
+	defer endRun()
 	b.Metrics.currentRole.Set(2)
 
 	for {
