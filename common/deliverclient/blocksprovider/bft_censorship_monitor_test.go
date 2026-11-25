@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -783,4 +784,53 @@ func makeDeliverResponseBlock(n uint64) *orderer.DeliverResponse {
 			},
 		},
 	}
+}
+
+// Scenario:
+//  1. Start a monitor of 4 sources with source 0 as the block source, so it opens a header receiver to each of the
+//     other 3. Each receiver's stream blocks on Recv until its connection is closed, as a real stream does after
+//     CloseSend.
+//  2. Stop the monitor, and expect it to report the stop and every receiver's connection to be closed, once.
+func TestBFTCensorshipMonitor_StopClosesTheHeaderReceiversConnections(t *testing.T) {
+	tConfig := blocksprovider.TimeoutConfig{
+		MinRetryInterval:       1 * time.Millisecond,
+		MaxRetryInterval:       20 * time.Millisecond,
+		BlockCensorshipTimeout: time.Second,
+	}
+	s := newMonitorTestSetup(t, 4)
+	mon := blocksprovider.NewBFTCensorshipMonitor(s.channelID, s.fakeUpdatableBlockVerifier, s.fakeRequester, s.fakeProgressReporter, s.sources, 0, tConfig, &utils.CommonConfigBlockOperations{})
+	s.fakeRequester.SeekInfoHeadersFromReturns(&common.Envelope{Payload: []byte("bogus"), Signature: []byte("bogus")}, nil)
+	var closed [4]atomic.Int32
+	s.fakeRequester.ConnectCalls(
+		func(_ *common.Envelope, endpoint *orderers.Endpoint) (orderer.AtomicBroadcast_DeliverClient, func(), error) {
+			index := address2index(endpoint.Address)
+			client := &fake.DeliverClient{}
+			client.RecvCalls(func() (*orderer.DeliverResponse, error) {
+				if resp := <-s.sourceStream[index]; resp != nil {
+					return resp, nil
+				}
+				return nil, errors.New("connection closed")
+			})
+			closeConn := func() {
+				closed[index].Add(1)
+				s.closeOnce[index].Do(func() { close(s.sourceStream[index]) })
+			}
+			return client, closeConn, nil
+		},
+	)
+	t.Cleanup(func() {
+		for i := range s.sourceStream {
+			s.closeOnce[i].Do(func() { close(s.sourceStream[i]) })
+		}
+	})
+
+	stopped := make(chan error, 1)
+	go mon.Monitor()
+	go func() { stopped <- <-mon.ErrorsChannel() }()
+	require.Eventually(t, func() bool { return s.fakeRequester.ConnectCallCount() == 3 }, 5*time.Second, 10*time.Millisecond)
+
+	mon.Stop()
+	require.EqualError(t, <-stopped, "received a stop signal")
+	require.Eventually(t, func() bool { return closed[1].Load() == 1 && closed[2].Load() == 1 && closed[3].Load() == 1 }, 5*time.Second, 10*time.Millisecond)
+	require.Zero(t, closed[0].Load(), "no header receiver connects to the block source")
 }

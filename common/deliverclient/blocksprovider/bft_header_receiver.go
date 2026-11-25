@@ -32,6 +32,7 @@ type BFTHeaderReceiver struct {
 	errorStopTime          time.Time
 	endpoint               string
 	client                 orderer.AtomicBroadcast_DeliverClient
+	closeConn              func() // ends the stream and closes its connection
 	updatableBlockVerifier UpdatableBlockVerifier
 	configBlockOps         utils.ConfigBlockOperations
 
@@ -51,6 +52,7 @@ func NewBFTHeaderReceiver(
 	chainID string,
 	endpoint string,
 	client orderer.AtomicBroadcast_DeliverClient,
+	closeConn func(),
 	updatableBlockVerifier UpdatableBlockVerifier,
 	configBlockOps utils.ConfigBlockOperations,
 	previousReceiver *BFTHeaderReceiver,
@@ -61,6 +63,7 @@ func NewBFTHeaderReceiver(
 		stopChan:               make(chan struct{}, 1),
 		endpoint:               endpoint,
 		client:                 client,
+		closeConn:              closeConn,
 		updatableBlockVerifier: updatableBlockVerifier.Clone(),
 		configBlockOps:         configBlockOps,
 		logger:                 logger,
@@ -97,6 +100,10 @@ func (hr *BFTHeaderReceiver) DeliverHeaders() {
 	for !hr.IsStopped() {
 		msg, err := hr.client.Recv()
 		if err != nil {
+			if hr.IsStopped() { // Stop closed the connection under the Recv
+				normalExit = true
+				return
+			}
 			hr.logger.Debugf("[%s][%s] Receive error: %s", hr.chainID, hr.endpoint, err.Error())
 			return
 		}
@@ -184,18 +191,21 @@ func (hr *BFTHeaderReceiver) GetErrorStopTime() time.Time {
 // Stop the reception of headers and close the client connection
 func (hr *BFTHeaderReceiver) Stop() error {
 	hr.mutex.Lock()
-	defer hr.mutex.Unlock()
-
 	if hr.stop {
+		hr.mutex.Unlock()
 		hr.logger.Infof("[%s][%s] Already stopped", hr.chainID, hr.endpoint)
 		return nil
 	}
-
 	hr.logger.Infof("[%s][%s] Stopping", hr.chainID, hr.endpoint)
 	hr.stop = true
-	_ = hr.client.CloseSend()
-	// TODO close the underlying connection as well
 	close(hr.stopChan)
+	hr.mutex.Unlock()
+
+	// Closing the send side alone leaves the stream open: the orderer keeps sending headers that no one reads, until
+	// its handler blocks. Closing the connection ends the stream on both sides, and a Recv in progress. The closer
+	// calls CloseSend too, so the call here matters only for a client whose closer doesn't, such as the test fakes.
+	_ = hr.client.CloseSend()
+	hr.closeConn()
 
 	return nil
 }
