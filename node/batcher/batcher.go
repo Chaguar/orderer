@@ -725,10 +725,11 @@ func (b *Batcher) OnFirstStrikeTimeout(req []byte) {
 func (b *Batcher) OnSecondStrikeTimeout() {
 	b.logger.Warnf("Second strike timeout occurred; sending a complaint")
 	// The pool is restarted whenever the role restarts in a new term, so the role's term is the term
-	// in which the requests timed out.
+	// in which the requests timed out. The complaint is given up once the role stops acting in that term.
 	reason := fmt.Sprintf("batcher %d (shard %d) complaining; second strike timeout occurred",
 		b.config.PartyId, b.config.ShardId)
-	b.Complain(b.batcher.Term(), reason)
+	term, ctx := b.batcher.TermContext()
+	b.Complain(ctx, term, reason)
 }
 
 func (b *Batcher) CreateBAF(seq types.BatchSequence, primary types.PartyID, shard types.ShardID, digest []byte, txCount uint64, primarySignature []byte) types.BatchAttestationFragment {
@@ -803,10 +804,9 @@ func (b *Batcher) Ack(seq types.BatchSequence, to types.PartyID) {
 	b.primaryConnector.SendAck(seq, to)
 }
 
-func (b *Batcher) Complain(term uint64, reason string) {
+func (b *Batcher) Complain(ctx context.Context, term uint64, reason string) {
 	ce := state.ControlEvent{Complaint: b.createComplaint(term, reason)}
-	// TODO also cancel context on term change and add a timeout
-	if err := b.controlEventBroadcaster.BroadcastControlEvent(ce, context.TODO()); err != nil {
+	if err := b.controlEventBroadcaster.BroadcastControlEvent(ce, ctx); err != nil {
 		b.logger.Errorf("Failed to broadcast complaint; err: %v", err)
 	}
 	b.metrics.complaintsTotal.Add(1)

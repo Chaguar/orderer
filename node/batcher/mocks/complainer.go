@@ -2,33 +2,36 @@
 package mocks
 
 import (
+	"context"
 	"sync"
 
 	"github.com/Chaguar/orderer/node/batcher"
 )
 
 type FakeComplainer struct {
-	ComplainStub        func(uint64, string)
+	ComplainStub        func(context.Context, uint64, string)
 	complainMutex       sync.RWMutex
 	complainArgsForCall []struct {
-		arg1 uint64
-		arg2 string
+		arg1 context.Context
+		arg2 uint64
+		arg3 string
 	}
 	invocations      map[string][][]interface{}
 	invocationsMutex sync.RWMutex
 }
 
-func (fake *FakeComplainer) Complain(arg1 uint64, arg2 string) {
+func (fake *FakeComplainer) Complain(arg1 context.Context, arg2 uint64, arg3 string) {
 	fake.complainMutex.Lock()
 	fake.complainArgsForCall = append(fake.complainArgsForCall, struct {
-		arg1 uint64
-		arg2 string
-	}{arg1, arg2})
+		arg1 context.Context
+		arg2 uint64
+		arg3 string
+	}{arg1, arg2, arg3})
 	stub := fake.ComplainStub
-	fake.recordInvocation("Complain", []interface{}{arg1, arg2})
+	fake.recordInvocation("Complain", []interface{}{arg1, arg2, arg3})
 	fake.complainMutex.Unlock()
 	if stub != nil {
-		fake.ComplainStub(arg1, arg2)
+		fake.ComplainStub(arg1, arg2, arg3)
 	}
 }
 
@@ -38,17 +41,17 @@ func (fake *FakeComplainer) ComplainCallCount() int {
 	return len(fake.complainArgsForCall)
 }
 
-func (fake *FakeComplainer) ComplainCalls(stub func(uint64, string)) {
+func (fake *FakeComplainer) ComplainCalls(stub func(context.Context, uint64, string)) {
 	fake.complainMutex.Lock()
 	defer fake.complainMutex.Unlock()
 	fake.ComplainStub = stub
 }
 
-func (fake *FakeComplainer) ComplainArgsForCall(i int) (uint64, string) {
+func (fake *FakeComplainer) ComplainArgsForCall(i int) (context.Context, uint64, string) {
 	fake.complainMutex.RLock()
 	defer fake.complainMutex.RUnlock()
 	argsForCall := fake.complainArgsForCall[i]
-	return argsForCall.arg1, argsForCall.arg2
+	return argsForCall.arg1, argsForCall.arg2, argsForCall.arg3
 }
 
 func (fake *FakeComplainer) Invocations() map[string][][]interface{} {

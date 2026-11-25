@@ -915,7 +915,7 @@ func TestComplainInTermFaultSeenIn(t *testing.T) {
 	require.Eventually(t, func() bool {
 		return complainer.ComplainCallCount() == 1
 	}, 10*time.Second, 10*time.Millisecond)
-	term, _ := complainer.ComplainArgsForCall(0)
+	_, term, _ := complainer.ComplainArgsForCall(0)
 	require.Equal(t, uint64(0), term)
 }
 

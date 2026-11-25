@@ -54,8 +54,8 @@ type ConfigSequenceGetter interface {
 
 //go:generate counterfeiter -o mocks/complainer.go . Complainer
 type Complainer interface {
-	// Complain sends a complaint about the primary of the given term
-	Complain(term uint64, reason string)
+	// Complain sends a complaint about the primary of the given term, giving up once ctx is done.
+	Complain(ctx context.Context, term uint64, reason string)
 }
 
 //go:generate counterfeiter -o mocks/batched_requests_verifier.go . BatchedRequestsVerifier
@@ -136,7 +136,7 @@ type BatcherRole struct {
 	cancelBatch             func()
 	primary                 types.PartyID
 	seq                     types.BatchSequence
-	term                    uint64 // the term the role acts in, set once the pool is restarted in it
+	acting                  atomic.Pointer[acting] // set once the pool is restarted in the term
 	termChan                chan struct{}
 	resubmitChan            chan termChange
 	ackerLock               sync.RWMutex
@@ -182,17 +182,42 @@ func (b *BatcherRole) run() {
 	}
 }
 
+// acting is a term the role acts in, and the context of its run in that term. The context ends when the run
+// returns, when the role stops, and once the role is notified that the term moved on.
+type acting struct {
+	term   uint64
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
 // Term returns the term the role acts in, which is the term in which the pool was last restarted.
 // It can be behind the batcher's term until the role learns of a term change and restarts in the new term.
 func (b *BatcherRole) Term() uint64 {
-	return atomic.LoadUint64(&b.term)
+	term, _ := b.TermContext()
+	return term
 }
 
-// restartPool restarts the pool for the role and only then sets the role's term, so that a second-strike
-// complaint about a request the pool held in the previous term is never sent in the new term.
-func (b *BatcherRole) restartPool(batching bool, term uint64) {
+// TermContext returns the term the role acts in and the context of its run in that term, which a broadcast on behalf
+// of that term, such as a complaint, gives up on once it ends. Before the role first acts in a term, the context is
+// already done.
+func (b *BatcherRole) TermContext() (uint64, context.Context) {
+	if a := b.acting.Load(); a != nil {
+		return a.term, a.ctx
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	return 0, ctx
+}
+
+// restartPool restarts the pool for the role and only then sets the term the role acts in, and the context of its
+// run, so that a second-strike complaint about a request the pool held in the previous term is never sent in the
+// new term, and is given up with the previous run. If the term already moved on, the run's context ends at once.
+func (b *BatcherRole) restartPool(batching bool, term uint64, runCtx context.Context, cancelRun context.CancelFunc) {
 	b.MemPool.Restart(batching)
-	atomic.StoreUint64(&b.term, term)
+	b.acting.Store(&acting{term: term, ctx: runCtx, cancel: cancelRun})
+	if b.termChangedFrom(term) {
+		cancelRun()
+	}
 }
 
 // termChangedFrom reports whether the batcher's term moved on from term, the term the role acts in.
@@ -244,13 +269,17 @@ type termChange struct {
 }
 
 // NotifyTermChange tells the role that the term of its shard changed, after the TermProvider was updated,
-// so the role stops acting in the old term and restarts in the new one.
+// so the role stops acting in the old term and restarts in the new one. It also ends the context of the role's run
+// in the old term, so that a broadcast on behalf of that term, such as a complaint, no longer waits for its quorum.
 func (b *BatcherRole) NotifyTermChange() {
 	// The role reads the new term from the TermProvider when it restarts, so a pending
 	// notification already covers this one.
 	select {
 	case b.termChan <- struct{}{}:
 	default:
+	}
+	if a := b.acting.Load(); a != nil && b.termChangedFrom(a.term) {
+		a.cancel()
 	}
 }
 
@@ -375,10 +404,9 @@ func (b *BatcherRole) runPrimary(term uint64) {
 	b.ackerLock.Lock()
 	b.acker = NewAcker(b.seq, b.BatchSequenceGap, b.N, uint16(b.Threshold), b.Logger)
 	b.ackerLock.Unlock()
-	b.restartPool(true, term)
-
-	sendCtx, cancelSend := context.WithCancel(b.stopCtx)
-	defer cancelSend()
+	runCtx, cancelRun := context.WithCancel(b.stopCtx)
+	defer cancelRun()
+	b.restartPool(true, term, runCtx, cancelRun)
 
 	var currentBatch types.BatchedRequests
 	var reqIDs []string
@@ -440,7 +468,7 @@ func (b *BatcherRole) runPrimary(term uint64) {
 		sendBAFDone := make(chan struct{})
 		var sendErr error
 		go func() {
-			sendErr = b.BAFSender.SendBAF(baf, sendCtx)
+			sendErr = b.BAFSender.SendBAF(baf, runCtx)
 			close(sendBAFDone)
 		}()
 		// The batch's requests are removed once a quorum of consenters accepted the BAF, and returned to the mem
@@ -459,7 +487,7 @@ func (b *BatcherRole) runPrimary(term uint64) {
 					continue
 				}
 				b.Logger.Infof("Primary batcher %d (shard %d) term change from term %d", b.ID, b.Shard, term)
-				cancelSend()
+				cancelRun()
 				termChan = nil
 			}
 		}
@@ -518,11 +546,10 @@ func (b *BatcherRole) waitForStopOrTermChange(term uint64) {
 
 func (b *BatcherRole) runSecondary(term uint64) {
 	b.Logger.Infof("Batcher %d acting as secondary (shard %d; primary %d)", b.ID, b.Shard, b.primary)
-	b.restartPool(false, term)
+	runCtx, cancelRun := context.WithCancel(b.stopCtx)
+	defer cancelRun()
+	b.restartPool(false, term, runCtx, cancelRun)
 	b.Metrics.currentRole.Set(2)
-
-	sendCtx, cancelSend := context.WithCancel(b.stopCtx)
-	defer cancelSend()
 
 	for {
 		out := b.BatchPuller.PullBatches(b.primary)
@@ -549,11 +576,10 @@ func (b *BatcherRole) runSecondary(term uint64) {
 
 			if err != nil {
 				b.Logger.Warnf("Secondary batcher %d (shard %d) sending a complaint (primary %d); verify batch err: %v", b.ID, b.Shard, b.primary, err)
-				// TODO: Check that the batcher doesn’t get stuck here if quorum isn’t reached and the batcher is restarted or a term change occurs
 				// complain in the term the fault was seen in, even if the term changed since
 				reason := fmt.Sprintf("batcher %d (shard %d) complaining; primary %d; term %d; verify batch err: %v",
 					b.ID, b.Shard, b.primary, term, err)
-				b.Complainer.Complain(term, reason)
+				b.Complainer.Complain(runCtx, term, reason)
 				b.BatchPuller.Stop()
 				break // TODO maybe add backoff
 			}
@@ -575,7 +601,7 @@ func (b *BatcherRole) runSecondary(term uint64) {
 			sendBAFDone := make(chan struct{})
 			go func() {
 				// The secondary removes the batch's requests whether or not its BAF is sent.
-				_ = b.BAFSender.SendBAF(baf, sendCtx)
+				_ = b.BAFSender.SendBAF(baf, runCtx)
 				close(sendBAFDone)
 			}()
 		waitBAFSent:
