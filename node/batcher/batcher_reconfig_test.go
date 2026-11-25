@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sync"
 	"testing"
 	"time"
 
@@ -425,6 +426,79 @@ func TestBatcherReconfigMempoolSizeMetricAfterPrune(t *testing.T) {
 	)
 	require.Equal(t, numOfValidRequests,
 		testutil.FetchPrometheusMetricValue(t, re, batchers[secondaryIdx].MonitoringServiceAddress()))
+}
+
+// Scenario: a Stop that lands while a live reconfiguration builds the batcher for the new config.
+//  1. Start a single-party, single-shard batcher with its stub consenter at config sequence 0.
+//  2. Set a hook that holds the reconfiguration while it creates the new decision replicator.
+//  3. Deliver a config update the batcher applies dynamically (a BatchCreationTimeout change), and wait for the hook.
+//  4. Stop the batcher, then release the reconfiguration.
+//  5. Verify that Stop returns and that the batcher stays stopped: the reconfiguration must not start the node again.
+func TestBatcherStopDuringReconfiguration(t *testing.T) {
+	party := types.PartyID(1)
+
+	dir := t.TempDir()
+	setup := createConfigAckTestSetup(t, dir, party)
+
+	startBatcherNodes([]*batcher.Batcher{setup.batcher})
+
+	require.Eventually(t, func() bool {
+		status := setup.batcher.GetStatus()
+		return status.GetState() == node_utils.StateRunning && status.ConfigSequenceNumber == uint64(0)
+	}, 60*time.Second, 10*time.Millisecond)
+
+	reconfiguring := make(chan struct{}, 1)
+	release := make(chan struct{})
+	var releaseOnce sync.Once
+	releaseReconfiguration := func() { releaseOnce.Do(func() { close(release) }) }
+	t.Cleanup(releaseReconfiguration)
+	setup.stubConsenter.SetCreateReplicatorHook(func() {
+		select {
+		case reconfiguring <- struct{}{}:
+		default:
+		}
+		<-release
+	})
+
+	configUpdateBuilder := cfgutil.NewConfigUpdateBuilder(t, dir, filepath.Join(dir, "bootstrap", "bootstrap.block"))
+	configUpdatePbData := configUpdateBuilder.UpdateBatchTimeouts(t, cfgutil.NewBatchTimeoutsConfig(cfgutil.BatchTimeoutsConfigName.BatchCreationTimeout, "2s"))
+	require.NotNil(t, configUpdatePbData)
+	setup.deliverConfigUpdate(t, dir, configUpdatePbData)
+
+	select {
+	case <-reconfiguring:
+	case <-time.After(60 * time.Second):
+		t.Fatal("the batcher did not reconfigure")
+	}
+
+	stopped := make(chan struct{})
+	go func() {
+		defer close(stopped)
+		setup.batcher.Stop()
+	}()
+
+	// Stop waits for the reconfiguration in progress rather than tearing down a half-built node.
+	require.Never(t, func() bool {
+		select {
+		case <-stopped:
+			return true
+		default:
+			return false
+		}
+	}, time.Second, 50*time.Millisecond, "Stop returned while the reconfiguration was in progress")
+
+	releaseReconfiguration()
+
+	select {
+	case <-stopped:
+	case <-time.After(30 * time.Second):
+		t.Fatal("Stop did not return")
+	}
+
+	require.Equal(t, node_utils.StateStopped, setup.batcher.GetStatus().GetState())
+	require.Never(t, func() bool {
+		return setup.batcher.GetStatus().GetState() != node_utils.StateStopped
+	}, 3*time.Second, 100*time.Millisecond, "the reconfiguration started the batcher after it was stopped")
 }
 
 // Scenario: evict the shard primary, then add a new party, verifying the shard keeps ordering txs across both
