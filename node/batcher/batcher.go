@@ -94,6 +94,9 @@ type Batcher struct {
 	metrics   *BatcherMetrics
 	opsSystem *operations.System
 
+	// handlerFields are the fields the request handlers use, which configureBatcher publishes once they are built.
+	handlerFields atomic.Pointer[handlerFields]
+
 	// strikeLock guards the assignment of metrics and primaryConnector against their reads in OnFirstStrikeTimeout,
 	// which the pending store's forwarding goroutines call, also while configureBatcher replaces them.
 	strikeLock sync.Mutex
@@ -143,8 +146,6 @@ func (b *Batcher) StartBatcherService() {
 func (b *Batcher) Run() {
 	b.lock.Lock()
 	defer b.lock.Unlock()
-
-	b.stopChan = make(chan struct{})
 
 	// Start the role before replicating decisions, since the decision loop notifies the role of term changes.
 	b.logger.Infof("Starting batcher")
@@ -493,10 +494,9 @@ func (b *Batcher) Deliver(stream orderer.AtomicBroadcast_DeliverServer) error {
 }
 
 func (b *Batcher) Submit(ctx context.Context, req *protos.Request) (*protos.SubmitResponse, error) {
-	select {
-	case <-b.stopChan:
+	fields := b.handlerFields.Load()
+	if fields.stopped() {
 		return nil, errors.New("batcher is stopped")
-	default:
 	}
 
 	if err := b.validateRouterFromContext(ctx); err != nil {
@@ -505,7 +505,7 @@ func (b *Batcher) Submit(ctx context.Context, req *protos.Request) (*protos.Subm
 
 	b.logger.Debugf("Received request %x", req.Payload)
 
-	b.metrics.routerTxsTotal.Add(1)
+	fields.role.Metrics.routerTxsTotal.Add(1)
 
 	// Make sure batched requests contain only bytes of Envelope, not Request.
 	// This is done to maintain compatibility with the Fabric block structure.
@@ -517,13 +517,17 @@ func (b *Batcher) Submit(ctx context.Context, req *protos.Request) (*protos.Subm
 	var resp protos.SubmitResponse
 	resp.TraceId = req.TraceId
 
-	if err := b.requestsInspectorVerifier.VerifyRequestFromRouter(req); err != nil {
+	if err := fields.verifier.VerifyRequestFromRouter(req); err != nil {
 		b.logger.Errorf("Failed verifying request before submitting from router; err: %v", err)
 		resp.Error = err.Error()
 		return &resp, nil
 	}
 
-	if err := b.batcher.Submit(rawReq); err != nil {
+	if fields.stopped() {
+		return nil, errors.New("batcher is stopped")
+	}
+
+	if err := fields.role.Submit(rawReq); err != nil {
 		resp.Error = err.Error()
 	}
 
@@ -576,12 +580,6 @@ func (b *Batcher) validateRouterFromContext(ctx context.Context) error {
 
 func (b *Batcher) dispatchRequests(stream protos.RequestTransmit_SubmitStreamServer, responses chan *protos.SubmitResponse) error {
 	for {
-		select {
-		case <-b.stopChan:
-			return errors.New("batcher is stopped")
-		default:
-		}
-
 		req, err := stream.Recv()
 		if err == io.EOF {
 			return nil
@@ -591,7 +589,8 @@ func (b *Batcher) dispatchRequests(stream protos.RequestTransmit_SubmitStreamSer
 			return err
 		}
 
-		b.metrics.routerTxsTotal.Add(1)
+		fields := b.handlerFields.Load()
+		fields.role.Metrics.routerTxsTotal.Add(1)
 
 		// Make sure batched requests contain only bytes of Envelope, not Request.
 		// This is done to maintain compatibility with the Fabric block structure.
@@ -603,7 +602,7 @@ func (b *Batcher) dispatchRequests(stream protos.RequestTransmit_SubmitStreamSer
 		var resp protos.SubmitResponse
 		resp.TraceId = req.TraceId
 
-		if err := b.requestsInspectorVerifier.VerifyRequestFromRouter(req); err != nil {
+		if err := fields.verifier.VerifyRequestFromRouter(req); err != nil {
 			b.logger.Errorf("Failed verifying request before submitting from router; err: %v", err)
 			resp.Error = err.Error()
 			if len(req.TraceId) > 0 {
@@ -612,7 +611,11 @@ func (b *Batcher) dispatchRequests(stream protos.RequestTransmit_SubmitStreamSer
 			continue
 		}
 
-		if err := b.batcher.Submit(rawReq); err != nil {
+		if fields.stopped() {
+			return errors.New("batcher is stopped")
+		}
+
+		if err := fields.role.Submit(rawReq); err != nil {
 			resp.Error = err.Error()
 		}
 
@@ -645,7 +648,7 @@ func (b *Batcher) extractBatcherFromContext(c context.Context) (types.PartyID, e
 		return 0, errors.New("access denied; could not extract certificate from context")
 	}
 
-	from, exists := b.batcherCerts2IDs[string(cert.Raw)]
+	from, exists := b.handlerFields.Load().batcherCerts2IDs[string(cert.Raw)]
 	if !exists {
 		return 0, fmt.Errorf("access denied; unknown certificate; %s", utils.CertificateToString(cert))
 	}
@@ -661,12 +664,6 @@ func (b *Batcher) FwdRequestStream(stream protos.BatcherControlService_FwdReques
 	b.logger.Infof("Starting to handle fwd requests from batcher %d", from)
 
 	for {
-		select {
-		case <-b.stopChan:
-			return errors.New("batcher is stopped")
-		default:
-		}
-
 		msg, err := stream.Recv()
 		if err == io.EOF {
 			return nil
@@ -675,11 +672,15 @@ func (b *Batcher) FwdRequestStream(stream protos.BatcherControlService_FwdReques
 			return err
 		}
 		b.logger.Debugf("Calling submit request from batcher %d", from)
-		if err := b.requestsInspectorVerifier.VerifyRequest(msg.Request); err != nil {
+		fields := b.handlerFields.Load()
+		if err := fields.verifier.VerifyRequest(msg.Request); err != nil {
 			b.logger.Infof("Failed verifying request before submitting from batcher %d; err: %v", from, err)
 			continue
 		}
-		if err := b.batcher.Submit(msg.Request); err != nil {
+		if fields.stopped() {
+			return errors.New("batcher is stopped")
+		}
+		if err := fields.role.Submit(msg.Request); err != nil {
 			if strings.Contains(err.Error(), "already inserted") {
 				b.logger.Debugf("Failed to submit request from batcher %d; err: %v", from, err)
 				continue
@@ -697,12 +698,6 @@ func (b *Batcher) NotifyAck(stream protos.BatcherControlService_NotifyAckServer)
 
 	b.logger.Infof("Starting to handle acks from batcher %d", from)
 	for {
-		select {
-		case <-b.stopChan:
-			return errors.New("batcher is stopped")
-		default:
-		}
-
 		msg, err := stream.Recv()
 		if err == io.EOF {
 			return nil
@@ -711,7 +706,11 @@ func (b *Batcher) NotifyAck(stream protos.BatcherControlService_NotifyAckServer)
 			return err
 		}
 		b.logger.Debugf("Calling handle ack with seq %d from batcher %d", msg.Seq, from)
-		b.batcher.HandleAck(types.BatchSequence(msg.Seq), from)
+		fields := b.handlerFields.Load()
+		if fields.stopped() {
+			return errors.New("batcher is stopped")
+		}
+		fields.role.HandleAck(types.BatchSequence(msg.Seq), from)
 	}
 }
 
@@ -854,4 +853,25 @@ func (b *Batcher) GetConfig() *node_config.BatcherNodeConfig {
 	b.lock.Lock()
 	defer b.lock.Unlock()
 	return b.config
+}
+
+// handlerFields are the fields of the batcher that a reconfiguration replaces and that the request handlers use.
+// configureBatcher publishes them together once they are all built, and a handler loads them for each request, so
+// it uses the fields of one configuration. It checks their stopChan right before it calls the role: SoftStop closes
+// it before a reconfiguration prunes the pool and replaces the fields, so a request handled with the fields of the old
+// configuration does not reach the pool after that.
+type handlerFields struct {
+	stopChan         chan struct{}
+	verifier         *RequestsInspectorVerifier
+	role             *BatcherRole
+	batcherCerts2IDs map[string]types.PartyID
+}
+
+func (f *handlerFields) stopped() bool {
+	select {
+	case <-f.stopChan:
+		return true
+	default:
+		return false
+	}
 }

@@ -125,6 +125,9 @@ func (b *Batcher) configureBatcher(
 		b.logger.Panicf("Failed locating the configuration of our shard (%d) among %v", b.config.ShardId, b.config.Shards)
 	}
 
+	// Created here, not in Run: the batcher service starts before Run, and its handlers use stopChan along with the
+	// fields assigned here, so it must belong to the same configuration as them.
+	b.stopChan = make(chan struct{})
 	b.requestsInspectorVerifier = requestsIDAndVerifier
 	b.batcherDeliverService = deliverService
 	b.decisionReplicator = dr
@@ -205,6 +208,13 @@ func (b *Batcher) configureBatcher(
 		BatchSequenceGap:        b.config.BatchSequenceGap,
 		Metrics:                 b.metrics,
 	}
+
+	b.handlerFields.Store(&handlerFields{
+		stopChan:         b.stopChan,
+		verifier:         b.requestsInspectorVerifier,
+		role:             b.batcher,
+		batcherCerts2IDs: b.batcherCerts2IDs,
+	})
 }
 
 func createMemPool(b *Batcher, config *node_config.BatcherNodeConfig, requestIDFunc func(req []byte) string) MemPool {
