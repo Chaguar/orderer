@@ -11,6 +11,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"time"
 
 	"github.com/Chaguar/common/protoutil"
 	arma_types "github.com/Chaguar/orderer/common/types"
@@ -38,6 +39,15 @@ func printEvent(event []byte) string {
 		return fmt.Sprintf("error: %v", err)
 	}
 	return ce.String()
+}
+
+// NextDecisionTime returns the time a leader gives a decision: its clock now, but always after prev, the
+// previous decision's time, so that decision times strictly increase.
+func NextDecisionTime(prev, now time.Time) time.Time {
+	if now.After(prev) {
+		return now
+	}
+	return prev.Add(time.Nanosecond)
 }
 
 func CreateDataCommonBlock(blockNum uint64, prevHash []byte, batchID arma_types.BatchID, txCount uint64, decisionNum arma_types.DecisionNum, batchCount, batchIndex int, lastConfigBlockNum uint64) (*common.Block, error) {
