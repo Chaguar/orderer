@@ -237,6 +237,12 @@ func (gServer *GRPCServer) Stop() {
 	gServer.server.Stop()
 }
 
+// GracefulStop stops the underlying grpc.Server once every RPC in progress has returned, after what they sent is
+// written to the client.
+func (gServer *GRPCServer) GracefulStop() {
+	gServer.server.GracefulStop()
+}
+
 // internal function to add a PEM-encoded clientRootCA
 func (gServer *GRPCServer) appendClientRootCA(clientRoot []byte) error {
 	certs, err := pemToX509Certs(clientRoot)

@@ -50,7 +50,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/grpclog"
+	"google.golang.org/grpc/status"
 )
 
 func init() {
@@ -1061,6 +1063,106 @@ func TestRouterSoftStop(t *testing.T) {
 	err = createServerTLSClientConnection(testSetup, testSetup.ca)
 	require.ErrorContains(t, err, "failed to create new connection")
 	require.Nil(t, testSetup.clientConn)
+}
+
+// Scenario:
+//  1. Start a client, router and stub consenter, with one stream from the router to the batcher, and stop the
+//     consenter, so that a config update waits in the config submitter while it reconnects.
+//  2. Open a Broadcast stream and send three config updates and then a transaction on it.
+//  3. Expect the transaction's success first: the router's one stream handles its requests in order, so the
+//     three config updates are in the config submitter by then.
+//  4. Soft stop the router, and expect the client to receive an error response for each of the three.
+//  5. Expect the stream to end with UNAVAILABLE.
+func TestRouterSoftStopAnswersConfigUpdates(t *testing.T) {
+	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false, func(conf *config.RouterNodeConfig) {
+		conf.NumOfConnectionsForBatcher = 1
+		conf.NumOfgRPCStreamsPerConnection = 1
+	})
+	err := createServerTLSClientConnection(testSetup, testSetup.ca)
+	require.NoError(t, err)
+	defer testSetup.Close()
+
+	testSetup.consenter.Stop()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	stream, err := ab.NewAtomicBroadcastClient(testSetup.clientConn).Broadcast(ctx)
+	require.NoError(t, err)
+
+	numOfUpdates := 3
+	configEnvelope := protoutil.MarshalOrPanic(&common.ConfigUpdateEnvelope{})
+	for range numOfUpdates {
+		require.NoError(t, stream.Send(tx.CreateStructuredConfigUpdateEnvelope(configEnvelope)))
+	}
+	require.NoError(t, stream.Send(tx.CreateStructuredEnvelope([]byte("tx"))))
+
+	resp, err := stream.Recv()
+	require.NoError(t, err)
+	require.Equal(t, common.Status_SUCCESS, resp.Status)
+
+	require.NoError(t, testSetup.router.SoftStop())
+
+	for range numOfUpdates {
+		resp, err := stream.Recv()
+		require.NoError(t, err)
+		require.Equal(t, common.Status_INTERNAL_SERVER_ERROR, resp.Status)
+	}
+
+	_, err = stream.Recv()
+	require.Equal(t, codes.Unavailable, status.Code(err))
+}
+
+// Scenario:
+//  1. Start a client, router and stub batcher.
+//  2. Open a Broadcast stream on a connection with a fixed 64 KB flow-control window, and send transactions on it
+//     without reading the responses, until the router drops responses because the client is behind.
+//  3. Soft stop the router, and expect it to return although the client never reads.
+func TestRouterSoftStopClosesAClientThatDoesNotRead(t *testing.T) {
+	testSetup := createRouterTestSetup(t, types.PartyID(1), 1, true, false)
+	defer testSetup.Close()
+
+	cc := comm.ClientConfig{
+		SecOpts: comm.SecureOptions{
+			UseTLS:        true,
+			ServerRootCAs: [][]byte{testSetup.ca.CertBytes()},
+		},
+		AsyncConnect: true,
+	}
+	dialOpts, err := cc.DialOptions()
+	require.NoError(t, err)
+	// a fixed window, which the unread responses fill
+	dialOpts = append(dialOpts, grpc.WithInitialWindowSize(64*1024), grpc.WithInitialConnWindowSize(64*1024))
+	conn, err := grpc.NewClient(testSetup.router.Address(), dialOpts...)
+	require.NoError(t, err)
+	defer conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	stream, err := ab.NewAtomicBroadcastClient(conn).Broadcast(ctx)
+	require.NoError(t, err)
+
+	droppedRE := regexp.MustCompile(`router_responses_dropped\{party_id="1",reason="client_behind"\} \d+`)
+	URL := testSetup.router.MonitoringServiceAddress()
+	require.Eventually(t, func() bool {
+		for i := range 1000 {
+			if err := stream.Send(tx.CreateStructuredEnvelope([]byte(fmt.Sprintf("tx%d", i)))); err != nil {
+				return false
+			}
+		}
+		return testutil.FetchPrometheusMetricValue(t, droppedRE, URL) > 0
+	}, 20*time.Second, 10*time.Millisecond)
+
+	softStopped := make(chan error, 1)
+	go func() {
+		softStopped <- testSetup.router.SoftStop()
+	}()
+
+	select {
+	case err := <-softStopped:
+		require.NoError(t, err)
+	case <-time.After(30 * time.Second):
+		require.FailNow(t, "SoftStop did not return while a client was not reading its responses")
+	}
 }
 
 func createServerTLSClientConnection(testSetup *routerTestSetup, ca tlsgen.CA) error {

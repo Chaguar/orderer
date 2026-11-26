@@ -150,12 +150,12 @@ path, the router follows the decisions of consensus, to learn of new configurati
 Besides the shard routers, their streams and the config submitter, a router runs a **decision
 puller**, which pulls decisions from the consenter of its own party; the config store and the WAL,
 which hold its state; and a **rate limiter**, which admits or rejects each request before it is
-forwarded. The `Broadcast`, `Submit` and `SubmitStream` handlers run in the goroutines gRPC gives each
-client call, and a client stream has one more goroutine that sends its responses. Each stream to a
-batcher has two goroutines: one sends requests to the batcher, verifying and classifying each one
-first, and the other reads the batcher's responses. A shard router has one more goroutine, which
-reconnects the streams that fail. The config submitter runs in one goroutine, and decisions are
-pulled and processed in goroutines of their own.
+forwarded. The `Broadcast`, `Submit` and `SubmitStream` handlers run in the goroutines gRPC gives
+each client call; a client stream's handler sends its responses, and one more goroutine receives its
+requests. Each stream to a batcher has two goroutines: one sends requests to the batcher, verifying
+and classifying each one first, and the other reads the batcher's responses. A shard router has one
+more goroutine, which reconnects the streams that fail. The config submitter runs in one goroutine,
+and decisions are pulled and processed in goroutines of their own.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="figures/router-units-dark.svg">
@@ -349,23 +349,24 @@ configurations. Regular transactions are not affected.
 
 ## 7. Reconfiguration
 
-A new configuration reaches the router in the decision stream, as a config block (see
-[Following the Decisions of Consensus](#36-following-the-decisions-of-consensus)). The router then
-**soft stops**: it stops accepting requests and answers every request still waiting on its streams
-with an error. The config submitter answers the configuration updates still in its queue with an
-error; the one it is submitting gets the consenter's answer, or an error if the soft stop cuts it
-short. The router then waits until the responses already queued for each client are handed to the
-network service, and stops it; a response not yet written to the client by then is lost. Once the
-soft stop is done and the new configuration is built, it acknowledges the configuration sequence to
-its consenter and waits for the reply, before deciding whether it can apply it.
+A new configuration reaches the router in the decision stream, as a config block (see [Following the
+Decisions of Consensus](#36-following-the-decisions-of-consensus)). The router then **soft stops**:
+it stops accepting requests and answers every request still waiting on its streams with an error.
+The config submitter answers the configuration updates still in its queue with an error; the one it
+is submitting gets the consenter's answer, or an error if the soft stop cuts it short. Each client
+stream then sends the responses already queued for it and ends with `UNAVAILABLE`, and the router
+stops its network service once every stream has ended and its responses are written; the connection
+of a client that does not read its responses is closed after 5 seconds. Once the soft stop is done
+and the new configuration is built, it acknowledges the configuration sequence to its consenter and
+waits for the reply, before deciding whether it can apply it.
 
 If the new configuration evicts the router's party, or changes this node's endpoint, TLS certificate
 or signing certificate, the router enters the **pending-admin** state and waits for an administrator,
 until its local configuration is updated and the process restarted. Anything else it applies on its
 own: it builds its new configuration, recreates its shard routers, config submitter and decision
 puller against the new topology, and starts serving again, without restarting the process. The
-decision puller resumes from the decision that carried the config block. A client whose stream was
-cut by the soft stop reconnects and resubmits.
+decision puller resumes from the decision that carried the config block. A client whose stream the
+soft stop ended reconnects and resubmits.
 
 For the configuration model this rests on, see
 [Configuration and Membership](architecture.md#6-configuration-and-membership).

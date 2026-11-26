@@ -32,8 +32,8 @@ type clientFeedback struct {
 	// clientDone is the done channel of the client stream's context, closed both
 	// when the client disconnects and when the stream handler returns.
 	clientDone <-chan struct{}
-	// routerDraining is the router's drain signal, after which the goroutine
-	// forwarding responses to this client stops reading them.
+	// routerDraining is the router's drain signal, after which the stream handler
+	// sending this client's responses ends the stream once they are sent.
 	routerDraining <-chan struct{}
 	metrics        *RouterMetrics
 	logger         *flogging.FabricLogger
