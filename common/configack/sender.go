@@ -174,10 +174,7 @@ func (s *sender) submitWithRetry(ctx context.Context, configSeq uint64) error {
 func (s *sender) connectToConsenter() (*grpc.ClientConn, error) {
 	cc := comm.ClientConfig{
 		AsyncConnect: false,
-		KaOpts: comm.KeepaliveOptions{
-			ClientInterval: 30 * time.Second,
-			ClientTimeout:  30 * time.Second,
-		},
+		KaOpts:       comm.DefaultKeepaliveOptions,
 		SecOpts: comm.SecureOptions{
 			UseTLS:            true,
 			ServerRootCAs:     s.consensusRootCAs,

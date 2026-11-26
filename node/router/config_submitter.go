@@ -251,10 +251,7 @@ func (cs *configSubmitter) connectToConsenter() (*grpc.ClientConn, error) {
 func (cs *configSubmitter) tryToConnect() (*grpc.ClientConn, error) {
 	cc := comm.ClientConfig{
 		AsyncConnect: false,
-		KaOpts: comm.KeepaliveOptions{
-			ClientInterval: 30 * time.Second,
-			ClientTimeout:  30 * time.Second,
-		},
+		KaOpts:       comm.DefaultKeepaliveOptions,
 		SecOpts: comm.SecureOptions{
 			UseTLS:            true,
 			ServerRootCAs:     cs.consensusRootCAs,

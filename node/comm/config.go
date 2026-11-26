@@ -31,11 +31,13 @@ const (
 )
 
 var (
-	// Default peer keepalive options
+	// DefaultKeepaliveOptions are the keepalive options of the nodes' gRPC clients and servers. Either end pings the
+	// other after a minute in which it received nothing on the connection, and closes the connection if nothing
+	// arrives within 20 s more.
 	DefaultKeepaliveOptions = KeepaliveOptions{
 		ClientInterval:    time.Duration(1) * time.Minute,  // 1 min
 		ClientTimeout:     time.Duration(20) * time.Second, // 20 sec - gRPC default
-		ServerInterval:    time.Duration(2) * time.Hour,    // 2 hours - gRPC default
+		ServerInterval:    time.Duration(1) * time.Minute,  // 1 min, like ClientInterval
 		ServerTimeout:     time.Duration(20) * time.Second, // 20 sec - gRPC default
 		ServerMinInterval: time.Duration(1) * time.Minute,  // match ClientInterval
 	}

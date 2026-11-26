@@ -59,11 +59,18 @@ func ListenAddressForNode(endpointType ServerEndpointType, listenAddress string)
 	return net.JoinHostPort(listenAddress, fmt.Sprintf("%d", port))
 }
 
+// serverKeepalive is the keepalive of the nodes' gRPC servers: comm.DefaultKeepaliveOptions, except that a client may
+// ping at any rate, since the clients of the router and the assembler are applications, and a minimum would
+// disconnect the ones that ping more often.
+func serverKeepalive() comm.KeepaliveOptions {
+	ka := comm.DefaultKeepaliveOptions
+	ka.ServerMinInterval = time.Microsecond
+	return ka
+}
+
 func CreateGRPCRouter(conf *config.RouterNodeConfig) *comm.GRPCServer {
 	srv, err := comm.NewGRPCServer(ListenAddressForNode(RouterListenType, conf.ListenAddress), comm.ServerConfig{
-		KaOpts: comm.KeepaliveOptions{
-			ServerMinInterval: time.Microsecond,
-		},
+		KaOpts: serverKeepalive(),
 		SecOpts: comm.SecureOptions{
 			ClientRootCAs:     conf.ClientRootCAs,
 			UseTLS:            conf.UseTLS,
@@ -81,9 +88,7 @@ func CreateGRPCRouter(conf *config.RouterNodeConfig) *comm.GRPCServer {
 
 func CreateGRPCConsensus(conf *config.ConsenterNodeConfig) *comm.GRPCServer {
 	srv, err := comm.NewGRPCServer(ListenAddressForNode(ConsensusListenType, conf.ListenAddress), comm.ServerConfig{
-		KaOpts: comm.KeepaliveOptions{
-			ServerMinInterval: time.Microsecond,
-		},
+		KaOpts: serverKeepalive(),
 		SecOpts: comm.SecureOptions{
 			ClientRootCAs:     conf.ClientRootCAs,
 			ServerRootCAs:     conf.ClientRootCAs,
@@ -102,9 +107,7 @@ func CreateGRPCConsensus(conf *config.ConsenterNodeConfig) *comm.GRPCServer {
 
 func CreateGRPCAssembler(conf *config.AssemblerNodeConfig) *comm.GRPCServer {
 	srv, err := comm.NewGRPCServer(ListenAddressForNode(AssemblerListenType, conf.ListenAddress), comm.ServerConfig{
-		KaOpts: comm.KeepaliveOptions{
-			ServerMinInterval: time.Microsecond,
-		},
+		KaOpts: serverKeepalive(),
 		SecOpts: comm.SecureOptions{
 			ClientRootCAs:     conf.ClientRootCAs,
 			UseTLS:            conf.UseTLS,
@@ -152,9 +155,7 @@ func TLSCAcertsFromConsenters(consenters []config.ConsenterInfo) [][]byte {
 
 func CreateGRPCBatcher(conf *config.BatcherNodeConfig) *comm.GRPCServer {
 	srv, err := comm.NewGRPCServer(ListenAddressForNode(BatcherListenType, conf.ListenAddress), comm.ServerConfig{
-		KaOpts: comm.KeepaliveOptions{
-			ServerMinInterval: time.Microsecond,
-		},
+		KaOpts: serverKeepalive(),
 		SecOpts: comm.SecureOptions{
 			ClientRootCAs:     conf.ClientRootCAs,
 			ServerRootCAs:     conf.ClientRootCAs,
