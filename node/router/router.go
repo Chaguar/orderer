@@ -19,6 +19,7 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
+	"time"
 
 	"github.com/Chaguar/common/common/policies"
 	"github.com/Chaguar/common/protoutil"
@@ -42,10 +43,13 @@ import (
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type Net interface {
 	Stop()
+	GracefulStop()
 	Address() string
 }
 
@@ -56,7 +60,6 @@ type Router struct {
 	shardIDs     []types.ShardID
 	configStore  *configstore.Store
 	mainExitChan chan struct{}
-	feedbackWG   sync.WaitGroup
 	wal          *wal.WriteAheadLogFile
 	signer       identity.SignerSerializer
 
@@ -366,18 +369,17 @@ func (r *Router) SoftStop() error {
 		sr.SoftStop(errors.New("router is stopping, cannot process request"))
 	}
 
-	// the config submitter answers the config updates handed to it, so it stops before the feedback channels
-	// are drained, for these answers to be sent too.
+	// the config submitter answers the config updates handed to it, so it stops before the client streams are
+	// drained, for these answers to be sent too.
 	r.configSubmitter.Stop()
 
-	// wait until all feedback channels are drained and all responses are sent
+	// each client stream sends the responses queued for it and ends.
 	r.drainOnce.Do(func() {
 		close(r.drainChan)
 	})
-	r.feedbackWG.Wait()
+	r.stopNetworkGracefully()
 
 	// then, we stop other components
-	r.net.Stop() // this will close all client connections, so some (immediate) responses may not be sent.
 	r.metrics.StopMetricsTracker()
 	r.opsSystem.Stop()
 
@@ -386,6 +388,27 @@ func (r *Router) SoftStop() error {
 	r.logger.Warnf("Router on %s, PartyID: %d, has been soft stopped", routerAddress, partyID)
 
 	return nil
+}
+
+// stopNetworkGracefully stops the network service once every client stream has ended and its responses are
+// written. A client that does not read its responses keeps its stream from ending, so after the timeout the
+// connections still open are closed.
+func (r *Router) stopNetworkGracefully() {
+	const timeout = 5 * time.Second
+
+	stopped := make(chan struct{})
+	go func() {
+		r.net.GracefulStop()
+		close(stopped)
+	}()
+
+	select {
+	case <-stopped:
+	case <-time.After(timeout):
+		r.logger.Warnf("client streams did not end within %s of the soft stop, closing their connections", timeout)
+		r.net.Stop()
+		<-stopped
+	}
 }
 
 func (r *Router) Broadcast(stream orderer.AtomicBroadcast_BroadcastServer) error {
@@ -400,15 +423,21 @@ func (r *Router) Broadcast(stream orderer.AtomicBroadcast_BroadcastServer) error
 	r.metrics.activeBroadcastStreams.Add(1)
 	defer r.metrics.activeBroadcastStreams.Add(-1)
 
-	exit := make(chan struct{})
-	defer func() {
-		close(exit)
-	}()
-
 	feedback := newClientFeedback(clientFeedbackBufferSize, clientAddr, stream.Context().Done(), r.drainChan, r.metrics, r.logger)
 	defer r.reportDroppedResponses(feedback)
-	go r.sendFeedbackOnBroadcastStream(stream, exit, feedback)
 
+	recvDone := make(chan error, 1)
+	go func() {
+		recvDone <- r.receiveBroadcastRequests(stream, clientAddr, feedback)
+	}()
+
+	return r.sendResponses(feedback, recvDone, func(response *Response) error {
+		return stream.Send(responseToBroadcastResponse(response))
+	})
+}
+
+// receiveBroadcastRequests forwards the client's requests until the client ends its stream or the stream breaks.
+func (r *Router) receiveBroadcastRequests(stream orderer.AtomicBroadcast_BroadcastServer, clientAddr string, feedback *clientFeedback) error {
 	for {
 		reqEnv, err := stream.Recv()
 		if err == io.EOF {
@@ -462,16 +491,22 @@ func (r *Router) SubmitStream(stream protos.RequestTransmit_SubmitStreamServer) 
 	r.metrics.activeSubmitStreams.Add(1)
 	defer r.metrics.activeSubmitStreams.Add(-1)
 
-	exit := make(chan struct{})
-	defer func() {
-		close(exit)
-	}()
-
 	clientAddr, _ := utils.ExtractClientAddressFromContext(stream.Context())
 	feedback := newClientFeedback(clientFeedbackBufferSize, clientAddr, stream.Context().Done(), r.drainChan, r.metrics, r.logger)
 	defer r.reportDroppedResponses(feedback)
-	go r.sendFeedbackOnSubmitStream(stream, exit, feedback)
 
+	recvDone := make(chan error, 1)
+	go func() {
+		recvDone <- r.receiveSubmitStreamRequests(stream, rand, feedback)
+	}()
+
+	return r.sendResponses(feedback, recvDone, func(response *Response) error {
+		return stream.Send(responseToSubmitResponse(response))
+	})
+}
+
+// receiveSubmitStreamRequests forwards the client's requests until the client ends its stream or the stream breaks.
+func (r *Router) receiveSubmitStreamRequests(stream protos.RequestTransmit_SubmitStreamServer, rand *rand2.Rand, feedback *clientFeedback) error {
 	for {
 		req, err := stream.Recv()
 		if err == io.EOF {
@@ -571,44 +606,24 @@ func (r *Router) Submit(ctx context.Context, request *protos.Request) (*protos.S
 	return responseToSubmitResponse(&response), nil
 }
 
-func (r *Router) sendFeedbackOnSubmitStream(stream protos.RequestTransmit_SubmitStreamServer, exit chan struct{}, feedback *clientFeedback) {
-	r.feedbackWG.Add(1)
-	defer r.feedbackWG.Done()
+// sendResponses sends the client's responses with send, from the stream handler's goroutine, so that the handler
+// returns only once they are sent. It returns when the client's requests end (recvDone), when send fails, or once
+// the router is draining and every response queued for the client is sent. In that last case it ends the stream
+// with UNAVAILABLE, so that the client reconnects.
+func (r *Router) sendResponses(feedback *clientFeedback, recvDone <-chan error, send func(*Response) error) error {
 	for {
 		select {
-		case <-exit:
-			return
+		case err := <-recvDone:
+			return err
 		case response := <-feedback.responses:
 			r.metrics.increaseErrorCount(response.err)
-			resp := responseToSubmitResponse(&response)
-			err := stream.Send(resp)
-			if err != nil {
-				r.logger.Errorf("error sending response to client: %v", err)
+			if err := send(&response); err != nil {
+				r.logger.Errorf("error sending response to client %s: %v", feedback.clientAddr, err)
+				return err
 			}
 		case <-r.drainChan:
 			if len(feedback.responses) == 0 {
-				return
-			}
-		}
-	}
-}
-
-func (r *Router) sendFeedbackOnBroadcastStream(stream orderer.AtomicBroadcast_BroadcastServer, exit chan struct{}, feedback *clientFeedback) {
-	r.feedbackWG.Add(1)
-	defer r.feedbackWG.Done()
-	for {
-		select {
-		case <-exit:
-			return
-		case response := <-feedback.responses:
-			err := stream.Send(responseToBroadcastResponse(&response))
-			if err != nil {
-				r.logger.Errorf("error sending response to client: %v", err)
-			}
-			r.metrics.increaseErrorCount(response.err)
-		case <-r.drainChan:
-			if len(feedback.responses) == 0 {
-				return
+				return status.Error(codes.Unavailable, "router is stopping")
 			}
 		}
 	}
