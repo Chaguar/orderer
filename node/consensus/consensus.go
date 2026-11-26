@@ -1626,6 +1626,10 @@ func (c *Consensus) UpdateStateAndRuntimeConfig(block *common.Block) smartbft_ty
 			c.decisionNumOfLastConfigBlock = hdr.DecisionNumOfLastConfigBlock
 			c.lastConfigBlockNum = lastBlockNum
 			c.Logger.Infof("Synchronizer delivered consenter block: %d, which includes a fabric config block: %d; the consenter will soft stop.", block.GetHeader().Number, lastBlockNum)
+			// Stop the synchronizer before the reconfiguration starts: this runs inside the sync's loop, which then
+			// ends after this decision instead of writing more blocks, or another config block, into the ledger and
+			// the batch attestation DB that the reconfiguration closes. A sync started later writes nothing either.
+			c.Synchronizer.Stop()
 			// This runs on the synchronizer goroutine, not the SmartBFT controller/viewchanger
 			// goroutine, so there is no blocked Deliver to release; processNewConfigBlock closes
 			// this channel but nothing waits on it.
