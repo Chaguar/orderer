@@ -108,7 +108,7 @@ func (cs *configSubmitter) Forward(tr *TrackedRequest) {
 	default:
 		cs.logger.Warnf("config requests channel is full, rejecting config request %x", tr.reqID)
 		tr.feedback.reply(Response{
-			err:   errors.New("server error: config request queue is full, try again later"),
+			err:   errors.New("config request queue is full, try again later"),
 			reqID: tr.reqID,
 		})
 	}

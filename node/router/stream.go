@@ -107,7 +107,7 @@ func (s *stream) sendRequests() {
 					s.logger.Errorf("Failed sending request to batcher %s", s.endpoint)
 					if tr.trace == nil {
 						// send error to client, in case request is not traced.
-						tr.feedback.reply(Response{err: fmt.Errorf("server error: could not establish connection between router and batcher %s", s.endpoint)})
+						tr.feedback.reply(Response{err: fmt.Errorf("could not establish connection between router and batcher %s", s.endpoint)})
 					}
 					// withBackoff is set to false because it is not the case of a stopped batcher.
 					s.cancelOnServerError(false)
@@ -202,7 +202,7 @@ func (s *stream) responseToClientWithError(rr *TrackedRequest, err error) {
 // which requires a backoff before trying to reconnect.
 func (s *stream) cancelOnServerError(withBackoff bool) {
 	s.cancel()
-	s.sendResponseToAllClientsOnError(fmt.Errorf("server error: could not establish connection between router and batcher %s", s.endpoint))
+	s.sendResponseToAllClientsOnError(fmt.Errorf("could not establish connection between router and batcher %s", s.endpoint))
 	s.notifyReconnectRoutine(withBackoff)
 }
 

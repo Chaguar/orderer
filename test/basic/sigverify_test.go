@@ -186,7 +186,7 @@ func TestSubmitTXWithVerification(t *testing.T) {
 	env := tx.CreateStructuredEnvelope(txContent)
 	err = broadcastClient.SendTx(env)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "INTERNAL_SERVER_ERROR, Info: request structure verification error: signature did not satisfy policy /Channel/Writers")
+	require.ErrorContains(t, err, "BAD_REQUEST, Info: request structure verification error: signature did not satisfy policy /Channel/Writers")
 
 	t.Log("Send one more well signed data tx")
 	env = tx.CreateSignedStructuredEnvelope(txContent, signer, certBytes, fmt.Sprintf("org%d", submittingParty))

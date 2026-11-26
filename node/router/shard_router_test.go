@@ -92,7 +92,7 @@ func TestShardRouterReconnectToBatcherAndForwardReq(t *testing.T) {
 	testSetup.shardRouter.Forward(tr)
 	response = <-responses
 	require.NotNil(t, response)
-	require.EqualError(t, response.GetResponseError(), "server error: connection between router and batcher "+testSetup.stubBatcher.Server().Address()+" is broken, try again later")
+	require.EqualError(t, response.GetResponseError(), "connection between router and batcher "+testSetup.stubBatcher.Server().Address()+" is broken, try again later")
 
 	// restart the batcher
 	testSetup.stubBatcher.Restart()

@@ -19,6 +19,7 @@ import (
 	"github.com/Chaguar/orderer/node/config"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-lib-go/common/metrics"
+	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/prometheus/client_golang/prometheus"
 )
 
@@ -222,14 +223,16 @@ func (m *RouterMetrics) reportMetrics(final bool) {
 	atomic.StoreUint64(&m.arrivedTxsLastValue, uint64(txCount))
 }
 
+// increaseErrorCount counts a rejected request under the code of the status its client is answered with. A
+// throttled request is counted in throttledTxs instead.
 func (m *RouterMetrics) increaseErrorCount(err error) {
-	if err == nil || errors.Is(err, ErrThrottled) || errors.Is(err, errContextDone) {
+	if err == nil || errors.Is(err, errContextDone) {
 		return
 	}
-	var badReq *badRequestError
-	if errors.As(err, &badReq) {
+	switch errorStatus(err) {
+	case common.Status_BAD_REQUEST:
 		m.rejectedTxsWithCode400.Add(1)
-	} else {
+	case common.Status_INTERNAL_SERVER_ERROR:
 		m.rejectedTxsWithCode500.Add(1)
 	}
 }

@@ -75,7 +75,7 @@ func TestConfigTXDisseminationVerificationFailure(t *testing.T) {
 	// Send the config tx and expect rejection
 	err = broadcastClient.SendTx(env)
 	require.Error(t, err)
-	require.ErrorContains(t, err, "INTERNAL_SERVER_ERROR, Info: request structure verification error: signature did not satisfy policy /Channel/Writers")
+	require.ErrorContains(t, err, "BAD_REQUEST, Info: request structure verification error: signature did not satisfy policy /Channel/Writers")
 
 	// Create a config tx signed by only one admin, no majority
 	configUpdateBuilder = cfgutil.NewConfigUpdateBuilder(t, dir, genesisBlockPath)

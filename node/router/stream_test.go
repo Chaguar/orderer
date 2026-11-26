@@ -253,7 +253,7 @@ func TestErrorRequestChannel(t *testing.T) {
 	}, time.Second, 10*time.Millisecond)
 
 	res := <-responseChan
-	require.ErrorContains(t, res.err, "server error: could not establish connection between router and batcher")
+	require.ErrorContains(t, res.err, "could not establish connection between router and batcher")
 	require.True(t, bytes.Equal(res.reqID, reqID))
 }
 
