@@ -92,6 +92,10 @@ type State struct {
 	// DurableWatermark is the highest decision that at least 2f+1 assemblers reported as committed, so at
 	// least f+1 honest assemblers hold every decision up to it. It never decreases.
 	DurableWatermark types.DecisionNum
+	// ReplayFrom is the lowest decision that committed a batch at or above the prune point of its
+	// <shard, primary>. A restarting consenter rebuilds its batch decisions index by replaying the
+	// decisions from it.
+	ReplayFrom types.DecisionNum
 }
 
 func (s *State) String() string {
@@ -126,8 +130,8 @@ func (s *State) String() string {
 	}
 
 	return fmt.Sprintf("State{ShardCount: %d, AssemblerHeights: %d, PrunePoints: %d, DurableWatermark: %d, "+
-		"\nPending: %s, \nComplaints: %s}",
-		len(s.Shards), len(s.AssemblerHeights), len(s.PrunePoints), s.DurableWatermark, pendingStr, complaintsStr)
+		"ReplayFrom: %d, \nPending: %s, \nComplaints: %s}",
+		len(s.Shards), len(s.AssemblerHeights), len(s.PrunePoints), s.DurableWatermark, s.ReplayFrom, pendingStr, complaintsStr)
 }
 
 func (s *State) Serialize() []byte {
@@ -189,6 +193,7 @@ func (s *State) Serialize() []byte {
 		AssemblerHeights: protoAssemblerHeights,
 		PrunePoints:      protoPrunePoints,
 		DurableWatermark: uint64(s.DurableWatermark),
+		ReplayFrom:       uint64(s.ReplayFrom),
 	}
 
 	buff, err := proto.MarshalOptions{Deterministic: true}.Marshal(protoState)
@@ -281,6 +286,7 @@ func (s *State) Deserialize(rawBytes []byte) error {
 	}
 
 	s.DurableWatermark = types.DecisionNum(ps.GetDurableWatermark())
+	s.ReplayFrom = types.DecisionNum(ps.GetReplayFrom())
 
 	// Load app context - ensure it's never nil, always []byte{} at minimum
 	s.AppContext = []byte{}
@@ -323,7 +329,6 @@ func (s *State) Process(l *flogging.FabricLogger, configSeq types.ConfigSequence
 	// After applying the rules above, extract all batch attestations for which enough fragments have been collected.
 	extracted := ExtractBatchAttestationsFromPending(nextState, l, threshold)
 	nextState.UpdateDurableWatermark(l, f)
-	nextState.UpdatePrunePoints()
 	configRequests := ExtractConfigRequests(filteredCEs)
 	return nextState, extracted, configRequests
 }
@@ -568,13 +573,6 @@ func (s *State) UpdateDurableWatermark(l *flogging.FabricLogger, f uint16) {
 	}
 }
 
-// UpdatePrunePoints computes the prune points of the next state. The pruning algorithm is not
-// implemented yet, so every prune point stays 0 (absent) and published prune points are carried
-// over unchanged.
-func (s *State) UpdatePrunePoints() {
-	// TODO implement pruning algorithm: compute the agreed prune point for each <shard, primary>
-}
-
 // PrunePoint returns the agreed prune point of <shard, primary>: batchers may drop every batch of
 // that ledger whose sequence is below it. It returns 0 when no prune point was published.
 func (s *State) PrunePoint(shard types.ShardID, primary types.PartyID) types.BatchSequence {
@@ -584,6 +582,45 @@ func (s *State) PrunePoint(shard types.ShardID, primary types.PartyID) types.Bat
 		}
 	}
 	return 0
+}
+
+// SetPrunePoint raises the prune point of <shard, primary> to seq, and reports whether it raised it. A seq
+// that is not higher leaves it unchanged, and a new <shard, primary> is inserted in (shard, primary) order. A
+// prune point of 0 is never added, as an absent <shard, primary> already has prune point 0.
+func (s *State) SetPrunePoint(shard types.ShardID, primary types.PartyID, seq types.BatchSequence) bool {
+	i, found := slices.BinarySearchFunc(s.PrunePoints, PrunePoint{Shard: shard, Primary: primary}, comparePrunePointKeys)
+	switch {
+	case found && seq > s.PrunePoints[i].Seq:
+		s.PrunePoints[i].Seq = seq
+		return true
+	case !found && seq > 0:
+		s.PrunePoints = slices.Insert(s.PrunePoints, i, PrunePoint{Shard: shard, Primary: primary, Seq: seq})
+		return true
+	default:
+		return false
+	}
+}
+
+// comparePrunePointKeys orders prune points by shard and then primary.
+func comparePrunePointKeys(a, b PrunePoint) int {
+	if c := cmp.Compare(a.Shard, b.Shard); c != 0 {
+		return c
+	}
+	return cmp.Compare(a.Primary, b.Primary)
+}
+
+// DropPendingBelowPrunePoints removes the pending BAFs whose seq is below the prune point of their
+// <shard, primary>. Batchers may already have dropped those batches, so a term change must not make the
+// signer of such a BAF resubmit its batch.
+func (s *State) DropPendingBelowPrunePoints(l *flogging.FabricLogger) {
+	s.Pending = slices.DeleteFunc(s.Pending, func(baf types.BatchAttestationFragment) bool {
+		prunePoint := s.PrunePoint(baf.Shard(), baf.Primary())
+		if baf.Seq() >= prunePoint {
+			return false
+		}
+		l.Debugf("Dropping pending BAF below the prune point %d; %s", prunePoint, baf.String())
+		return true
+	})
 }
 
 // RetainAssemblerHeights drops the recorded heights of parties not in parties, so that a party removed
