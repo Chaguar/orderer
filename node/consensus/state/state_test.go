@@ -1252,3 +1252,24 @@ func TestStateDeserializeRejectsInvalidTimestamp(t *testing.T) {
 		})
 	}
 }
+
+// TestStateDeserializeErrorLeavesStateUnchanged verifies that a failed deserialization does not modify
+// the receiver.
+func TestStateDeserializeErrorLeavesStateUnchanged(t *testing.T) {
+	newState := func() consensus_state.State {
+		return consensus_state.State{
+			Shards:           []consensus_state.ShardTerm{{Shard: 1, Term: 2}},
+			DurableWatermark: 3,
+			AppContext:       []byte{4},
+		}
+	}
+	raw, err := proto.Marshal(&stateprotos.State{
+		Shards:    []*stateprotos.ShardTerm{{Shard: 5, Term: 6}},
+		Timestamp: &timestamppb.Timestamp{Nanos: 1_000_000_000},
+	})
+	require.NoError(t, err)
+
+	st := newState()
+	require.Error(t, st.Deserialize(raw))
+	require.Equal(t, newState(), st)
+}

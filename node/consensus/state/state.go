@@ -213,7 +213,17 @@ func (s *State) Serialize() []byte {
 	return buff
 }
 
+// Deserialize replaces the state with the one encoded in rawBytes. On error, the state is left unchanged.
 func (s *State) Deserialize(rawBytes []byte) error {
+	var decoded State
+	if err := decoded.deserialize(rawBytes); err != nil {
+		return err
+	}
+	*s = decoded
+	return nil
+}
+
+func (s *State) deserialize(rawBytes []byte) error {
 	var ps stateprotos.State
 	if err := proto.Unmarshal(rawBytes, &ps); err != nil {
 		return err
