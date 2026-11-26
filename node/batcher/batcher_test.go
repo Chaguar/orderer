@@ -13,7 +13,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/Chaguar/orderer/node/comm/tlsgen"
 	"github.com/Chaguar/orderer/node/consensus/state"
@@ -664,89 +663,6 @@ func TestBatchedRequestsHasEnvelopeBytes(t *testing.T) {
 
 	require.True(t, bytes.Equal(req.Payload, env.Payload))
 	require.True(t, bytes.Equal(req.Signature, env.Signature))
-}
-
-// TODO: remove test and test add party + join instead, as it is no longer relevant scenario
-// Scenario:
-// 1. Create batcher with config block number 2
-// 2. The batcher receives from consensus the genesis block and skip it
-// 3. The batcher receives from consensus the block number 1 and skip it
-// 4. The batcher receives from consensus the block number 2 and skip it
-// 5. The batcher receives from consensus the block number 3 and append the block to the config store
-func TestBatcherJoin(t *testing.T) {
-	t.Skip()
-	shardID := types.ShardID(0)
-	numParties := 1
-	ca, err := tlsgen.NewCA()
-	require.NoError(t, err)
-
-	batcherNodes := createNodes(t, ca, 1)
-	batchersInfo := createBatchersInfo(1, batcherNodes, ca)
-	consenterNodes := createNodes(t, ca, 1)
-	consentersInfo := createConsentersInfo(1, consenterNodes, ca)
-
-	stubConsenters, cleanConsenters := createConsenterStubs(t, consenterNodes, 1)
-	defer cleanConsenters()
-
-	configBlockNum := uint64(2)
-	routerKeyPairs := pinning.CreateRouterKeyPairs(t, ca, numParties)
-	batchers, _, _, cleanBatchers := createBatchersWithConfigNumber(t, numParties, shardID, batcherNodes, batchersInfo, consentersInfo, routerKeyPairs, stubConsenters, configBlockNum)
-	defer cleanBatchers()
-
-	blocks, err := batchers[0].ConfigStore.ListBlockNumbers()
-	require.NoError(t, err)
-	require.Equal(t, len(blocks), 1)
-	lastConfigBlock, err := batchers[0].ConfigStore.Last()
-	require.NoError(t, err)
-	require.True(t, protoutil.IsConfigBlock(lastConfigBlock))
-	require.Equal(t, configBlockNum, lastConfigBlock.Header.Number)
-
-	genesisBlock := tx.CreateConfigBlock(0, []byte("genesis block"))
-	availableCommonBlocks := []*common.Block{genesisBlock}
-	st := &state.State{Shards: []state.ShardTerm{{Shard: shardID, Term: 0}}}
-	stubConsenters[0].UpdateStateHeaderWithConfigBlock(types.DecisionNum(0), availableCommonBlocks, st)
-
-	blocks, err = batchers[0].ConfigStore.ListBlockNumbers()
-	require.NoError(t, err)
-	require.Equal(t, len(blocks), 1)
-	lastConfigBlock, err = batchers[0].ConfigStore.Last()
-	require.NoError(t, err)
-	require.True(t, protoutil.IsConfigBlock(lastConfigBlock))
-	require.Equal(t, configBlockNum, lastConfigBlock.Header.Number)
-
-	configBlockOne := tx.CreateConfigBlock(1, []byte("config block number one"))
-	availableCommonBlocks = []*common.Block{configBlockOne}
-	stubConsenters[0].UpdateStateHeaderWithConfigBlock(types.DecisionNum(1), availableCommonBlocks, st)
-
-	blocks, err = batchers[0].ConfigStore.ListBlockNumbers()
-	require.NoError(t, err)
-	require.Equal(t, len(blocks), 1)
-	lastConfigBlock, err = batchers[0].ConfigStore.Last()
-	require.NoError(t, err)
-	require.True(t, protoutil.IsConfigBlock(lastConfigBlock))
-	require.Equal(t, uint64(2), lastConfigBlock.Header.Number)
-
-	configBlockTwo := tx.CreateConfigBlock(configBlockNum, []byte("config block number two"))
-	availableCommonBlocks = []*common.Block{configBlockTwo}
-	stubConsenters[0].UpdateStateHeaderWithConfigBlock(types.DecisionNum(2), availableCommonBlocks, st)
-
-	blocks, err = batchers[0].ConfigStore.ListBlockNumbers()
-	require.NoError(t, err)
-	require.Equal(t, len(blocks), 1)
-	lastConfigBlock, err = batchers[0].ConfigStore.Last()
-	require.NoError(t, err)
-	require.True(t, protoutil.IsConfigBlock(lastConfigBlock))
-	require.Equal(t, configBlockNum, lastConfigBlock.Header.Number)
-
-	newConfigBlock := tx.CreateConfigBlock(3, []byte("new config block"))
-	availableCommonBlocks = []*common.Block{newConfigBlock}
-	stubConsenters[0].UpdateStateHeaderWithConfigBlock(types.DecisionNum(3), availableCommonBlocks, st)
-
-	require.Eventually(t, func() bool {
-		block, err1 := batchers[0].ConfigStore.Last()
-		blockNumbers, err2 := batchers[0].ConfigStore.ListBlockNumbers()
-		return err1 == nil && err2 == nil && block.Header.Number == uint64(3) && len(blockNumbers) == 2
-	}, 60*time.Second, 10*time.Millisecond)
 }
 
 func TestPullBatchFromSoftStoppedBatcher(t *testing.T) {

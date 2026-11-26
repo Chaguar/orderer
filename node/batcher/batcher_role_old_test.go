@@ -74,12 +74,10 @@ func (r *naiveReplication) Append(partyID arma_types.PartyID, batchSeq arma_type
 }
 
 func (r *naiveReplication) Height(partyID arma_types.PartyID) uint64 {
-	// TODO use in test
 	return 0
 }
 
 func (r *naiveReplication) RetrieveBatchByNumber(partyID arma_types.PartyID, seq uint64) arma_types.Batch {
-	// TODO use in test
 	return nil
 }
 

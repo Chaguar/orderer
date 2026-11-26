@@ -132,10 +132,6 @@ func createConsenterInfo(partyID types.PartyID, n *node, ca tlsgen.CA) node_conf
 }
 
 func createBatchers(t *testing.T, num int, shardID types.ShardID, batcherNodes []*node, batchersInfo []node_config.BatcherInfo, consentersInfo []node_config.ConsenterInfo, routerKeyPairs []*tlsgen.CertKeyPair, stubConsenters []*stubConsenter) ([]*batcher.Batcher, []*flogging.FabricLogger, []*node_config.BatcherNodeConfig, func()) {
-	return createBatchersWithConfigNumber(t, num, shardID, batcherNodes, batchersInfo, consentersInfo, routerKeyPairs, stubConsenters, 0)
-}
-
-func createBatchersWithConfigNumber(t *testing.T, num int, shardID types.ShardID, batcherNodes []*node, batchersInfo []node_config.BatcherInfo, consentersInfo []node_config.ConsenterInfo, routerKeyPairs []*tlsgen.CertKeyPair, stubConsenters []*stubConsenter, configBlockNum uint64) ([]*batcher.Batcher, []*flogging.FabricLogger, []*node_config.BatcherNodeConfig, func()) {
 	var batchers []*batcher.Batcher
 	var loggers []*flogging.FabricLogger
 	var configs []*node_config.BatcherNodeConfig
@@ -164,7 +160,7 @@ func createBatchersWithConfigNumber(t *testing.T, num int, shardID types.ShardID
 		configStorePath := path.Join(dir, "configstore")
 		cs, err := configstore.NewStore(configStorePath)
 		require.NoError(t, err)
-		block := tx.CreateConfigBlock(configBlockNum, []byte("config block data"))
+		block := tx.CreateConfigBlock(0, []byte("config block data"))
 		require.NoError(t, cs.Add(block))
 
 		conf := &node_config.BatcherNodeConfig{
