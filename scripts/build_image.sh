@@ -37,8 +37,8 @@ Options:
   -h, --help        Display this help message and exit.
 
 Examples:
-  $0 --tag docker.io/chaguar/orderer:latest
-  $0 --tag docker.io/chaguar/orderer:latest --multiplatform
+  $0 --tag docker.io/hyperledger/chaguar-orderer:latest
+  $0 --tag docker.io/hyperledger/chaguar-orderer:latest --multiplatform
 EOF
 }
 

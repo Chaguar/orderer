@@ -26,9 +26,10 @@
 # Docker image vars
 DOCKERFILE ?= images/multi-platform/Dockerfile
 TEST_NODE_DOCKERFILE ?= examples/all-in-one/Dockerfile
-IMAGE_NAMESPACE = docker.io/chaguar
-IMAGE_NAME = orderer
-TEST_NODE_IMAGE_NAME = orderer-test-node
+# Docker Hub "hyperledger" is a temporary place for Chaguar images, until we get a new LFDT-controlled namespace.
+IMAGE_NAMESPACE = docker.io/hyperledger
+IMAGE_NAME = chaguar-orderer
+TEST_NODE_IMAGE_NAME = chaguar-orderer-test-node
 VERSION = latest
 ORDERER_REVISION := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 ORDERER_CREATED := $(shell date -u +%Y-%m-%dT%H:%M:%SZ)

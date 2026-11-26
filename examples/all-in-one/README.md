@@ -40,7 +40,7 @@ All communication is done via **localhost + ports**, without DNS or `/etc/hosts`
 On every tagged release, this image is published to Docker Hub and GHCR for `linux/amd64`, `linux/arm64`, and `linux/s390x`:
 
 ```text
-docker.io/chaguar/orderer-test-node:<version>
+docker.io/hyperledger/chaguar-orderer-test-node:<version>
 ghcr.io/chaguar/orderer-test-node:<version>
 ```
 
@@ -54,7 +54,7 @@ docker run -d \
   -p 6122:6122 -p 6123:6123 -p 6124:6124 -p 6125:6125 \
   -p 6222:6222 -p 6223:6223 -p 6224:6224 -p 6225:6225 \
   -p 6322:6322 -p 6323:6323 -p 6324:6324 -p 6325:6325 \
-  docker.io/chaguar/orderer-test-node:<version>
+  docker.io/hyperledger/chaguar-orderer-test-node:<version>
 ```
 
 ---

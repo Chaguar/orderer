@@ -13,6 +13,10 @@ permissions:
   contents: read
   packages: write
 
+# Each image is pushed to GHCR and Docker Hub in separate steps, so that a failure in one registry
+# does not prevent the push to the other. The last step reports the result of every target. It fails
+# the job unless every GHCR push succeeded; a Docker Hub failure is only a warning, because the
+# Docker Hub namespace is temporary.
 jobs:
   docker-release:
     runs-on: ubuntu-latest
@@ -27,19 +31,6 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Log in to Docker Hub
-        uses: docker/login-action@v3
-        with:
-          username: ${{ secrets.DOCKERHUB_USERNAME }}
-          password: ${{ secrets.DOCKERHUB_TOKEN }}
-
-      - name: Log in to GitHub Container Registry
-        uses: docker/login-action@v3
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
-
       - name: Extract and Validate Version from Tag
         id: extract
         run: |
@@ -52,17 +43,43 @@ jobs:
             exit 1
           fi
 
-      - name: Set image build prefix and metadata
+      - name: Set image namespaces and metadata
         run: |
           echo "CREATED=$(date -u +%Y-%m-%dT%H:%M:%SZ)" >> $GITHUB_ENV
-          echo "REVISION=$(git rev-parse HEAD)" >> $GITHUB_ENV        
+          echo "REVISION=$(git rev-parse HEAD)" >> $GITHUB_ENV
           if [ "$GITHUB_REPOSITORY_OWNER" == "Chaguar" ]; then
-           echo "IMAGE_PREFIX=chaguar" >> $GITHUB_ENV
+           echo "GHCR_NAMESPACE=chaguar" >> $GITHUB_ENV
+           # Docker Hub "hyperledger" is a temporary place for Chaguar images, until we get a new
+           # LFDT-controlled namespace. The Docker Hub secrets must have push rights to it.
+           echo "DOCKERHUB_NAMESPACE=hyperledger" >> $GITHUB_ENV
           else
-           echo "IMAGE_PREFIX=${{ secrets.DOCKERHUB_USERNAME }}" >> $GITHUB_ENV
+           echo "GHCR_NAMESPACE=${{ secrets.DOCKERHUB_USERNAME }}" >> $GITHUB_ENV
+           echo "DOCKERHUB_NAMESPACE=${{ secrets.DOCKERHUB_USERNAME }}" >> $GITHUB_ENV
           fi
 
-      - name: Build and Push Multi-Platform Docker Image
+      - name: Log in to GitHub Container Registry
+        id: login-ghcr
+        continue-on-error: true
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Images go to the Docker Hub "hyperledger" namespace, a temporary place for Chaguar until we
+      # get a new LFDT-controlled namespace.
+      - name: Log in to Docker Hub
+        id: login-dockerhub
+        continue-on-error: true
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+      - name: Build and Push Multi-Platform Docker Image to GHCR
+        id: push-orderer-ghcr
+        if: steps.login-ghcr.outcome == 'success'
+        continue-on-error: true
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -74,12 +91,31 @@ jobs:
             REVISION=${{ env.REVISION }}
           push: true
           tags: |
-            docker.io/${{ env.IMAGE_PREFIX }}/orderer:${{ env.VERSION }}
-            docker.io/${{ env.IMAGE_PREFIX }}/orderer:latest
-            ghcr.io/${{ env.IMAGE_PREFIX }}/orderer:${{ env.VERSION }}
-            ghcr.io/${{ env.IMAGE_PREFIX }}/orderer:latest
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/orderer:${{ env.VERSION }}
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/orderer:latest
 
-      - name: Build and Push Multi-Platform All-In-One Test Node Image
+      - name: Build and Push Multi-Platform Docker Image to Docker Hub
+        id: push-orderer-dockerhub
+        if: steps.login-dockerhub.outcome == 'success'
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./images/multi-platform/Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/s390x
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            CREATED=${{ env.CREATED }}
+            REVISION=${{ env.REVISION }}
+          push: true
+          tags: |
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/chaguar-orderer:${{ env.VERSION }}
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/chaguar-orderer:latest
+
+      - name: Build and Push Multi-Platform All-In-One Test Node Image to GHCR
+        id: push-test-node-ghcr
+        if: steps.login-ghcr.outcome == 'success'
+        continue-on-error: true
         uses: docker/build-push-action@v6
         with:
           context: .
@@ -91,7 +127,70 @@ jobs:
             REVISION=${{ env.REVISION }}
           push: true
           tags: |
-            docker.io/${{ env.IMAGE_PREFIX }}/orderer-test-node:${{ env.VERSION }}
-            docker.io/${{ env.IMAGE_PREFIX }}/orderer-test-node:latest
-            ghcr.io/${{ env.IMAGE_PREFIX }}/orderer-test-node:${{ env.VERSION }}
-            ghcr.io/${{ env.IMAGE_PREFIX }}/orderer-test-node:latest
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/orderer-test-node:${{ env.VERSION }}
+            ghcr.io/${{ env.GHCR_NAMESPACE }}/orderer-test-node:latest
+
+      - name: Build and Push Multi-Platform All-In-One Test Node Image to Docker Hub
+        id: push-test-node-dockerhub
+        if: steps.login-dockerhub.outcome == 'success'
+        continue-on-error: true
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./examples/all-in-one/Dockerfile
+          platforms: linux/amd64,linux/arm64,linux/s390x
+          build-args: |
+            VERSION=${{ env.VERSION }}
+            CREATED=${{ env.CREATED }}
+            REVISION=${{ env.REVISION }}
+          push: true
+          tags: |
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/chaguar-orderer-test-node:${{ env.VERSION }}
+            docker.io/${{ env.DOCKERHUB_NAMESPACE }}/chaguar-orderer-test-node:latest
+
+      - name: Report push results
+        if: always()
+        env:
+          LOGIN_GHCR: ${{ steps.login-ghcr.outcome }}
+          LOGIN_DOCKERHUB: ${{ steps.login-dockerhub.outcome }}
+          ORDERER_GHCR: ${{ steps.push-orderer-ghcr.outcome }}
+          ORDERER_DOCKERHUB: ${{ steps.push-orderer-dockerhub.outcome }}
+          TEST_NODE_GHCR: ${{ steps.push-test-node-ghcr.outcome }}
+          TEST_NODE_DOCKERHUB: ${{ steps.push-test-node-dockerhub.outcome }}
+        run: |
+          ghcr_failed=0
+          {
+            echo "### Image push results (${VERSION:-unknown})"
+            echo ""
+            echo "| Target | Result |"
+            echo "|---|---|"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          # report <target> <outcome> <required>: a failed required target fails the job.
+          report() {
+            local target="$1" outcome="${2:-not run}" required="$3"
+            echo "| \`${target}\` | ${outcome} |" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$outcome" == "success" ]; then
+              echo "Pushed ${target}"
+            elif [ "$required" == "required" ]; then
+              ghcr_failed=$((ghcr_failed + 1))
+              echo "::error::Push to ${target} did not succeed (${outcome})"
+            else
+              echo "::warning::Push to ${target} did not succeed (${outcome})"
+            fi
+          }
+
+          report "ghcr.io/${GHCR_NAMESPACE}/orderer" "$ORDERER_GHCR" required
+          report "docker.io/${DOCKERHUB_NAMESPACE}/chaguar-orderer" "$ORDERER_DOCKERHUB" optional
+          report "ghcr.io/${GHCR_NAMESPACE}/orderer-test-node" "$TEST_NODE_GHCR" required
+          report "docker.io/${DOCKERHUB_NAMESPACE}/chaguar-orderer-test-node" "$TEST_NODE_DOCKERHUB" optional
+
+          {
+            echo ""
+            echo "GHCR login: ${LOGIN_GHCR:-not run}, Docker Hub login: ${LOGIN_DOCKERHUB:-not run}"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          if [ "$ghcr_failed" -gt 0 ]; then
+            echo "::error::${ghcr_failed} GHCR push(es) did not succeed; GHCR must receive every image"
+            exit 1
+          fi
