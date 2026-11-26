@@ -87,7 +87,7 @@ func TestRouterSendsConfigAck(t *testing.T) {
 	}, 20*time.Second, 100*time.Millisecond)
 	waitForRouterServing(t, testSetup)
 
-	testSetup.SendConfigUpdate(t, parties, autoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
+	testSetup.SendConfigUpdate(t, parties, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
 
 	// the router applies the new config and advances to config sequence 1.
 	require.Eventually(t, func() bool {
@@ -137,7 +137,7 @@ func TestRouterConfigAck_RetriesUntilConsenterAccepts(t *testing.T) {
 	}, 20*time.Second, 100*time.Millisecond)
 	waitForRouterServing(t, testSetup)
 
-	testSetup.SendConfigUpdate(t, parties, autoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
+	testSetup.SendConfigUpdate(t, parties, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
 
 	// despite the initial failures, the router eventually applies the new config.
 	require.Eventually(t, func() bool {
@@ -233,7 +233,7 @@ func TestRouterConfigAck_WaitsForConsenterResponse(t *testing.T) {
 	}, 20*time.Second, 100*time.Millisecond)
 	waitForRouterServing(t, testSetup)
 
-	testSetup.SendConfigUpdate(t, parties, autoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
+	testSetup.SendConfigUpdate(t, parties, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
 
 	select {
 	case <-acked:
@@ -289,7 +289,7 @@ func TestRouterConfigAck_StopWhileWaitingForConsenterResponse(t *testing.T) {
 	}, 20*time.Second, 100*time.Millisecond)
 	waitForRouterServing(t, testSetup)
 
-	testSetup.SendConfigUpdate(t, parties, autoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
+	testSetup.SendConfigUpdate(t, parties, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
 
 	select {
 	case <-acked:

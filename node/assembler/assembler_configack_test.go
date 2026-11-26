@@ -51,7 +51,7 @@ func TestAssemblerSendsConfigAck(t *testing.T) {
 		return status.State == node_utils.StateRunning && status.ConfigSequenceNumber == 0
 	}, 20*time.Second, 100*time.Millisecond)
 
-	testSetup.SendConfigUpdate(t, autoRemoveTimeoutConfigUpdate(t, dir), parties, dir, 1)
+	testSetup.SendConfigUpdate(t, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir), parties, dir, 1)
 
 	// the assembler applies the new config and advances to config sequence 1.
 	require.Eventually(t, func() bool {
@@ -100,7 +100,7 @@ func TestAssemblerConfigAckRetriesUntilConsenterAccepts(t *testing.T) {
 		return status.State == node_utils.StateRunning && status.ConfigSequenceNumber == 0
 	}, 20*time.Second, 100*time.Millisecond)
 
-	testSetup.SendConfigUpdate(t, autoRemoveTimeoutConfigUpdate(t, dir), parties, dir, 1)
+	testSetup.SendConfigUpdate(t, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir), parties, dir, 1)
 
 	// despite the initial failures, the assembler eventually applies the new config.
 	require.Eventually(t, func() bool {
@@ -195,7 +195,7 @@ func TestAssemblerConfigAckWaitsForConsenterResponse(t *testing.T) {
 		return status.State == node_utils.StateRunning && status.ConfigSequenceNumber == 0
 	}, 20*time.Second, 100*time.Millisecond)
 
-	testSetup.SendConfigUpdate(t, autoRemoveTimeoutConfigUpdate(t, dir), parties, dir, 1)
+	testSetup.SendConfigUpdate(t, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir), parties, dir, 1)
 
 	select {
 	case <-acked:
@@ -250,7 +250,7 @@ func TestAssemblerConfigAckStopWhileWaitingForConsenterResponse(t *testing.T) {
 		return status.State == node_utils.StateRunning && status.ConfigSequenceNumber == 0
 	}, 20*time.Second, 100*time.Millisecond)
 
-	testSetup.SendConfigUpdate(t, autoRemoveTimeoutConfigUpdate(t, dir), parties, dir, 1)
+	testSetup.SendConfigUpdate(t, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir), parties, dir, 1)
 
 	select {
 	case <-acked:
