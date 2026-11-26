@@ -8,21 +8,26 @@ package blocksprovider_test
 
 import (
 	"errors"
+	"net"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
 
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
-
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"google.golang.org/grpc"
 
 	"github.com/Chaguar/common/protoutil"
 	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider"
 	"github.com/Chaguar/orderer/common/deliverclient/blocksprovider/fake"
+	"github.com/Chaguar/orderer/common/deliverclient/orderers"
 	"github.com/Chaguar/orderer/common/utils"
+	"github.com/Chaguar/orderer/node/comm"
+	"github.com/Chaguar/orderer/testutil"
 )
 
 func TestBftHeaderReceiver_NoBlocks_RecvError(t *testing.T) {
@@ -33,7 +38,7 @@ func TestBftHeaderReceiver_NoBlocks_RecvError(t *testing.T) {
 	streamClientMock.RecvReturns(nil, errors.New("oops"))
 	streamClientMock.CloseSendReturns(nil)
 
-	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock,
+	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock, func() {},
 		fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
 	assert.NotNil(t, hr)
 	assert.False(t, hr.IsStarted())
@@ -62,7 +67,7 @@ func TestBftHeaderReceiver_BadStatus(t *testing.T) {
 	streamClientMock.CloseSendReturns(nil)
 
 	for i := 0; i < 3; i++ {
-		hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock,
+		hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock, func() {},
 			fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
 		assert.NotNil(t, hr)
 
@@ -83,7 +88,7 @@ func TestBftHeaderReceiver_NilResponse(t *testing.T) {
 	streamClientMock.RecvReturns(nil, nil)
 	streamClientMock.CloseSendReturns(nil)
 
-	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock,
+	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock, func() {},
 		fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
 	assert.NotNil(t, hr)
 
@@ -107,7 +112,7 @@ func TestBftHeaderReceiver_BlockWithNoHeader(t *testing.T) {
 	}, nil)
 	streamClientMock.CloseSendReturns(nil)
 
-	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock,
+	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock, func() {},
 		fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
 
 	hr.DeliverHeaders()
@@ -125,7 +130,7 @@ func TestBftHeaderReceiver_WithBlocks_Renew(t *testing.T) {
 	fakeBlockVerifier.VerifyBlockAttestationCalls(naiveBlockVerifier)
 	fakeBlockVerifier.CloneReturns(fakeBlockVerifier)
 	streamClientMock := &fake.DeliverClient{}
-	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock,
+	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock, func() {},
 		fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
 
 	seqCh := make(chan uint64)
@@ -177,7 +182,7 @@ func TestBftHeaderReceiver_WithBlocks_Renew(t *testing.T) {
 	// === Create a new BFTHeaderReceiver with the last good header of the previous receiver
 	fakeBlockVerifier = &fake.UpdatableBlockVerifier{}
 	streamClientMock = &fake.DeliverClient{}
-	hr2 := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock,
+	hr2 := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock, func() {},
 		fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, hr, flogging.MustGetLogger("test.BFTHeaderReceiver.2"))
 	assert.False(t, hr2.IsStarted())
 	assert.False(t, hr2.IsStopped())
@@ -193,7 +198,7 @@ func TestBftHeaderReceiver_WithBlocks_StopOnVerificationFailure(t *testing.T) {
 	fakeBlockVerifier.CloneReturns(fakeBlockVerifier)
 	streamClientMock := &fake.DeliverClient{}
 	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666",
-		streamClientMock, fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
+		streamClientMock, func() {}, fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
 
 	seqCh := make(chan uint64)
 	goodSig := uint32(1)
@@ -251,7 +256,7 @@ func TestBftHeaderReceiver_WithBlocks_ConfigVerification(t *testing.T) {
 	fakeBlockVerifier.VerifyBlockAttestationCalls(naiveBlockVerifier)
 	fakeBlockVerifier.CloneReturns(fakeBlockVerifier)
 	streamClientMock := &fake.DeliverClient{}
-	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock,
+	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock, func() {},
 		fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
 
 	seqCh := make(chan uint64)
@@ -315,7 +320,7 @@ func TestBftHeaderReceiver_VerifyOnce(t *testing.T) {
 	fakeBlockVerifier.VerifyBlockAttestationCalls(naiveBlockVerifier)
 	fakeBlockVerifier.CloneReturns(fakeBlockVerifier)
 	streamClientMock := &fake.DeliverClient{}
-	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock,
+	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock, func() {},
 		fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
 
 	seqCh := make(chan uint64)
@@ -415,4 +420,109 @@ func naiveBlockVerifier(signedBlock *common.Block) error {
 		return nil
 	}
 	return errors.New("test: bad signature")
+}
+
+// Scenario:
+//  1. Create a header receiver whose stream fails on the first Recv, with a closer that counts its calls.
+//  2. Deliver headers, and expect the receiver to stop on the error and close its connection once.
+//  3. Stop it again, and expect the closer not to be called again.
+func TestBftHeaderReceiver_StopClosesTheConnection(t *testing.T) {
+	fakeBlockVerifier := &fake.UpdatableBlockVerifier{}
+	streamClientMock := &fake.DeliverClient{}
+	streamClientMock.RecvReturns(nil, errors.New("oops"))
+	var closed atomic.Int32
+
+	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", "10.10.10.11:666", streamClientMock, func() { closed.Add(1) },
+		fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
+	hr.DeliverHeaders()
+	require.True(t, hr.IsStopped())
+	require.Equal(t, int32(1), closed.Load())
+
+	require.NoError(t, hr.Stop())
+	require.Equal(t, int32(1), closed.Load())
+}
+
+// Scenario:
+//  1. Serve a deliver service that, like an orderer serving a headers seek, reads the seek and then streams headers
+//     without ever reading the stream again. Count its running handlers and its open connections.
+//  2. Connect to it through a DeliveryRequester, as the censorship monitor does, and deliver headers until some arrive.
+//  3. Stop the receiver, and expect the handler to end and the connection to close: the orderer doesn't stay blocked
+//     sending headers that no one reads.
+func TestBftHeaderReceiver_StopEndsTheStreamOnTheOrderer(t *testing.T) {
+	_, listener := testutil.SharedTestPortAllocator().Allocate(t)
+	conns := &countingListener{Listener: listener}
+	streamer := &headerStreamer{}
+	server := grpc.NewServer()
+	orderer.RegisterAtomicBroadcastServer(server, streamer)
+	go func() { _ = server.Serve(conns) }()
+	t.Cleanup(server.Stop)
+
+	requester := blocksprovider.NewDeliveryRequester("testchannel", &fake.Signer{}, nil,
+		blocksprovider.DialerAdapter{ClientConfig: comm.ClientConfig{DialTimeout: 5 * time.Second}}, blocksprovider.DeliverAdapter{})
+	seek, err := requester.SeekInfoHeadersFrom(0)
+	require.NoError(t, err)
+	client, closeConn, err := requester.Connect(seek, &orderers.Endpoint{Address: listener.Addr().String()})
+	require.NoError(t, err)
+
+	fakeBlockVerifier := &fake.UpdatableBlockVerifier{}
+	fakeBlockVerifier.CloneReturns(&fake.UpdatableBlockVerifier{})
+	hr := blocksprovider.NewBFTHeaderReceiver("testchannel", listener.Addr().String(), client, closeConn,
+		fakeBlockVerifier, &utils.CommonConfigBlockOperations{}, nil, flogging.MustGetLogger("test.BFTHeaderReceiver"))
+	go hr.DeliverHeaders()
+	require.Eventually(t, func() bool {
+		_, _, err := hr.LastBlockNum()
+		return err == nil
+	}, 10*time.Second, 10*time.Millisecond)
+	require.Equal(t, int32(1), streamer.handlers.Load())
+
+	require.NoError(t, hr.Stop())
+	require.Eventually(t, func() bool { return streamer.handlers.Load() == 0 && conns.open.Load() == 0 }, 10*time.Second, 10*time.Millisecond)
+}
+
+// headerStreamer is a deliver service that reads the seek and then sends headers until the stream ends, never
+// reading again. It counts the handlers running.
+type headerStreamer struct {
+	orderer.UnimplementedAtomicBroadcastServer
+	handlers atomic.Int32
+}
+
+func (h *headerStreamer) Deliver(stream orderer.AtomicBroadcast_DeliverServer) error {
+	h.handlers.Add(1)
+	defer h.handlers.Add(-1)
+	if _, err := stream.Recv(); err != nil {
+		return err
+	}
+	for n := uint64(0); ; n++ {
+		header := &orderer.DeliverResponse{Type: &orderer.DeliverResponse_Block{Block: &common.Block{Header: &common.BlockHeader{Number: n}}}}
+		if err := stream.Send(header); err != nil {
+			return err
+		}
+	}
+}
+
+// countingListener counts the connections it accepted that are still open.
+type countingListener struct {
+	net.Listener
+	open atomic.Int32
+}
+
+func (l *countingListener) Accept() (net.Conn, error) {
+	conn, err := l.Listener.Accept()
+	if err != nil {
+		return nil, err
+	}
+	l.open.Add(1)
+	return &countedConn{Conn: conn, listener: l}, nil
+}
+
+// countedConn is a connection that a countingListener accepted.
+type countedConn struct {
+	net.Conn
+	listener *countingListener
+	closed   sync.Once
+}
+
+func (c *countedConn) Close() error {
+	c.closed.Do(func() { c.listener.open.Add(-1) })
+	return c.Conn.Close()
 }
