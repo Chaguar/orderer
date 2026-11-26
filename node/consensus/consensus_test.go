@@ -839,6 +839,7 @@ func TestAssembleProposalAndVerify(t *testing.T) {
 			}
 
 			require.NotNil(t, header.State)
+			require.True(t, header.State.Timestamp.After(initialState.Timestamp))
 			require.Len(t, header.State.Pending, tst.numPending)
 			require.Len(t, header.State.Complaints, tst.numComplaints)
 			require.Equal(t, tst.newTermForShard1, header.State.Shards[0].Term)
@@ -1279,7 +1280,9 @@ func TestVerifyProposalReleasesLockWhenApplyingConfigFails(t *testing.T) {
 	mBytes, err := proto.Marshal(&smartbftprotos.ViewMetadata{LatestSequence: 0})
 	require.NoError(t, err)
 
-	header := state.Header{Num: 0, State: initialState}
+	proposedState := *initialState
+	proposedState.Timestamp = time.Unix(1, 0).UTC()
+	header := state.Header{Num: 0, State: &proposedState}
 	proposal := smartbft_types.Proposal{
 		Header:   header.Serialize(),
 		Payload:  brs.Serialize(),
@@ -1301,6 +1304,42 @@ func TestVerifyProposalReleasesLockWhenApplyingConfigFails(t *testing.T) {
 	case <-time.After(5 * time.Second):
 		t.Fatal("VerifyProposal did not release the lock after failing to apply the config")
 	}
+}
+
+// TestAssembleProposalBumpsTimestampPastAFutureOne verifies that a leader whose clock is not ahead of the
+// previous decision's time proposes one nanosecond after it, so decision times still increase.
+func TestAssembleProposalBumpsTimestampPastAFutureOne(t *testing.T) {
+	logger := testutil.CreateLogger(t, 1)
+
+	db, err := badb.NewBatchAttestationDB(t.TempDir(), logger)
+	require.NoError(t, err)
+
+	bundle := &configMocks.FakeConfigResources{}
+	bundle.ConfigtxValidatorReturns(&policyMocks.FakeConfigtxValidator{})
+
+	prev := time.Now().Add(time.Hour).UTC().Round(0)
+	c := &node_consensus.Consensus{
+		Arma: &node_consensus.Consenter{DB: db, Logger: logger},
+		State: &state.State{
+			Shards:     []state.ShardTerm{{Shard: 1}, {Shard: 2}},
+			AppContext: protoutil.MarshalOrPanic(&common.BlockHeader{Number: 0}),
+			Timestamp:  prev,
+		},
+		Logger:                 logger,
+		Config:                 &nodeconfig.ConsenterNodeConfig{Consenters: testConsenters(4), Bundle: bundle},
+		ConfigApplier:          &consensus_mocks.FakeConfigApplier{},
+		ConfigRequestValidator: &configrequest_mocks.FakeConfigRequestValidator{},
+		ConfigRulesVerifier:    &ordererRulesMocks.FakeOrdererRules{},
+	}
+
+	mBytes, err := proto.Marshal(&smartbftprotos.ViewMetadata{LatestSequence: 0})
+	require.NoError(t, err)
+
+	proposal := c.AssembleProposal(mBytes, nil)
+
+	header := &state.Header{}
+	require.NoError(t, header.Deserialize(proposal.Header))
+	require.Equal(t, prev.Add(time.Nanosecond), header.State.Timestamp)
 }
 
 // configReqEnvelopeWithID builds a config request envelope whose config envelope carries the given
@@ -1500,6 +1539,7 @@ func TestVerifyProposal(t *testing.T) {
 
 	newState := initialState
 	newState.AppContext = protoutil.MarshalOrPanic(latestBlockHeader)
+	newState.Timestamp = time.Unix(1, 0).UTC()
 
 	header.State = &newState
 
@@ -1650,6 +1690,31 @@ func TestVerifyProposal(t *testing.T) {
 	_, err = c.VerifyProposal(proposal)
 	require.ErrorContains(t, err, "proposed prev hash  isn't equal to the hash of the last decision 010203")
 	c.PrevHash = nil
+
+	// 1i. validators require the proposed time to be after the previous decision's, so an unset, equal, or
+	// earlier time is rejected.
+	t.Log("proposal with a time not after the previous decision's")
+	for _, tst := range []struct {
+		name           string
+		prev, proposed time.Time
+	}{
+		{name: "unset", prev: time.Time{}, proposed: time.Time{}},
+		{name: "equal", prev: time.Unix(1, 0).UTC(), proposed: time.Unix(1, 0).UTC()},
+		{name: "earlier", prev: time.Unix(1, 0).UTC(), proposed: time.Unix(0, 1).UTC()},
+	} {
+		t.Run(tst.name, func(t *testing.T) {
+			c.State.Timestamp = tst.prev
+			defer func() { c.State.Timestamp = time.Time{} }()
+
+			staleState := newState
+			staleState.Timestamp = tst.proposed
+			stale := header
+			stale.State = &staleState
+			proposal := smartbft_types.Proposal{Header: stale.Serialize(), Payload: brs.Serialize(), Metadata: mBytes}
+			_, err := c.VerifyProposal(proposal)
+			require.ErrorContains(t, err, "is not after the previous decision's")
+		})
+	}
 
 	// 2. nil header
 	t.Log("nil header")
