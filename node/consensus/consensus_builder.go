@@ -151,6 +151,7 @@ func (c *Consensus) configureConsensus(nodeConfig *node_config.ConsenterNodeConf
 		c.ConfigAckReceiver.Stop()
 	}
 	c.ConfigAckReceiver = configack.NewReceiver(c.Logger, shards, nodeConfig.Bundle.ConfigtxValidator().Sequence())
+	c.publishConfigSnapshot()
 
 	if createNewBFT {
 		c.BFT = createBFT(c, metadata, lastProposal, lastSigs, nodeConfig.WALDir)

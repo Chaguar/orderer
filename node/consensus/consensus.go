@@ -17,6 +17,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/Chaguar/common/protoutil"
@@ -144,29 +145,70 @@ type Consensus struct {
 	// configack.DefaultReceiverTimeout. It must be shorter than configack.DefaultSubmitConfigAckTimeout,
 	// the members' wait for the consenter's answer, or they may stop waiting before it answers.
 	ConfigAckReceiverTimeout time.Duration
+
+	// snapshot is the configSnapshot of the config in force; see configSnapshot.
+	snapshot atomic.Pointer[configSnapshot]
+}
+
+// configSnapshot holds the values of one configuration that a dynamic reconfiguration replaces together. Code that
+// runs without c.lock, such as gRPC handlers and SmartBFT callbacks, reads them from c.configSnapshot(), so it sees one
+// whole configuration, and no field that configureConsensus is writing.
+type configSnapshot struct {
+	nodeConfig             *node_config.ConsenterNodeConfig
+	fullConfig             *config.Configuration
+	currentNodes           []uint64
+	configAckReceiver      *configack.Receiver
+	metrics                *ConsensusMetrics
+	requestVerifier        *requestfilter.RulesVerifier
+	configUpdateProposer   policy.ConfigUpdateProposer
+	sigVerifier            SigVerifier
+	configRequestValidator configrequest.ConfigRequestValidator
+	configRulesVerifier    verify.OrdererRules
+}
+
+// publishConfigSnapshot publishes the configuration values now in the fields as the configSnapshot in force. It is
+// called with c.lock held, once the fields of a new configuration are all set.
+func (c *Consensus) publishConfigSnapshot() {
+	c.snapshot.Store(c.newConfigSnapshot())
+}
+
+// configSnapshot returns the configSnapshot in force. configureConsensus publishes one before anything can read it; a
+// Consensus built without it, as some tests build one, takes it from its fields at the first read.
+func (c *Consensus) configSnapshot() *configSnapshot {
+	if s := c.snapshot.Load(); s != nil {
+		return s
+	}
+	c.snapshot.CompareAndSwap(nil, c.newConfigSnapshot())
+	return c.snapshot.Load()
+}
+
+func (c *Consensus) newConfigSnapshot() *configSnapshot {
+	return &configSnapshot{
+		nodeConfig:             c.Config,
+		fullConfig:             c.fullConfig,
+		currentNodes:           c.CurrentNodes,
+		configAckReceiver:      c.ConfigAckReceiver,
+		metrics:                c.Metrics,
+		requestVerifier:        c.RequestVerifier,
+		configUpdateProposer:   c.ConfigUpdateProposer,
+		sigVerifier:            c.SigVerifier,
+		configRequestValidator: c.ConfigRequestValidator,
+		configRulesVerifier:    c.ConfigRulesVerifier,
+	}
 }
 
 func (c *Consensus) Start() error {
 	c.lock.Lock()
-	c.startServices()
+	c.startOperations()
 	bft := c.BFT
 	c.lock.Unlock()
 
 	return bft.Start() // start the bft without holding the lock to avoid deadlock
 }
 
-// StartWithoutBFT starts the node's services (operations subsystem, health checkers and
-// metrics) without starting the BFT. It is used on the dynamic reconfiguration path, where
-// configureConsensus reuses the existing (still-running) BFT instance.
-func (c *Consensus) StartWithoutBFT() {
-	c.lock.Lock()
-	defer c.lock.Unlock()
-	c.startServices()
-}
-
-// startServices starts the operations subsystem, health checkers and metrics tracker, and
-// resets softStopCh. It must be called with c.lock held.
-func (c *Consensus) startServices() {
+// startOperations starts the operations subsystem, health checkers and metrics tracker, resets softStopCh, and
+// marks the node running. It must be called with c.lock held.
+func (c *Consensus) startOperations() {
 	c.status.SetState(node_utils.StateRunning)
 	c.softStopCh = make(chan struct{})
 	if err := c.opsSystem.Start(); err != nil {
@@ -185,7 +227,11 @@ func (c *Consensus) startServices() {
 func (c *Consensus) StartConsensusService() {
 	c.lock.Lock()
 	defer c.lock.Unlock()
+	c.startConsensusService()
+}
 
+// startConsensusService creates the consensus gRPC server and starts it. It must be called with c.lock held.
+func (c *Consensus) startConsensusService() {
 	srv := node_utils.CreateGRPCConsensus(c.Config)
 	c.Net = srv
 
@@ -280,7 +326,8 @@ func (c *Consensus) GetPartyID() arma_types.PartyID {
 
 // BFTConfig returns the current BFT configuration and the current nodes in the cluster (from SmartBFT API)
 func (c *Consensus) BFTConfig() (smartbft_types.Configuration, []uint64) {
-	return c.Config.BFTConfig, c.CurrentNodes
+	snap := c.configSnapshot()
+	return snap.nodeConfig.BFTConfig, snap.currentNodes
 }
 
 func (c *Consensus) SoftStop() {
@@ -381,18 +428,19 @@ func (c *Consensus) SubmitConfig(ctx context.Context, request *protos.Request) (
 		return nil, errors.New("consensus is soft-stopped")
 	}
 
-	if err := c.validateRouterFromContext(ctx); err != nil {
+	snap := c.configSnapshot() // the whole request is handled against one config
+	if err := c.validateRouterFromContext(ctx, snap); err != nil {
 		return nil, fmt.Errorf("failed to validate router from context: %w", err)
 	}
 
-	c.Logger.Infof("Received config request from router %s with config sequence %d", c.Config.Router.Endpoint, request.ConfigSeq)
+	c.Logger.Infof("Received config request from router %s with config sequence %d", snap.nodeConfig.Router.Endpoint, request.ConfigSeq)
 
-	verificationSeq := c.VerificationSequence()
+	verificationSeq := snap.nodeConfig.Bundle.ConfigtxValidator().Sequence()
 	if request.ConfigSeq != uint32(verificationSeq) {
 		return nil, fmt.Errorf("config sequence mismatch: expected %d, got %d", verificationSeq, request.ConfigSeq)
 	}
 
-	configRequest, err := c.verifyAndClassifyRequest(request)
+	configRequest, err := c.verifyAndClassifyRequest(snap, request)
 	if err != nil {
 		return nil, fmt.Errorf("failed to verify and classify request: %w", err)
 	}
@@ -422,11 +470,12 @@ func (c *Consensus) SubmitRequest(req []byte) error {
 	}
 
 	// update metrics
+	metrics := c.configSnapshot().metrics
 	if ce.BAF != nil {
-		c.Metrics.bafsCount.Add(1)
+		metrics.bafsCount.Add(1)
 	}
 	if ce.Complaint != nil {
-		c.Metrics.complaintsCount.Add(1)
+		metrics.complaintsCount.Add(1)
 	}
 
 	return c.BFT.SubmitRequest(req)
@@ -478,7 +527,7 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 	// The requests are verified outside the lock, so a reconfiguration may have replaced the config and the
 	// state since verificationSeq was read. The sequence only grows, so if it is unchanged here, c.State
 	// belongs to the config the requests were verified against.
-	if currentSeq := c.verificationSequence(); currentSeq != verificationSeq {
+	if currentSeq := c.VerificationSequence(); currentSeq != verificationSeq {
 		c.lock.Unlock()
 		return nil, fmt.Errorf("verification sequence changed from %d to %d while verifying the proposal", verificationSeq, currentSeq)
 	}
@@ -787,29 +836,20 @@ func verifyBlockMessageToSign(msg *protoutil.MessageToSign, msgBytes []byte, sig
 // VerifySignature verifies the signature
 // (from SmartBFT API)
 func (c *Consensus) VerifySignature(signature smartbft_types.Signature) error {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	return c.SigVerifier.VerifySignature(arma_types.NewConsenterIdentity(arma_types.PartyID(signature.ID)), signature.Msg, signature.Value)
+	return c.configSnapshot().sigVerifier.VerifySignature(arma_types.NewConsenterIdentity(arma_types.PartyID(signature.ID)), signature.Msg, signature.Value)
 }
 
 // VerificationSequence returns the current verification sequence
 // (from SmartBFT API)
 func (c *Consensus) VerificationSequence() uint64 {
-	c.lock.RLock()
-	defer c.lock.RUnlock()
-	return c.verificationSequence()
-}
-
-// verificationSequence returns the current verification sequence. The caller must hold c.lock, since a
-// dynamic reconfiguration replaces c.Config under it.
-func (c *Consensus) verificationSequence() uint64 {
-	return c.Config.Bundle.ConfigtxValidator().Sequence()
+	return c.configSnapshot().nodeConfig.Bundle.ConfigtxValidator().Sequence()
 }
 
 // parties returns the party IDs of the config in force, sorted by party ID.
 func (c *Consensus) parties() []arma_types.PartyID {
-	parties := make([]arma_types.PartyID, 0, len(c.Config.Consenters))
-	for _, consenter := range c.Config.Consenters {
+	consenters := c.configSnapshot().nodeConfig.Consenters
+	parties := make([]arma_types.PartyID, 0, len(consenters))
+	for _, consenter := range consenters {
 		parties = append(parties, consenter.PartyID)
 	}
 	slices.Sort(parties)
@@ -952,7 +992,7 @@ func (c *Consensus) SignProposal(proposal smartbft_types.Proposal, _ []byte) *sm
 	return &smartbft_types.Signature{
 		Msg:   msgsRaw,
 		Value: sigsRaw,
-		ID:    c.Config.BFTConfig.SelfID,
+		ID:    c.configSnapshot().nodeConfig.BFTConfig.SelfID,
 	}
 }
 
@@ -961,7 +1001,8 @@ func (c *Consensus) SignProposal(proposal smartbft_types.Proposal, _ []byte) *sm
 func (c *Consensus) AssembleProposal(metadata []byte, requests [][]byte) smartbft_types.Proposal {
 	c.lock.Lock()
 	parties := c.parties()
-	newState, attestations, configRequests := c.Arma.SimulateStateTransition(c.State, arma_types.ConfigSequence(c.verificationSequence()), parties, requests)
+	verificationSeq := c.VerificationSequence() // the proposal carries the sequence its state was computed with
+	newState, attestations, configRequests := c.Arma.SimulateStateTransition(c.State, arma_types.ConfigSequence(verificationSeq), parties, requests)
 	if configRequests != nil {
 		var err error
 		if newState, err = c.ConfigApplier.ApplyConfigToState(newState, configRequests[0], parties); err != nil {
@@ -1056,7 +1097,7 @@ func (c *Consensus) AssembleProposal(metadata []byte, requests [][]byte) smartbf
 		}).Serialize(),
 		Metadata:             metadata,
 		Payload:              reqs.Serialize(),
-		VerificationSequence: int64(c.Config.Bundle.ConfigtxValidator().Sequence()),
+		VerificationSequence: int64(verificationSeq),
 	}
 }
 
@@ -1185,9 +1226,7 @@ func (c *Consensus) processNewConfigBlock(configBlock *common.Block, done chan s
 func (c *Consensus) ApplyConfig(lastBlock *common.Block) (bool, error) {
 	partyID := c.PartyID
 
-	c.lock.Lock()
-	currentFullConfig := c.fullConfig
-	c.lock.Unlock()
+	currentFullConfig := c.configSnapshot().fullConfig
 
 	if currentFullConfig == nil {
 		return true, errors.New("current configuration is nil")
@@ -1218,8 +1257,8 @@ func (c *Consensus) ApplyConfig(lastBlock *common.Block) (bool, error) {
 
 	// If the node is being stopped, abort the reconfiguration. Stop closes ReconfigAbort and
 	// then, later, stops the ConfigAckReceiver, which is what just released WaitForAllAcks.
-	// Without this guard we would proceed into stopAndReconfigure and re-open storage/BADB/
-	// network on a node that is shutting down, resurrecting it (and racing Stop's teardown).
+	// This check is only a shortcut: a Stop can still begin after it, so stopAndReconfigure
+	// checks again under c.lock before it reopens anything.
 	if c.isReconfigAborted() {
 		c.Logger.Infof("consensus is stopping, aborting dynamic reconfiguration on sequence %d", configSeq)
 		return false, nil
@@ -1258,8 +1297,18 @@ func (c *Consensus) ApplyConfig(lastBlock *common.Block) (bool, error) {
 	return false, nil
 }
 
+// stopAndReconfigure restarts consensus with newConfig. It holds c.lock throughout, and does nothing once Stop has
+// begun: Stop closes ReconfigAbort under the same lock, so a Stop that comes first is seen here, and one that comes
+// later finds the node running with the new config.
 func (c *Consensus) stopAndReconfigure(newConfig *config.Configuration, lastBlock *common.Block) {
 	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	if c.isReconfigAborted() {
+		c.Logger.Infof("Consensus is stopping, aborting the dynamic reconfiguration")
+		return
+	}
+
 	newConsensusConfig := newConfig.ExtractConsenterConfig(lastBlock)
 	newConfigSeq := newConsensusConfig.Bundle.ConfigtxValidator().Sequence()
 	currentConfigSeq := c.Config.Bundle.ConfigtxValidator().Sequence()
@@ -1269,12 +1318,11 @@ func (c *Consensus) stopAndReconfigure(newConfig *config.Configuration, lastBloc
 	c.opsSystem.Stop()
 	c.status.Set(node_utils.StateInitializing, newConfigSeq)
 	c.configureConsensus(newConsensusConfig, newConfig, lastBlock, &policy.DefaultConfigUpdateProposer{}, false)
-	c.lock.Unlock()
 
 	c.Logger.Infof("Initialize new consensus, config sequence: %d", newConfigSeq)
-	c.StartConsensusService()
-	c.StartWithoutBFT()
-	c.Logger.Infof("Consensus started with new config sequence %d, listening on %s", newConfigSeq, c.Address())
+	c.startConsensusService()
+	c.startOperations()
+	c.Logger.Infof("Consensus started with new config sequence %d, listening on %s", newConfigSeq, c.Net.Address())
 }
 
 func (c *Consensus) updateMetricsOnDeliver(hdr *state.Header, block *common.Block) {
@@ -1383,15 +1431,15 @@ func (c *Consensus) verifyControlEvent(req []byte, proposalNum arma_types.Decisi
 
 	reqID := c.RequestID(req)
 
-	// A dynamic reconfiguration replaces these fields under c.lock (configureConsensus) while requests are
-	// verified concurrently, so take a consistent snapshot of them and verify against it. The verification
-	// itself runs outside the lock.
+	// The request is verified against one config, and the ledger, which isn't in the snapshot, is read under
+	// c.lock, since a dynamic reconfiguration replaces it under the lock.
+	snap := c.configSnapshot()
+	configSeq := arma_types.ConfigSequence(snap.nodeConfig.Bundle.ConfigtxValidator().Sequence())
+	cfg := snap.nodeConfig
+	sigVerifier := snap.sigVerifier
+	configRequestValidator := snap.configRequestValidator
+	configRulesVerifier := snap.configRulesVerifier
 	c.lock.RLock()
-	configSeq := arma_types.ConfigSequence(c.verificationSequence())
-	cfg := c.Config
-	sigVerifier := c.SigVerifier
-	configRequestValidator := c.ConfigRequestValidator
-	configRulesVerifier := c.ConfigRulesVerifier
 	storage := c.Storage
 	c.lock.RUnlock()
 
@@ -1495,13 +1543,13 @@ func verifyReportDecisionNum(storage Storage, report *state.AssemblerDecisionRep
 	return nil
 }
 
-func (c *Consensus) validateRouterFromContext(ctx context.Context) error {
-	return validateClientFromContext(ctx, c.Config.Router.TLSCert, "router", c.Logger)
+func (c *Consensus) validateRouterFromContext(ctx context.Context, snap *configSnapshot) error {
+	return validateClientFromContext(ctx, snap.nodeConfig.Router.TLSCert, "router", c.Logger)
 }
 
-func (c *Consensus) validateAssemblerFromContext(ctx context.Context) error {
+func (c *Consensus) validateAssemblerFromContext(ctx context.Context, snap *configSnapshot) error {
 	// TODO: maybe add to consenter config the assembler of its own party and take from there instead of fullConfig.sharedConfig
-	for _, party := range c.fullConfig.SharedConfig.PartiesConfig {
+	for _, party := range snap.fullConfig.SharedConfig.PartiesConfig {
 		if arma_types.PartyID(party.PartyID) == c.PartyID {
 			return validateClientFromContext(ctx, party.AssemblerConfig.GetNodeConfig().GetServerTlsCert(), "assembler", c.Logger)
 		}
@@ -1509,11 +1557,11 @@ func (c *Consensus) validateAssemblerFromContext(ctx context.Context) error {
 	return fmt.Errorf("no assembler config found for party %d", c.PartyID)
 }
 
-func (c *Consensus) validateBatcherFromContext(ctx context.Context, shardID arma_types.ShardID) error {
-	for _, shardInfo := range c.Config.Shards {
+func (c *Consensus) validateBatcherFromContext(ctx context.Context, snap *configSnapshot, shardID arma_types.ShardID) error {
+	for _, shardInfo := range snap.nodeConfig.Shards {
 		if shardInfo.ShardId == shardID {
 			for _, batcherInShard := range shardInfo.Batchers {
-				if batcherInShard.PartyID == c.Config.PartyId {
+				if batcherInShard.PartyID == snap.nodeConfig.PartyId {
 					return validateClientFromContext(ctx, batcherInShard.TLSCert, "batcher", c.Logger)
 				}
 			}
@@ -1534,15 +1582,15 @@ func validateClientFromContext(ctx context.Context, expectedRawCert []byte, name
 	return nil
 }
 
-func (c *Consensus) verifyAndClassifyRequest(request *protos.Request) (*protos.Request, error) {
+func (c *Consensus) verifyAndClassifyRequest(snap *configSnapshot, request *protos.Request) (*protos.Request, error) {
 	var reqType common.HeaderType
 
-	if err := c.RequestVerifier.Verify(request); err != nil {
+	if err := snap.requestVerifier.Verify(request); err != nil {
 		c.Logger.Debugf("request is invalid: %s", err)
 		return nil, fmt.Errorf("request verification error: %w", err)
 	}
 
-	reqType, err := c.RequestVerifier.VerifyStructureAndClassify(request)
+	reqType, err := snap.requestVerifier.VerifyStructureAndClassify(request)
 	if err != nil {
 		c.Logger.Debugf("request structure is invalid: %s", err)
 		return nil, fmt.Errorf("request structure verification error: %w", err)
@@ -1555,7 +1603,7 @@ func (c *Consensus) verifyAndClassifyRequest(request *protos.Request) (*protos.R
 		return nil, fmt.Errorf("request structure verification error: request has unsupported type %s", reqType)
 	}
 
-	configRequest, err := c.ConfigUpdateProposer.ProposeConfigUpdate(request, c.Config.Bundle, c.Signer, c.RequestVerifier, c.Config.BCCSP)
+	configRequest, err := snap.configUpdateProposer.ProposeConfigUpdate(request, snap.nodeConfig.Bundle, c.Signer, snap.requestVerifier, snap.nodeConfig.BCCSP)
 	if err != nil {
 		return nil, fmt.Errorf("propose config update error: %w", err)
 	}
@@ -1661,14 +1709,13 @@ func (c *Consensus) AckConfig(ctx context.Context, req *protos.ConfigAck) (*prot
 		return &protos.ConfigAckResponse{Error: "nil ConfigAck request"}, nil
 	}
 
-	if err := c.validateConfigAckClient(ctx, req); err != nil {
+	snap := c.configSnapshot() // the ack is checked against, and recorded in, one config
+	if err := c.validateConfigAckClient(ctx, snap, req); err != nil {
 		c.Logger.Warnf("Rejected ConfigAck request: %v", err)
 		return &protos.ConfigAckResponse{Error: err.Error()}, nil
 	}
 
-	c.lock.RLock()
-	receiver := c.ConfigAckReceiver
-	c.lock.RUnlock()
+	receiver := snap.configAckReceiver
 
 	err := receiver.AddAck(req)
 	if err != nil {
@@ -1681,16 +1728,16 @@ func (c *Consensus) AckConfig(ctx context.Context, req *protos.ConfigAck) (*prot
 	return &protos.ConfigAckResponse{}, nil
 }
 
-func (c *Consensus) validateConfigAckClient(ctx context.Context, req *protos.ConfigAck) error {
+func (c *Consensus) validateConfigAckClient(ctx context.Context, snap *configSnapshot, req *protos.ConfigAck) error {
 	switch req.NodeType {
 	case protos.NodeType_ROUTER:
-		return c.validateRouterFromContext(ctx)
+		return c.validateRouterFromContext(ctx, snap)
 
 	case protos.NodeType_BATCHER:
-		return c.validateBatcherFromContext(ctx, arma_types.ShardID(req.Shard))
+		return c.validateBatcherFromContext(ctx, snap, arma_types.ShardID(req.Shard))
 
 	case protos.NodeType_ASSEMBLER:
-		return c.validateAssemblerFromContext(ctx)
+		return c.validateAssemblerFromContext(ctx, snap)
 
 	default:
 		return fmt.Errorf("access denied: unsupported config ack node type %v", req.NodeType)

@@ -63,7 +63,7 @@ func TestVerifyAndClassifyRequestChecksChannelID(t *testing.T) {
 				ConfigUpdateProposer: proposer,
 			}
 
-			_, err := c.verifyAndClassifyRequest(tx.CreateStructuredRequestOfChannel(tc.reqType, tc.channelID, []byte("data")))
+			_, err := c.verifyAndClassifyRequest(c.configSnapshot(), tx.CreateStructuredRequestOfChannel(tc.reqType, tc.channelID, []byte("data")))
 			if tc.errMsg != "" {
 				require.ErrorContains(t, err, tc.errMsg)
 				require.Zero(t, proposer.ProposeConfigUpdateCallCount())
