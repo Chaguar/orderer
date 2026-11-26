@@ -63,6 +63,11 @@ type Batcher struct {
 	ConfigStore *configstore.Store
 	wal         *smartbft_wal.WriteAheadLogFile
 
+	// reconfigLock serializes Stop with a live reconfiguration, which stopAndReconfigure holds until Run returns.
+	// Stop waits for a reconfiguration in progress, and a reconfiguration that starts after Stop leaves the node
+	// stopped. It is taken before lock.
+	reconfigLock sync.Mutex
+
 	lock                               sync.Mutex
 	requestsInspectorVerifier          *RequestsInspectorVerifier
 	batcherDeliverService              *BatcherDeliverService
@@ -175,6 +180,9 @@ func (b *Batcher) GetStatus() node_utils.NodeStatus {
 }
 
 func (b *Batcher) Stop() {
+	b.reconfigLock.Lock()
+	defer b.reconfigLock.Unlock()
+
 	b.lock.Lock()
 	defer b.lock.Unlock()
 
@@ -322,7 +330,10 @@ func (b *Batcher) processNewConfigBlock(configBlock *common.Block, configState *
 	if isAdminOperationRequired {
 		b.logger.Warnf("Pending admin action to apply new config")
 		b.lock.Lock()
-		b.status.SetState(node_utils.StatePendingAdmin)
+		// a Stop that ran after ApplyConfig returned has stopped the node already
+		if b.status.GetState() != node_utils.StateStopped {
+			b.status.SetState(node_utils.StatePendingAdmin)
+		}
 		b.lock.Unlock()
 		return
 	}
@@ -425,7 +436,7 @@ func (b *Batcher) ApplyConfig(lastBlock *common.Block, configState *state.State)
 }
 
 // stopAndReconfigure restarts the batcher with the new config, in the term of configState, the state of the
-// decision that carries the config block.
+// decision that carries the config block. It does nothing if the batcher was stopped.
 func (b *Batcher) stopAndReconfigure(
 	newConfig *config.Configuration,
 	newBatcherConfig *node_config.BatcherNodeConfig,
@@ -434,9 +445,17 @@ func (b *Batcher) stopAndReconfigure(
 ) {
 	lastKnownDecisionNum := getLastKnownDecisionNumFromConfigBlock(lastBlock, b.logger)
 
+	b.reconfigLock.Lock()
+	defer b.reconfigLock.Unlock()
+
 	// this is not an admin restart.
 	// close net, ledger and SIGTERM channel
 	b.lock.Lock()
+	if b.status.GetState() == node_utils.StateStopped {
+		b.lock.Unlock()
+		b.logger.Infof("Batcher was stopped, aborting reconfiguration on config block %d", lastBlock.GetHeader().GetNumber())
+		return
+	}
 	b.Net.Stop()
 	b.Ledger.Close()
 

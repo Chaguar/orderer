@@ -38,6 +38,9 @@ type stubConsenter struct {
 	receivedEventsLock sync.RWMutex
 
 	ackConfigHandler func(req *protos.ConfigAck) (*protos.ConfigAckResponse, error)
+	// createReplicatorHook is called whenever a batcher creates its decision replicator, which a live
+	// reconfiguration does while it builds the batcher for the new config.
+	createReplicatorHook func()
 
 	// lastDecision is the last decision number sent; each state update sends the next one.
 	lastDecision     types.DecisionNum
@@ -243,8 +246,21 @@ func (sc *stubConsenter) ReplicateDecision() <-chan *state.Header {
 }
 
 func (sc *stubConsenter) CreateDecisionConsensusReplicator(conf *config.BatcherNodeConfig, signer identity.SignerSerializer, logger *flogging.FabricLogger, num types.DecisionNum) batcher.DecisionReplicator {
+	sc.receivedEventsLock.RLock()
+	hook := sc.createReplicatorHook
+	sc.receivedEventsLock.RUnlock()
+	if hook != nil {
+		hook()
+	}
 	sc.advanceLastDecision(num) // the batcher resumes from num, so the next state update sends a newer one
 	return sc
+}
+
+// SetCreateReplicatorHook installs a hook that CreateDecisionConsensusReplicator calls before it returns.
+func (sc *stubConsenter) SetCreateReplicatorHook(hook func()) {
+	sc.receivedEventsLock.Lock()
+	defer sc.receivedEventsLock.Unlock()
+	sc.createReplicatorHook = hook
 }
 
 // SetAckConfigHandler installs a handler invoked by AckConfig to intercept the ConfigAck
