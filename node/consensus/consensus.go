@@ -124,8 +124,9 @@ type Consensus struct {
 	Net                          NetStopper
 	BADB                         *badb.BatchAttestationDB
 	MainExitChan                 chan struct{}
-	// ReconfigAbort is closed by Stop to release a Deliver that is blocked waiting for a
-	// dynamic reconfiguration to complete, so BFT.Stop's goroutine-join can proceed.
+	// ReconfigAbort is closed by Stop, under lock, to release a Deliver that is blocked waiting for a
+	// dynamic reconfiguration to complete, so BFT.Stop's goroutine-join can proceed. The reconfiguration
+	// checks it under lock before it changes the node's state, so it does nothing once Stop has begun.
 	// It is created once and lives for the lifetime of the node (survives dynamic restarts).
 	ReconfigAbort chan struct{}
 
@@ -1203,7 +1204,8 @@ func (c *Consensus) Deliver(proposal smartbft_types.Proposal, signatures []smart
 //     config, so Deliver resumes against the freshly installed config.
 //   - admin path: before BFT.Stop, because BFT.Stop joins the controller/viewchanger
 //     goroutine, which is the very goroutine parked inside Deliver; closing done first lets
-//     it return so the join can complete.
+//     it return so the join can complete. If Stop has begun, the node is not marked pending
+//     admin, since Stop marks it stopped.
 func (c *Consensus) processNewConfigBlock(configBlock *common.Block, done chan struct{}) {
 	c.Logger.Infof("Processing new config block number %d", configBlock.Header.Number)
 
@@ -1217,8 +1219,15 @@ func (c *Consensus) processNewConfigBlock(configBlock *common.Block, done chan s
 	}
 
 	if isAdminOperationRequired {
-		c.Logger.Warnf("Pending admin action to apply new config")
 		c.lock.Lock()
+		if c.isReconfigAborted() {
+			// Stop has begun: it stops BFT and marks the node stopped, which pending admin must not overwrite.
+			close(done)
+			c.lock.Unlock()
+			c.Logger.Infof("Consensus is stopping, not waiting for an admin to apply the new config")
+			return
+		}
+		c.Logger.Warnf("Pending admin action to apply new config")
 		c.status.SetState(node_utils.StatePendingAdmin)
 		close(done)
 		c.lock.Unlock()
@@ -1260,15 +1269,6 @@ func (c *Consensus) ApplyConfig(lastBlock *common.Block) (bool, error) {
 		c.Logger.Warnf("consenter did not receive acknowledgments from all nodes on sequence %d", configSeq)
 	} else {
 		c.Logger.Infof("all acknowledgement have been received, it is safe to apply the new configuration")
-	}
-
-	// If the node is being stopped, abort the reconfiguration. Stop closes ReconfigAbort and
-	// then, later, stops the ConfigAckReceiver, which is what just released WaitForAllAcks.
-	// This check is only a shortcut: a Stop can still begin after it, so stopAndReconfigure
-	// checks again under c.lock before it reopens anything.
-	if c.isReconfigAborted() {
-		c.Logger.Infof("consensus is stopping, aborting dynamic reconfiguration on sequence %d", configSeq)
-		return false, nil
 	}
 
 	// check if party is removed
