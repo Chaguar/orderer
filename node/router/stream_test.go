@@ -542,29 +542,6 @@ func createTestTrackedRequestFromTrace(trace []byte) *TrackedRequest {
 	return CreateTrackedRequest(req, make(chan Response, 10), nil, trace)
 }
 
-// fakeConfigSubmitter records the requests handed to it.
-type fakeConfigSubmitter struct {
-	lock     sync.Mutex
-	received []*TrackedRequest
-}
-
-func (f *fakeConfigSubmitter) Start() {}
-func (f *fakeConfigSubmitter) Stop()  {}
-
-func (f *fakeConfigSubmitter) Forward(tr *TrackedRequest) {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
-	f.received = append(f.received, tr)
-}
-
-func (f *fakeConfigSubmitter) count() int {
-	f.lock.Lock()
-	defer f.lock.Unlock()
-
-	return len(f.received)
-}
-
 // Scenario:
 //  1. Register a traced request on a stream and also queue it on the requests
 //     channel, which is what Forward does.
@@ -642,7 +619,8 @@ func TestResponseToClientWithErrorCountsATracedBadRequest(t *testing.T) {
 
 // Scenario:
 //  1. Queue a traced config update on a stream, registered as Forward does.
-//  2. Let sendRequests classify it and hand it to the config submitter.
+//  2. Let sendRequests classify it and hand it to a config submitter without its goroutine, so that it stays
+//     in the submitter's queue.
 //  3. Expect the registration to be gone, so that a later error on this stream
 //     cannot answer a request the consenter is going to answer.
 func TestSendRequestsUnregistersAConfigUpdateOnHandoff(t *testing.T) {
@@ -651,7 +629,11 @@ func TestSendRequestsUnregistersAConfigUpdateOnHandoff(t *testing.T) {
 	fakeSubmitStreamClient.SendReturns(nil)
 	fakeSubmitStreamClient.ContextReturns(ctx)
 	verifier := createTestVerifierAcceptingConfigUpdates()
-	submitter := &fakeConfigSubmitter{}
+	submitter := &configSubmitter{
+		ctx:                   context.Background(),
+		logger:                testutil.CreateLogger(t, 0),
+		configRequestsChannel: make(chan *TrackedRequest, 1),
+	}
 
 	s := &stream{
 		endpoint:                          "127.0.0.1:5017",
@@ -678,7 +660,7 @@ func TestSendRequestsUnregistersAConfigUpdateOnHandoff(t *testing.T) {
 	s.requestsChannel <- tr
 
 	require.Eventually(t, func() bool {
-		return submitter.count() == 1
+		return len(submitter.configRequestsChannel) == 1
 	}, time.Second, 10*time.Millisecond)
 
 	_, exists := s.isRequestRegistered(trace)

@@ -7,6 +7,7 @@ SPDX-License-Identifier: Apache-2.0
 package router
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"testing"
@@ -34,7 +35,6 @@ type configSubmitTestSetup struct {
 
 func (s configSubmitTestSetup) Start() {
 	s.stubConsenter.Start()
-	s.configSubmitter.Start()
 }
 
 func (s configSubmitTestSetup) Stop() {
@@ -77,6 +77,7 @@ func createConfigSubmitTestSetup(t *testing.T) configSubmitTestSetup {
 	}
 
 	configSubmitter := NewConfigSubmitter(conf, logger, verifier, fakeSigner, mockConfigUpdateProposer, mockConfigRulesVerifier, NewRouterMetrics(conf, logger))
+	t.Cleanup(configSubmitter.Stop)
 
 	return configSubmitTestSetup{configSubmitter: configSubmitter, stubConsenter: &stubConsenter}
 }
@@ -183,7 +184,8 @@ func TestConfigSubmitterReconnectionAbort(t *testing.T) {
 	configSubmitter.Stop()
 
 	err := <-errChan
-	require.EqualError(t, err, fmt.Sprintf("reconnection to consensus %s aborted, because context is done and configSubmitter stopped", configSubmitter.consensusEndpoint))
+	require.ErrorIs(t, err, context.Canceled)
+	require.ErrorContains(t, err, fmt.Sprintf("reconnection to consensus %s aborted, because context is done and configSubmitter stopped", configSubmitter.consensusEndpoint))
 }
 
 // Scenario:
@@ -212,13 +214,14 @@ func TestConfigSubmitterRejectionCodes(t *testing.T) {
 }
 
 // Scenario:
-//  1. Create a config submitter with a queue of one and do not start it, so that
-//     nothing drains the queue.
+//  1. Create a config submitter with a queue of one and without its goroutine, so
+//     that nothing drains the queue.
 //  2. Forward a request, filling the queue, and expect no response.
 //  3. Forward a second request and expect it to be rejected within a timeout,
 //     rather than blocking.
 func TestConfigSubmitterForwardRejectsWhenQueueIsFull(t *testing.T) {
 	cs := &configSubmitter{
+		ctx:                   context.Background(),
 		logger:                testutil.CreateLogger(t, 0),
 		configRequestsChannel: make(chan *TrackedRequest, 1),
 	}
@@ -238,4 +241,57 @@ func TestConfigSubmitterForwardRejectsWhenQueueIsFull(t *testing.T) {
 	case <-time.After(10 * time.Second):
 		require.FailNow(t, "Forward did not reject a config request when the queue was full")
 	}
+}
+
+// Scenario:
+//  1. Start a config submitter and its consenter, forward a config update, and expect the consenter's answer.
+//  2. Stop the consenter, so that a config update waits while the submitter retries the connection.
+//  3. Forward three config updates, and wait until the first is being submitted and the other two are queued.
+//  4. Stop the config submitter, and expect all three to be answered by the time Stop returns: the queued two
+//     with "router is stopping", and the one being submitted with the aborted reconnection.
+//  5. Forward a fifth config update, and expect it to be answered at once with "router is stopping".
+//  6. Stop the config submitter again, and expect it to return.
+func TestConfigSubmitterStopAnswersEveryConfigUpdate(t *testing.T) {
+	setup := createConfigSubmitTestSetup(t)
+	setup.stubConsenter.Start()
+	configSubmitter := setup.configSubmitter
+
+	req := tx.CreateStructuredRequest([]byte("data"))
+	feedbackChan := make(chan Response, 4)
+	configSubmitter.Forward(CreateTrackedRequest(req, feedbackChan, []byte("req0"), nil))
+	resp := <-feedbackChan
+	require.Equal(t, "dummy submit config", resp.SubmitResponse.Error)
+
+	setup.stubConsenter.Stop()
+
+	for _, reqID := range []string{"req1", "req2", "req3"} {
+		configSubmitter.Forward(CreateTrackedRequest(req, feedbackChan, []byte(reqID), nil))
+	}
+	// req1 is being submitted once the proposer has been called for it, which forwardRequest does first.
+	proposer := configSubmitter.configUpdateProposer.(*policyMocks.FakeConfigUpdateProposer)
+	require.Eventually(t, func() bool {
+		return proposer.ProposeConfigUpdateCallCount() == 2
+	}, 10*time.Second, 10*time.Millisecond)
+	require.Len(t, configSubmitter.configRequestsChannel, 2)
+
+	configSubmitter.Stop()
+
+	require.Len(t, feedbackChan, 3)
+	responses := make(map[string]error)
+	for range 3 {
+		resp := <-feedbackChan
+		responses[string(resp.reqID)] = resp.GetResponseError()
+	}
+	require.ErrorIs(t, responses["req1"], context.Canceled)
+	require.ErrorContains(t, responses["req1"], "aborted, because context is done and configSubmitter stopped")
+	require.ErrorContains(t, responses["req2"], "router is stopping")
+	require.ErrorContains(t, responses["req3"], "router is stopping")
+
+	configSubmitter.Forward(CreateTrackedRequest(req, feedbackChan, []byte("req4"), nil))
+	require.Len(t, feedbackChan, 1)
+	resp = <-feedbackChan
+	require.Equal(t, []byte("req4"), resp.reqID)
+	require.ErrorContains(t, resp.GetResponseError(), "router is stopping")
+
+	configSubmitter.Stop()
 }

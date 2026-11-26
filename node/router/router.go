@@ -67,7 +67,7 @@ type Router struct {
 	routerNodeConfig *nodeconfig.RouterNodeConfig
 	configSeq        uint32
 	verifier         *requestfilter.RulesVerifier
-	configSubmitter  ConfigurationSubmitter
+	configSubmitter  *configSubmitter
 	shardRouters     map[types.ShardID]*ShardRouter
 	decisionPuller   DecisionPuller
 	configAcker      configack.Sender
@@ -279,8 +279,6 @@ func (r *Router) StartRouterService() {
 		r.logger.Infof("Router network service on %s has been stopped", address)
 	}()
 
-	r.configSubmitter.Start()
-
 	go r.pullAndProcessDecisions()
 
 	// update the router state.
@@ -368,6 +366,10 @@ func (r *Router) SoftStop() error {
 		sr.SoftStop(errors.New("router is stopping, cannot process request"))
 	}
 
+	// the config submitter answers the config updates handed to it, so it stops before the feedback channels
+	// are drained, for these answers to be sent too.
+	r.configSubmitter.Stop()
+
 	// wait until all feedback channels are drained and all responses are sent
 	r.drainOnce.Do(func() {
 		close(r.drainChan)
@@ -375,7 +377,6 @@ func (r *Router) SoftStop() error {
 	r.feedbackWG.Wait()
 
 	// then, we stop other components
-	r.configSubmitter.Stop()
 	r.net.Stop() // this will close all client connections, so some (immediate) responses may not be sent.
 	r.metrics.StopMetricsTracker()
 	r.opsSystem.Stop()

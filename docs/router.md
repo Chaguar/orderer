@@ -351,12 +351,13 @@ configurations. Regular transactions are not affected.
 
 A new configuration reaches the router in the decision stream, as a config block (see
 [Following the Decisions of Consensus](#36-following-the-decisions-of-consensus)). The router then
-**soft stops**: it stops accepting requests, answers every request still waiting on its streams with
-an error — though on `Broadcast` and `SubmitStream` the configuration updates still queued in the
-config submitter go unanswered — waits until the responses already queued for each client are sent,
-and then stops its network service. Once the soft stop is done and the new configuration is built,
-it acknowledges the configuration sequence to its consenter and waits for the reply, before deciding
-whether it can apply it.
+**soft stops**: it stops accepting requests and answers every request still waiting on its streams
+with an error. The config submitter answers the configuration updates still in its queue with an
+error; the one it is submitting gets the consenter's answer, or an error if the soft stop cuts it
+short. The router then waits until the responses already queued for each client are handed to the
+network service, and stops it; a response not yet written to the client by then is lost. Once the
+soft stop is done and the new configuration is built, it acknowledges the configuration sequence to
+its consenter and waits for the reply, before deciding whether it can apply it.
 
 If the new configuration evicts the router's party, or changes this node's endpoint, TLS certificate
 or signing certificate, the router enters the **pending-admin** state and waits for an administrator,
