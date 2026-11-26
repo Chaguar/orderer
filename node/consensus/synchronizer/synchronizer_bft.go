@@ -23,9 +23,11 @@ import (
 	"github.com/Chaguar/orderer/config"
 	"github.com/Chaguar/orderer/node/comm"
 	smartbft_types "github.com/hyperledger/SmartBFT/pkg/types"
+	"github.com/hyperledger/SmartBFT/smartbftprotos"
 	"github.com/hyperledger/fabric-lib-go/bccsp"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"google.golang.org/protobuf/proto"
 )
 
 type BFTSynchronizer struct {
@@ -191,9 +193,24 @@ func (s *BFTSynchronizer) synchronize() (*smartbft_types.Decision, error) {
 		return nil, fmt.Errorf("cannot get decision from block: %w", err)
 	}
 
-	// TODO add a short string representation of the decision for better logging.
-	s.Logger.Infof("Returning decision from block [%d]", lastPulledBlock.GetHeader().GetNumber())
+	s.Logger.Infof("Returning %s from block [%d]", decisionString(decision), lastPulledBlock.GetHeader().GetNumber())
 	return decision, err
+}
+
+// decisionString returns a short representation of a decision for logging: its sequence (the decision number)
+// and view from the proposal metadata, its verification sequence, and the IDs of the nodes that signed it.
+func decisionString(decision *smartbft_types.Decision) string {
+	signers := make([]uint64, 0, len(decision.Signatures))
+	for _, sig := range decision.Signatures {
+		signers = append(signers, sig.ID)
+	}
+	md := &smartbftprotos.ViewMetadata{}
+	if err := proto.Unmarshal(decision.Proposal.Metadata, md); err != nil {
+		return fmt.Sprintf("decision with undecodable metadata (%v), verification sequence %d, signers %v",
+			err, decision.Proposal.VerificationSequence, signers)
+	}
+	return fmt.Sprintf("decision %d (view %d, verification sequence %d, signers %v)",
+		md.GetLatestSequence(), md.GetViewId(), decision.Proposal.VerificationSequence, signers)
 }
 
 // detectTargetHeight probes remote endpoints and detects what is the target height this node needs to reach.
