@@ -44,16 +44,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// autoRemoveTimeoutConfigUpdate builds a config update that changes a batching timeout. It
-// does not require an admin restart in the router, so the router applies it dynamically and
-// advances to config sequence 1.
-func autoRemoveTimeoutConfigUpdate(t *testing.T, dir string) []byte {
-	configUpdateBuilder := cfgutil.NewConfigUpdateBuilder(t, dir, filepath.Join(dir, "bootstrap", "bootstrap.block"))
-	configUpdatePbData := configUpdateBuilder.UpdateBatchTimeouts(t, cfgutil.NewBatchTimeoutsConfig(cfgutil.BatchTimeoutsConfigName.AutoRemoveTimeout, "15ms"))
-	require.NotNil(t, configUpdatePbData)
-	return configUpdatePbData
-}
-
 // Scenario:
 // 1. Start a router, stub batcher, and stub consenter with the initial config.
 // 2. Wait for the router to be running with config sequence 0.
@@ -76,7 +66,7 @@ func TestSendConfigUpdate(t *testing.T) {
 	}, 20*time.Second, 100*time.Millisecond)
 
 	// create the config request.
-	testSetup.SendConfigUpdate(t, parties, autoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
+	testSetup.SendConfigUpdate(t, parties, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir), dir, 1)
 
 	// check that the router has applied the new config and is running with the new config
 	require.Eventually(t, func() bool {

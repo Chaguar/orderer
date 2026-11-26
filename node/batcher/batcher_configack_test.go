@@ -57,7 +57,7 @@ func TestBatcherSendsConfigAck(t *testing.T) {
 		return status.GetState() == node_utils.StateRunning && status.ConfigSequenceNumber == uint64(0)
 	}, 60*time.Second, 10*time.Millisecond)
 
-	setup.deliverConfigUpdate(t, dir, autoRemoveTimeoutConfigUpdate(t, dir))
+	setup.deliverConfigUpdate(t, dir, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir))
 
 	// the batcher applies (and acks) the new config, then reaches pending admin because a
 	// batching parameter changed.
@@ -102,7 +102,7 @@ func TestBatcherConfigAckRetriesUntilConsenterAccepts(t *testing.T) {
 		return status.GetState() == node_utils.StateRunning && status.ConfigSequenceNumber == uint64(0)
 	}, 60*time.Second, 10*time.Millisecond)
 
-	setup.deliverConfigUpdate(t, dir, autoRemoveTimeoutConfigUpdate(t, dir))
+	setup.deliverConfigUpdate(t, dir, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir))
 
 	require.Eventually(t, func() bool {
 		return setup.batcher.GetStatus().GetState() == node_utils.StatePendingAdmin
@@ -148,7 +148,7 @@ func TestBatcherConfigAckWaitsForConsenterResponse(t *testing.T) {
 		return status.GetState() == node_utils.StateRunning && status.ConfigSequenceNumber == uint64(0)
 	}, 60*time.Second, 10*time.Millisecond)
 
-	setup.deliverConfigUpdate(t, dir, autoRemoveTimeoutConfigUpdate(t, dir))
+	setup.deliverConfigUpdate(t, dir, cfgutil.AutoRemoveTimeoutConfigUpdate(t, dir))
 
 	select {
 	case <-acked:

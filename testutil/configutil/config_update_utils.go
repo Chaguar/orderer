@@ -1233,6 +1233,17 @@ func (c *ConfigUpdateBuilder) ConfigUpdatePBData(t *testing.T) []byte {
 	return c.createConfigUpdate(t, c.configData)
 }
 
+// AutoRemoveTimeoutConfigUpdate builds a config update, on top of the bootstrap block in dir, that changes the
+// AutoRemoveTimeout batching timeout. AutoRemoveTimeout is a memory-pool option: applying it requires an admin
+// operation in the batcher, which drives the batcher to pending admin, whereas the router and the assembler
+// apply it dynamically and advance to the next config sequence.
+func AutoRemoveTimeoutConfigUpdate(t *testing.T, dir string) []byte {
+	configUpdateBuilder := NewConfigUpdateBuilder(t, dir, filepath.Join(dir, "bootstrap", "bootstrap.block"))
+	configUpdatePbData := configUpdateBuilder.UpdateBatchTimeouts(t, NewBatchTimeoutsConfig(BatchTimeoutsConfigName.AutoRemoveTimeout, "15ms"))
+	require.NotNil(t, configUpdatePbData)
+	return configUpdatePbData
+}
+
 // CreateConfigTX creates a config transaction signed by the specified administrators.
 // To satisfy majority requirement, the signingParties list must explicitly include the IDs of all participating parties necessary to reach that majority.
 func CreateConfigTX(t *testing.T, dir string, signingParties []types.PartyID, submittingParty int, configUpdateBytes []byte) *common.Envelope {
