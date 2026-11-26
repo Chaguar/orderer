@@ -67,6 +67,10 @@ type DefaultOrdererRules struct{}
 //  12. Router and assembler hosts and ports in SharedConfig should match the corresponding
 //     broadcast and deliver OrdererEndpoints. Mismatches are logged as warnings.
 //  13. Signing certificates must have unique public keys across all nodes.
+//  14. Known certificates of the orderer and application organization MSPs must be PEM-encoded
+//     certificates that chain to their MSP's root or intermediate CA certificates, and must be neither
+//     expired nor not yet valid. Checked only for genesis configs, whose known certificates are all new.
+//     For a later config update, ValidateTransition checks only the known certificates it adds or changes.
 func (or *DefaultOrdererRules) ValidateNewConfig(envelope *common.Envelope, bccsp bccsp.BCCSP, partyID arma_types.PartyID) error {
 	bundle, err := channelconfig.NewBundleFromEnvelope(envelope, bccsp)
 	if err != nil {
@@ -191,6 +195,13 @@ func (or *DefaultOrdererRules) ValidateNewConfig(envelope *common.Envelope, bccs
 		return err
 	}
 
+	// 14.
+	if !ignoreExpiration {
+		if err := validateKnownCerts(config, nil); err != nil {
+			return err
+		}
+	}
+
 	return nil
 }
 
@@ -210,6 +221,9 @@ func (or *DefaultOrdererRules) ValidateNewConfig(envelope *common.Envelope, bccs
 //  6. Only one membership change is allowed per config tx (add, remove, or modify).
 //  7. Certificates of newly added and modified parties must be valid,
 //     with expiration enforced.
+//  8. Known certificates added to or changed in an orderer or application organization MSP must be
+//     PEM-encoded certificates that chain to the MSP's root or intermediate CA certificates, and must be
+//     neither expired nor not yet valid.
 //
 // TODO: Validate ordering service remains live after the change (no quorum loss / no liveness loss).
 func (DefaultOrdererRules) ValidateTransition(current channelconfig.Resources, next *common.Envelope, bccsp bccsp.BCCSP) error {
@@ -316,6 +330,12 @@ func (DefaultOrdererRules) ValidateTransition(current channelconfig.Resources, n
 		if err := validatePartyCertificates(party, false); err != nil {
 			return fmt.Errorf("certificate validation failed for modified party ID %d: %w", party.PartyID, err)
 		}
+	}
+
+	// 8.
+	nextConfig := nextBundle.ConfigtxValidator().ConfigProto()
+	if err := validateKnownCerts(nextConfig, current.ConfigtxValidator().ConfigProto()); err != nil {
+		return err
 	}
 
 	return nil

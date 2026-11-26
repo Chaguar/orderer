@@ -18,6 +18,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/Chaguar/common/api/msppb"
 	"github.com/Chaguar/common/api/ordererpb"
 	"github.com/Chaguar/common/common/channelconfig"
 	"github.com/Chaguar/common/protoutil"
@@ -36,6 +37,7 @@ import (
 	"github.com/Chaguar/orderer/testutil/tx"
 	"github.com/hyperledger/fabric-lib-go/bccsp/factory"
 	"github.com/hyperledger/fabric-protos-go-apiv2/common"
+	"github.com/hyperledger/fabric-protos-go-apiv2/msp"
 	"github.com/hyperledger/fabric-protos-go-apiv2/orderer"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
@@ -439,6 +441,52 @@ func TestValidateNewConfig_SigningCertInConfigUpdate(t *testing.T) {
 	}
 }
 
+func TestValidateNewConfig_ExpiredKnownCert(t *testing.T) {
+	for _, tc := range []struct {
+		group   string
+		orgsDir string
+		org     string
+	}{
+		{group: "Orderer", orgsDir: "ordererOrganizations", org: "org1"},
+		{group: "Application", orgsDir: "peerOrganizations", org: "peer1"},
+	} {
+		t.Run(tc.group, func(t *testing.T) {
+			dir, env, _, _, _, _, _ := setupOrdererRulesTest(t, 1)
+			or := verify.DefaultOrdererRules{}
+			bccsp := factory.GetDefault()
+
+			payload, err := protoutil.UnmarshalPayload(env.Payload)
+			require.NoError(t, err)
+			cfgEnv := &common.ConfigEnvelope{}
+			require.NoError(t, proto.Unmarshal(payload.Data, cfgEnv))
+
+			// expire a known certificate of the organization MSP
+			mspValue := cfgEnv.Config.ChannelGroup.Groups[tc.group].Groups[tc.org].Values["MSP"]
+			mspConfig := &msp.MSPConfig{}
+			require.NoError(t, proto.Unmarshal(mspValue.Value, mspConfig))
+			fabricConfig := &msppb.FabricMSPConfig{}
+			require.NoError(t, proto.Unmarshal(mspConfig.Config, fabricConfig))
+			require.NotEmpty(t, fabricConfig.KnownCerts)
+			orgDir := filepath.Join(dir, "crypto", tc.orgsDir, tc.org)
+			fabricConfig.KnownCerts[0] = expireCert(t, orgDir, fabricConfig.KnownCerts[0])
+			mspConfig.Config = protoutil.MarshalOrPanic(fabricConfig)
+			mspValue.Value = protoutil.MarshalOrPanic(mspConfig)
+
+			payload.Data = protoutil.MarshalOrPanic(cfgEnv)
+			env.Payload = protoutil.MarshalOrPanic(payload)
+			err = or.ValidateNewConfig(env, bccsp, types.PartyID(1))
+			require.ErrorContains(t, err, "invalid known certificate of MSP "+tc.org)
+
+			// in a config update, ValidateNewConfig ignores known certificate expiration, since it cannot tell
+			// an added known certificate from an existing one; ValidateTransition checks the added and changed ones
+			cfgEnv.Config.Sequence = 1
+			payload.Data = protoutil.MarshalOrPanic(cfgEnv)
+			env.Payload = protoutil.MarshalOrPanic(payload)
+			require.NoError(t, or.ValidateNewConfig(env, bccsp, types.PartyID(1)))
+		})
+	}
+}
+
 func TestValidateTransition_RemoveAndAddSameParty(t *testing.T) {
 	or := verify.DefaultOrdererRules{}
 	bccsp := factory.GetDefault()
@@ -695,6 +743,46 @@ func TestValidateTransition_ChannelID(t *testing.T) {
 	require.Contains(t, err.Error(), "channel ID cannot change")
 }
 
+func TestValidateTransition_KnownCerts(t *testing.T) {
+	for _, tc := range []struct {
+		name    string
+		expired bool
+	}{
+		{name: "valid known cert"},
+		{name: "expired known cert", expired: true},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			dir, _, currBundle, builder, proposer, signer, verifier := setupOrdererRulesTest(t, 1)
+			or := verify.DefaultOrdererRules{}
+			bccsp := factory.GetDefault()
+
+			knownCert := generateAssemblerSignCert(t, dir, 1)
+			if tc.expired {
+				knownCert = expireCert(t, filepath.Join(dir, "crypto", "ordererOrganizations", "org1"), knownCert)
+			}
+
+			updatePb := builder.UpdateOrdererOrgKnownCerts(t, "org1", [][]byte{knownCert})
+			updateEnv := configutil.CreateConfigTX(t, dir, []types.PartyID{1}, 1, updatePb)
+			req := &comm.Request{Payload: updateEnv.Payload, Signature: updateEnv.Signature}
+
+			nextCfgEnv, err := proposer.ProposeConfigUpdate(req, currBundle, signer, verifier, bccsp)
+			require.NoError(t, err)
+
+			nextEnv := &common.Envelope{
+				Payload:   nextCfgEnv.Payload,
+				Signature: nextCfgEnv.Signature,
+			}
+
+			err = or.ValidateTransition(currBundle, nextEnv, bccsp)
+			if tc.expired {
+				require.ErrorContains(t, err, "invalid known certificate of MSP org1")
+			} else {
+				require.NoError(t, err)
+			}
+		})
+	}
+}
+
 func setupOrdererRulesTest(t *testing.T, parties int, genArgs ...string) (
 	string,
 	*common.Envelope,
@@ -792,4 +880,29 @@ func generateAssemblerSignCert(t *testing.T, dir string, partyID int) []byte {
 	require.NoError(t, err)
 
 	return newCert
+}
+
+// expireCert reissues the certificate from the CA of the organization in orgDir, so that it expires
+// one second after it becomes valid.
+func expireCert(t *testing.T, orgDir string, certPEM []byte) []byte {
+	t.Helper()
+
+	caDir := filepath.Join(orgDir, "ca")
+	caCertPEM, err := os.ReadFile(filepath.Join(caDir, filepath.Base(orgDir)+"-CA-cert.pem"))
+	require.NoError(t, err)
+	caKeyPEM, err := os.ReadFile(filepath.Join(caDir, "priv_sk"))
+	require.NoError(t, err)
+	caCert, err := utils.Parsex509Cert(caCertPEM)
+	require.NoError(t, err)
+	caKey, err := tx.CreateECDSAPrivateKey(caKeyPEM)
+	require.NoError(t, err)
+	cert, err := utils.Parsex509Cert(certPEM)
+	require.NoError(t, err)
+
+	tmpl := *cert
+	tmpl.NotAfter = cert.NotBefore.Add(time.Second)
+	expiredDER, err := x509.CreateCertificate(rand.Reader, &tmpl, caCert, cert.PublicKey, caKey)
+	require.NoError(t, err)
+
+	return pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: expiredDER})
 }
