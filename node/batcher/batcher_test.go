@@ -492,6 +492,54 @@ func TestBatcherSkipsADecisionOlderThanTheLastApplied(t *testing.T) {
 	require.Equal(t, types.PartyID(2), batchers[1].GetPrimaryID())
 }
 
+// Scenario:
+//  1. Start a batcher and add config block 2 to its config store, as if it had started from config block 2.
+//  2. Send it decision 1, carrying config block 1, twice: the second send returns once the first was handled.
+//  3. Expect its config store to be unchanged and the batcher to keep running, instead of applying the older
+//     config block.
+//  4. Send it a term change in decision 2, and expect it to apply it.
+func TestBatcherSkipsAConfigBlockOlderThanTheLastInItsConfigStore(t *testing.T) {
+	shardID := types.ShardID(0)
+	numParties := 1
+	ca, err := tlsgen.NewCA()
+	require.NoError(t, err)
+
+	batcherNodes := createNodes(t, ca, numParties)
+	batchersInfo := createBatchersInfo(numParties, batcherNodes, ca)
+	consenterNodes := createNodes(t, ca, numParties)
+	consentersInfo := createConsentersInfo(numParties, consenterNodes, ca)
+
+	stubConsenters, cleanConsenters := createConsenterStubs(t, consenterNodes, numParties)
+	defer cleanConsenters()
+
+	routerKeyPairs := pinning.CreateRouterKeyPairs(t, ca, numParties)
+	batchers, _, _, cleanBatchers := createBatchers(t, numParties, shardID, batcherNodes, batchersInfo, consentersInfo, routerKeyPairs, stubConsenters)
+	defer cleanBatchers()
+
+	b := batchers[0]
+	require.NoError(t, b.ConfigStore.Add(tx.CreateConfigBlock(2, []byte("config block number two"))))
+
+	oldConfigState := &state.State{Shards: []state.ShardTerm{{Shard: shardID, Term: 0}}}
+	oldConfigBlock := tx.CreateConfigBlock(1, []byte("config block number one"))
+	stubConsenters[0].UpdateStateHeaderWithConfigBlock(types.DecisionNum(1), []*common.Block{oldConfigBlock}, oldConfigState)
+	// the stub's channel is unbuffered: this send returns only once the batcher took it, after handling the first one
+	stubConsenters[0].UpdateStateHeaderWithConfigBlock(types.DecisionNum(1), []*common.Block{oldConfigBlock}, oldConfigState)
+
+	lastConfigBlock, err := b.ConfigStore.Last()
+	require.NoError(t, err)
+	require.Equal(t, uint64(2), lastConfigBlock.GetHeader().GetNumber())
+	blockNumbers, err := b.ConfigStore.ListBlockNumbers()
+	require.NoError(t, err)
+	require.Equal(t, []uint64{0, 2}, blockNumbers)
+	require.Equal(t, node_utils.StateRunning, b.GetStatus().GetState())
+
+	term := uint64(1)
+	stubConsenters[0].UpdateState(&state.State{Shards: []state.ShardTerm{{Shard: shardID, Term: term}}})
+	require.Eventually(t, func() bool {
+		return b.GetTerm() == term
+	}, 30*time.Second, 10*time.Millisecond)
+}
+
 func TestControlEventBroadcasterWaitsForQuorum(t *testing.T) {
 	shardID := types.ShardID(0)
 	numParties := 4
