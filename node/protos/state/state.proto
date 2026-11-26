@@ -10,6 +10,8 @@ package state;
 
 option go_package = "github.com/Chaguar/orderer/node/protos/state";
 
+import "google/protobuf/timestamp.proto";
+
 // ShardTerm represents a shard and its term
 message ShardTerm {
   uint32 shard = 1;
@@ -84,4 +86,5 @@ message State {
   repeated AssemblerHeight assembler_heights = 7; // Highest committed decision reported by each assembler party, sorted by party
   repeated PrunePoint prune_points = 8; // Agreed prune point per <shard, primary>, sorted by (shard, primary); an absent pair means 0
   uint64 durable_watermark = 9; // Highest decision committed by at least 2f+1 assemblers, as they reported; never decreases
+  google.protobuf.Timestamp timestamp = 10; // Agreed wall-clock time of the decision this state belongs to; absent while unset
 }

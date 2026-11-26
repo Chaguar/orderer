@@ -9,16 +9,19 @@ package state
 import (
 	"cmp"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"math"
 	"slices"
 	"strings"
+	"time"
 
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/Chaguar/orderer/common/utils"
 	stateprotos "github.com/Chaguar/orderer/node/protos/state"
 	"github.com/hyperledger/fabric-lib-go/common/flogging"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 // batchKey identifies a batch by <shard, primary, seq>: the batch-identity portion of
@@ -92,6 +95,9 @@ type State struct {
 	// DurableWatermark is the highest decision that at least 2f+1 assemblers reported as committed, so at
 	// least f+1 honest assemblers hold every decision up to it. It never decreases.
 	DurableWatermark types.DecisionNum
+	// Timestamp is the agreed wall-clock time of the decision this state belongs to. The zero time means
+	// unset, and is not encoded.
+	Timestamp time.Time
 }
 
 func (s *State) String() string {
@@ -126,8 +132,9 @@ func (s *State) String() string {
 	}
 
 	return fmt.Sprintf("State{ShardCount: %d, AssemblerHeights: %d, PrunePoints: %d, DurableWatermark: %d, "+
-		"\nPending: %s, \nComplaints: %s}",
-		len(s.Shards), len(s.AssemblerHeights), len(s.PrunePoints), s.DurableWatermark, pendingStr, complaintsStr)
+		"Timestamp: %s, \nPending: %s, \nComplaints: %s}",
+		len(s.Shards), len(s.AssemblerHeights), len(s.PrunePoints), s.DurableWatermark,
+		s.Timestamp.Format(time.RFC3339Nano), pendingStr, complaintsStr)
 }
 
 func (s *State) Serialize() []byte {
@@ -190,6 +197,13 @@ func (s *State) Serialize() []byte {
 		PrunePoints:      protoPrunePoints,
 		DurableWatermark: uint64(s.DurableWatermark),
 	}
+	if !s.Timestamp.IsZero() {
+		ts := timestamppb.New(s.Timestamp)
+		if err := ts.CheckValid(); err != nil {
+			panic(fmt.Sprintf("invalid timestamp: %v", err))
+		}
+		protoState.Timestamp = ts
+	}
 
 	buff, err := proto.MarshalOptions{Deterministic: true}.Marshal(protoState)
 	if err != nil {
@@ -199,7 +213,17 @@ func (s *State) Serialize() []byte {
 	return buff
 }
 
+// Deserialize replaces the state with the one encoded in rawBytes. On error, the state is left unchanged.
 func (s *State) Deserialize(rawBytes []byte) error {
+	var decoded State
+	if err := decoded.deserialize(rawBytes); err != nil {
+		return err
+	}
+	*s = decoded
+	return nil
+}
+
+func (s *State) deserialize(rawBytes []byte) error {
 	var ps stateprotos.State
 	if err := proto.Unmarshal(rawBytes, &ps); err != nil {
 		return err
@@ -281,6 +305,17 @@ func (s *State) Deserialize(rawBytes []byte) error {
 	}
 
 	s.DurableWatermark = types.DecisionNum(ps.GetDurableWatermark())
+	s.Timestamp = time.Time{}
+	if ts := ps.GetTimestamp(); ts != nil {
+		if err := ts.CheckValid(); err != nil {
+			return fmt.Errorf("invalid timestamp: %w", err)
+		}
+		// The zero time means unset and is never encoded, so a present one has no meaning.
+		s.Timestamp = ts.AsTime()
+		if s.Timestamp.IsZero() {
+			return errors.New("invalid timestamp: present but zero")
+		}
+	}
 
 	// Load app context - ensure it's never nil, always []byte{} at minimum
 	s.AppContext = []byte{}
@@ -303,12 +338,16 @@ func PrimaryIndex(shard types.ShardID, term uint64, n int) int {
 }
 
 // Process applies the control events of a decision to the state and returns the next state, the batch
-// attestation fragments that reached the threshold, and the config requests. parties are the party IDs
-// of the config in force, sorted by party ID; the thresholds are derived from their number.
-func (s *State) Process(l *flogging.FabricLogger, configSeq types.ConfigSequence, parties []types.PartyID, ces ...ControlEvent) (*State, []types.BatchAttestationFragment, []*ConfigRequest) {
+// attestation fragments that reached the threshold, and the config requests. ts is the agreed time of the
+// decision, recorded in the next state. parties are the party IDs of the config in force, sorted by party
+// ID; the thresholds are derived from their number.
+func (s *State) Process(
+	l *flogging.FabricLogger, configSeq types.ConfigSequence, ts time.Time, parties []types.PartyID, ces ...ControlEvent,
+) (*State, []types.BatchAttestationFragment, []*ConfigRequest) {
 	f, threshold, _ := utils.ComputeFTQ(uint16(len(parties)))
 
 	nextState := s.Clone()
+	nextState.Timestamp = ts.UTC().Round(0)
 
 	filteredCEs, staleConfigBAFs := filterCEsWithDiffConfigSeq(configSeq, l, ces...)
 	nextState.StaleConfigBAFs = staleConfigBAFs

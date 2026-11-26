@@ -9,6 +9,7 @@ package state_test
 import (
 	"math"
 	"testing"
+	"time"
 
 	"github.com/Chaguar/orderer/common/types"
 	"github.com/Chaguar/orderer/common/utils"
@@ -18,6 +19,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 var (
@@ -235,6 +237,7 @@ func TestStateSerializeDeserialize(t *testing.T) {
 					{Shard: 2, Primary: 1, Seq: 5},
 				},
 				DurableWatermark: 7,
+				Timestamp:        time.Unix(1_700_000_000, 123_456_789).UTC(),
 				AppContext:       []byte{1},
 			},
 		},
@@ -270,6 +273,7 @@ func TestStateString(t *testing.T) {
 		Complaints: []consensus_state.Complaint{
 			{ShardTerm: consensus_state.ShardTerm{Shard: 1, Term: 1}, Signer: 2},
 		},
+		Timestamp: time.Unix(42, 0).UTC(),
 	}
 
 	// Test that String() returns a non-empty string
@@ -281,6 +285,7 @@ func TestStateString(t *testing.T) {
 	assert.Contains(t, str, "AssemblerHeights: 0")
 	assert.Contains(t, str, "PrunePoints: 0")
 	assert.Contains(t, str, "DurableWatermark: 0")
+	assert.Contains(t, str, "Timestamp: 1970-01-01T00:00:42Z")
 	assert.Contains(t, str, "Pending: none")
 	assert.Contains(t, str, "Complaints: 1")
 	assert.Contains(t, str, "Complaint: Signer: 2")
@@ -445,7 +450,7 @@ func TestProcessCountsRepeatedBAFOnce(t *testing.T) {
 	baf.SetSignature([]byte{1})
 	ce := consensus_state.ControlEvent{BAF: baf}
 
-	next, extracted, _ := s.Process(logger, 0, testutil.PartyIDs(4), ce, ce)
+	next, extracted, _ := s.Process(logger, 0, time.Time{}, testutil.PartyIDs(4), ce, ce)
 	require.Empty(t, extracted)
 	require.Equal(t, []types.BatchAttestationFragment{baf}, next.Pending)
 }
@@ -510,7 +515,9 @@ func TestProcessSurfacesStaleConfigBAFsBehind(t *testing.T) {
 	twoBehind := bafCE(1, 1, 12, []byte{3}, 2, cur-2, 0, nil) // two behind -> StaleConfigBAFs
 	ahead := bafCE(1, 1, 13, []byte{4}, 2, cur+1, 0, nil)     // ahead -> dropped
 
-	next, extracted, _ := st.Process(logger, cur, testutil.PartyIDs(4), currentBAF, staleOne, twoBehind, ahead)
+	next, extracted, _ := st.Process(
+		logger, cur, time.Time{}, testutil.PartyIDs(4), currentBAF, staleOne, twoBehind, ahead,
+	)
 
 	// exact-match BAF collected into Pending
 	require.Len(t, next.Pending, 1)
@@ -531,7 +538,7 @@ func TestProcessSurfacesStaleConfigBAFsBehind(t *testing.T) {
 
 	// one decision only: a subsequent Process without the stale CEs clears StaleConfigBAFs,
 	// while Pending is unaffected.
-	next2, _, _ := next.Process(logger, cur, testutil.PartyIDs(4))
+	next2, _, _ := next.Process(logger, cur, time.Time{}, testutil.PartyIDs(4))
 	assert.Empty(t, next2.StaleConfigBAFs)
 	assert.Len(t, next2.Pending, 1)
 }
@@ -816,7 +823,7 @@ func TestProcessRotatesOnlyTheEquivocatingPrimary(t *testing.T) {
 	st := &consensus_state.State{Shards: []consensus_state.ShardTerm{{Shard: 1, Term: 0}}}
 
 	// Primary 2 signs two batches for seq 1 and sends them to different secondaries.
-	st, _, _ = st.Process(logger, 0, parties,
+	st, _, _ = st.Process(logger, 0, time.Time{}, parties,
 		bafCE(1, 2, 1, []byte{1}, 3, 0, 0, nil),
 		bafCE(1, 2, 1, []byte{2}, 4, 0, 0, nil))
 	require.Equal(t, uint64(1), st.Shards[0].Term)
@@ -824,29 +831,29 @@ func TestProcessRotatesOnlyTheEquivocatingPrimary(t *testing.T) {
 
 	// Decisions without new evidence leave the term alone, though the evidence is still pending.
 	for range 5 {
-		st, _, _ = st.Process(logger, 0, parties)
+		st, _, _ = st.Process(logger, 0, time.Time{}, parties)
 	}
 	assert.Equal(t, uint64(1), st.Shards[0].Term)
 	assert.Len(t, st.Pending, 2)
 
 	// A third digest for the same batch is more evidence against party 2, which is no longer primary.
-	st, _, _ = st.Process(logger, 0, parties, bafCE(1, 2, 1, []byte{3}, 5, 0, 0, nil))
+	st, _, _ = st.Process(logger, 0, time.Time{}, parties, bafCE(1, 2, 1, []byte{3}, 5, 0, 0, nil))
 	assert.Equal(t, uint64(1), st.Shards[0].Term)
 
 	// Neither is a conflict for another seq that party 2 forked before it was rotated out.
-	st, _, _ = st.Process(logger, 0, parties,
+	st, _, _ = st.Process(logger, 0, time.Time{}, parties,
 		bafCE(1, 2, 2, []byte{4}, 3, 0, 0, nil),
 		bafCE(1, 2, 2, []byte{5}, 4, 0, 0, nil))
 	assert.Equal(t, uint64(1), st.Shards[0].Term)
 
 	// Party 5 was never primary, so a conflict it signed with a colluding secondary is ignored.
-	st, _, _ = st.Process(logger, 0, parties,
+	st, _, _ = st.Process(logger, 0, time.Time{}, parties,
 		bafCE(1, 5, 1, []byte{6}, 6, 0, 0, nil),
 		bafCE(1, 5, 1, []byte{7}, 6, 0, 0, nil))
 	assert.Equal(t, uint64(1), st.Shards[0].Term)
 
 	// An equivocation by the current primary, party 3, rotates the shard.
-	st, _, _ = st.Process(logger, 0, parties,
+	st, _, _ = st.Process(logger, 0, time.Time{}, parties,
 		bafCE(1, 3, 1, []byte{8}, 4, 0, 0, nil),
 		bafCE(1, 3, 1, []byte{9}, 5, 0, 0, nil))
 	assert.Equal(t, uint64(2), st.Shards[0].Term)
@@ -1006,7 +1013,9 @@ func TestProcessRecordsAssemblerReports(t *testing.T) {
 	st := initialState.Clone()
 	st.PrunePoints = []consensus_state.PrunePoint{{Shard: 1, Primary: 2, Seq: 8}}
 
-	next, _, _ := st.Process(logger, cur, testutil.PartyIDs(4), reportCE(1, 20, cur), reportCE(2, 30, cur-1), reportCE(3, 40, cur+1))
+	next, _, _ := st.Process(
+		logger, cur, time.Time{}, testutil.PartyIDs(4), reportCE(1, 20, cur), reportCE(2, 30, cur-1), reportCE(3, 40, cur+1),
+	)
 
 	assert.Equal(t, []consensus_state.AssemblerHeight{{Party: 1, DecisionNum: 20}}, next.AssemblerHeights)
 	assert.Equal(t, []consensus_state.PrunePoint{{Shard: 1, Primary: 2, Seq: 8}}, next.PrunePoints)
@@ -1100,28 +1109,30 @@ func TestProcessAdvancesDurableWatermark(t *testing.T) {
 
 	st := initialState.Clone() // n=4, so 2f+1=3
 
-	st, _, _ = st.Process(logger, 0, testutil.PartyIDs(4), reportCE(1, 10, 0), reportCE(2, 20, 0))
+	st, _, _ = st.Process(logger, 0, time.Time{}, testutil.PartyIDs(4), reportCE(1, 10, 0), reportCE(2, 20, 0))
 	assert.Zero(t, st.DurableWatermark, "two reports are not enough")
 
-	st, _, _ = st.Process(logger, 0, testutil.PartyIDs(4), reportCE(3, 30, 0))
+	st, _, _ = st.Process(logger, 0, time.Time{}, testutil.PartyIDs(4), reportCE(3, 30, 0))
 	assert.Equal(t, types.DecisionNum(10), st.DurableWatermark)
 
-	st, _, _ = st.Process(logger, 0, testutil.PartyIDs(4), reportCE(1, 40, 0), reportCE(1, 15, 0))
+	st, _, _ = st.Process(logger, 0, time.Time{}, testutil.PartyIDs(4), reportCE(1, 40, 0), reportCE(1, 15, 0))
 	assert.Equal(t, types.DecisionNum(20), st.DurableWatermark, "the latest (highest) report of party 1 counts")
 
 	// A reconfiguration removes party 3; with party 4's low report the third highest height drops to 5,
 	// but the watermark does not.
 	st.RetainAssemblerHeights([]types.PartyID{1, 2, 4})
-	st, _, _ = st.Process(logger, 0, testutil.PartyIDs(4), reportCE(4, 5, 0))
+	st, _, _ = st.Process(logger, 0, time.Time{}, testutil.PartyIDs(4), reportCE(4, 5, 0))
 	assert.Equal(t, types.DecisionNum(20), st.DurableWatermark)
 }
 
-func TestStateCloneAssemblerHeightsAndPrunePoints(t *testing.T) {
+func TestStateClone(t *testing.T) {
 	st := initialState.Clone()
 	st.AssemblerHeights = []consensus_state.AssemblerHeight{{Party: 1, DecisionNum: 5}}
 	st.PrunePoints = []consensus_state.PrunePoint{{Shard: 1, Primary: 1, Seq: 3}}
+	st.Timestamp = time.Unix(5, 0)
 
 	clone := st.Clone()
+	assert.Equal(t, st.Timestamp, clone.Timestamp)
 	clone.AssemblerHeights[0].DecisionNum = 6
 	clone.PrunePoints[0].Seq = 4
 
@@ -1189,4 +1200,76 @@ func TestStateDeserializeRejectsOutOfRangePruningFields(t *testing.T) {
 			require.ErrorContains(t, s.Deserialize(raw), "exceeds uint16 maximum")
 		})
 	}
+}
+
+// TestProcessRecordsTimestamp verifies that Process records the decision's timestamp in the next state,
+// also for a decision without control events, and leaves the previous state unchanged. The timestamp is
+// recorded in UTC without a monotonic clock reading, as every node reads it back from the encoding.
+func TestProcessRecordsTimestamp(t *testing.T) {
+	logger := testutil.CreateLogger(t, 0)
+
+	st := initialState.Clone()
+	st.Timestamp = time.Unix(5, 0)
+
+	ts := time.Now() // local time zone, with a monotonic clock reading
+	next, _, _ := st.Process(logger, 0, ts, testutil.PartyIDs(4))
+	require.Equal(t, ts.UTC().Round(0), next.Timestamp)
+	require.Equal(t, time.Unix(5, 0), st.Timestamp)
+}
+
+// TestStateSerializeZeroTimestamp verifies that a zero timestamp is not encoded, so a state without a
+// timestamp serializes to the same bytes as before the field existed.
+func TestStateSerializeZeroTimestamp(t *testing.T) {
+	raw := (&consensus_state.State{}).Serialize()
+	require.Empty(t, raw)
+
+	var st consensus_state.State
+	require.NoError(t, st.Deserialize(raw))
+	require.True(t, st.Timestamp.IsZero())
+}
+
+// TestStateSerializePanicsOnOutOfRangeTimestamp verifies that a state never encodes a timestamp it could
+// not decode.
+func TestStateSerializePanicsOnOutOfRangeTimestamp(t *testing.T) {
+	st := consensus_state.State{Timestamp: time.Date(10000, 1, 1, 0, 0, 0, 0, time.UTC)}
+	require.Panics(t, func() { st.Serialize() })
+}
+
+// TestStateDeserializeRejectsInvalidTimestamp verifies that a state whose timestamp is out of range, or is
+// present but holds the zero time that means unset, does not deserialize.
+func TestStateDeserializeRejectsInvalidTimestamp(t *testing.T) {
+	tests := map[string]*timestamppb.Timestamp{
+		"nanos out of range": {Nanos: 1_000_000_000},
+		"zero time":          timestamppb.New(time.Time{}),
+	}
+	for name, ts := range tests {
+		t.Run(name, func(t *testing.T) {
+			raw, err := proto.Marshal(&stateprotos.State{Timestamp: ts})
+			require.NoError(t, err)
+
+			var st consensus_state.State
+			require.ErrorContains(t, st.Deserialize(raw), "invalid timestamp")
+		})
+	}
+}
+
+// TestStateDeserializeErrorLeavesStateUnchanged verifies that a failed deserialization does not modify
+// the receiver.
+func TestStateDeserializeErrorLeavesStateUnchanged(t *testing.T) {
+	newState := func() consensus_state.State {
+		return consensus_state.State{
+			Shards:           []consensus_state.ShardTerm{{Shard: 1, Term: 2}},
+			DurableWatermark: 3,
+			AppContext:       []byte{4},
+		}
+	}
+	raw, err := proto.Marshal(&stateprotos.State{
+		Shards:    []*stateprotos.ShardTerm{{Shard: 5, Term: 6}},
+		Timestamp: &timestamppb.Timestamp{Nanos: 1_000_000_000},
+	})
+	require.NoError(t, err)
+
+	st := newState()
+	require.Error(t, st.Deserialize(raw))
+	require.Equal(t, newState(), st)
 }
