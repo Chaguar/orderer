@@ -12,6 +12,7 @@ import (
 	"testing"
 
 	cl "github.com/Chaguar/orderer/common/ledger"
+	"github.com/Chaguar/orderer/common/ledger/blkstorage"
 	"github.com/Chaguar/orderer/common/ledger/blockledger"
 
 	"github.com/Chaguar/common/protoutil"
@@ -62,6 +63,7 @@ type mockBlockStore struct {
 	defaultError               error
 	getBlockchainInfoError     error
 	retrieveBlockByNumberError error
+	prunedBefore               uint64
 }
 
 func (mbs *mockBlockStore) AddBlock(block *cb.Block) error {
@@ -81,6 +83,11 @@ func (mbs *mockBlockStore) RetrieveBlockByNumber(blockNum uint64) (*cb.Block, er
 }
 
 func (*mockBlockStore) Shutdown() {
+}
+
+func (mbs *mockBlockStore) PruneBefore(blockNum uint64) error {
+	mbs.prunedBefore = blockNum
+	return mbs.defaultError
 }
 
 type mockBlockStoreIterator struct {
@@ -305,4 +312,41 @@ func getSampleEnvelopeWithSignatureHeader() *cb.Envelope {
 	payload := &cb.Payload{Header: header}
 	payloadBytes := protoutil.MarshalOrPanic(payload)
 	return &cb.Envelope{Payload: payloadBytes}
+}
+
+// Scenario:
+//  1. Append a block to a ledger holding a genesis block, so it holds two.
+//  2. Call PruneBefore(1).
+//  3. Expect block 0 to be refused with ErrPruned and block 1 to be returned.
+//  4. Expect Height to stay 2.
+func TestPruneBefore(t *testing.T) {
+	tev, fl := initialize(t)
+	defer tev.tearDown()
+
+	envs := []*cb.Envelope{getSampleEnvelopeWithSignatureHeader()}
+	require.NoError(t, fl.Append(blockledger.CreateNextBlock(fl, envs)))
+	require.Equal(t, uint64(2), fl.Height())
+
+	require.NoError(t, fl.PruneBefore(1))
+
+	_, err := fl.RetrieveBlockByNumber(0)
+	require.ErrorIs(t, err, blkstorage.ErrPruned)
+
+	block, err := fl.RetrieveBlockByNumber(1)
+	require.NoError(t, err)
+	require.Equal(t, uint64(1), block.Header.Number)
+
+	require.Equal(t, uint64(2), fl.Height())
+}
+
+// Scenario:
+//  1. Call PruneBefore on a ledger whose block store returns an error.
+//  2. Expect the error to be returned rather than swallowed, and the requested block number to have reached
+//     the store.
+func TestPruneBeforeError(t *testing.T) {
+	store := &mockBlockStore{defaultError: errors.New("no pruning today")}
+	fl := &FileLedger{blockStore: store, signal: make(chan struct{})}
+
+	require.ErrorContains(t, fl.PruneBefore(7), "no pruning today")
+	require.Equal(t, uint64(7), store.prunedBefore)
 }
