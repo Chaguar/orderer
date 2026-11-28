@@ -8,6 +8,7 @@ package consensus_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Chaguar/common/protoutil"
 	arma_types "github.com/Chaguar/orderer/common/types"
@@ -452,6 +453,25 @@ func TestVerifyCommonBlockAcceptsExtraMetadata(t *testing.T) {
 	configBlock.Metadata.Metadata = append(configBlock.Metadata.Metadata, []byte{})
 	nilConfigReq := arma_types.BatchedRequests([][]byte{nil})
 	require.NoError(t, node_consensus.VerifyConfigCommonBlock(configBlock, 0, nil, nilConfigReq.Digest(), 0, 0, 0, 0))
+}
+
+func TestNextDecisionTime(t *testing.T) {
+	prev := time.Unix(100, 0).UTC()
+
+	for _, tst := range []struct {
+		name      string
+		prev, now time.Time
+		want      time.Time
+	}{
+		{name: "clock ahead", prev: prev, now: prev.Add(time.Second), want: prev.Add(time.Second)},
+		{name: "clock equal", prev: prev, now: prev, want: prev.Add(time.Nanosecond)},
+		{name: "clock behind", prev: prev, now: prev.Add(-time.Second), want: prev.Add(time.Nanosecond)},
+		{name: "no previous time", prev: time.Time{}, now: time.Unix(5, 0).UTC(), want: time.Unix(5, 0).UTC()},
+	} {
+		t.Run(tst.name, func(t *testing.T) {
+			require.Equal(t, tst.want, node_consensus.NextDecisionTime(tst.prev, tst.now))
+		})
+	}
 }
 
 func requestsDigest(reqs [][]byte) []byte {

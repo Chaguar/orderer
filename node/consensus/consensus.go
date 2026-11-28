@@ -535,9 +535,16 @@ func (c *Consensus) VerifyProposal(proposal smartbft_types.Proposal) ([]smartbft
 		c.lock.Unlock()
 		return nil, fmt.Errorf("verification sequence changed from %d to %d while verifying the proposal", verificationSeq, currentSeq)
 	}
+	// Validators only require the leader's time to increase; they don't compare it with their own clock.
+	if !hdr.State.Timestamp.After(c.State.Timestamp) {
+		prevTimestamp := c.State.Timestamp
+		c.lock.Unlock()
+		return nil, fmt.Errorf("proposed timestamp %s is not after the previous decision's %s",
+			hdr.State.Timestamp.Format(time.RFC3339Nano), prevTimestamp.Format(time.RFC3339Nano))
+	}
 	parties := c.parties()
 	computedState, attestations, configRequests := c.Arma.SimulateStateTransition(
-		c.State, arma_types.ConfigSequence(verificationSeq), c.State.Timestamp, parties, requests,
+		c.State, arma_types.ConfigSequence(verificationSeq), hdr.State.Timestamp, parties, requests,
 	)
 	if configRequests != nil {
 		if computedState, err = c.ConfigApplier.ApplyConfigToState(computedState, configRequests[0], parties); err != nil {
@@ -1008,8 +1015,9 @@ func (c *Consensus) AssembleProposal(metadata []byte, requests [][]byte) smartbf
 	c.lock.Lock()
 	parties := c.parties()
 	verificationSeq := c.VerificationSequence() // the proposal carries the sequence its state was computed with
+	ts := NextDecisionTime(c.State.Timestamp, time.Now())
 	newState, attestations, configRequests := c.Arma.SimulateStateTransition(
-		c.State, arma_types.ConfigSequence(verificationSeq), c.State.Timestamp, parties, requests,
+		c.State, arma_types.ConfigSequence(verificationSeq), ts, parties, requests,
 	)
 	if configRequests != nil {
 		var err error

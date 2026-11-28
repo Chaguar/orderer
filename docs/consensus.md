@@ -220,23 +220,24 @@ node is soft-stopped.
 ### 3.2 The Deterministic State Machine
 
 The state machine's core is a single pure function that takes the current state, the configuration
-sequence in force, and the newly-ordered control events, and returns the next state together with the
-fragments and configuration requests that became decided. It never mutates the current state; it
-clones it and returns a successor, so a proposal can be simulated and verified before it is committed.
-It runs the following steps, in this order:
+sequence in force, the decision's agreed time, and the newly-ordered control events, and returns the
+next state together with the fragments and configuration requests that became decided. It never mutates
+the current state; it clones it and returns a successor, so a proposal can be simulated and verified
+before it is committed. It runs the following steps, in this order:
 
 ```
-Process(state, configSeq, ces):
+Process(state, configSeq, ts, ces):
 1  next ← state.Clone();
-2  ces  ← keep BAFs/complaints whose configSeq matches, and config requests whose configSeq is next;
-3  next.dropPendingEventsWithStaleConfigSeq(configSeq);
-4  next.collectAndDeduplicate(ces);        // append new BAFs to Pending, complaints to Complaints
-5  next.detectEquivocation();              // conflicting digests for one batch → rotate that primary
-6  next.rotatePrimariesOnComplaints();     // ≥ threshold complaints for a shard → rotate its primary
-7  next.cleanupStaleComplaints();          // discard complaints below a shard's current term
-8  bafs    ← next.extractAttestations();   // digests that reached threshold → decided; clear Pending
-9  cfgReqs ← extractConfigRequests(ces);
-10 return next, bafs, cfgReqs;
+2  next.timestamp ← ts;                    // the decision's agreed time
+3  ces  ← keep BAFs/complaints whose configSeq matches, and config requests whose configSeq is next;
+4  next.dropPendingEventsWithStaleConfigSeq(configSeq);
+5  next.collectAndDeduplicate(ces);        // append new BAFs to Pending, complaints to Complaints
+6  next.detectEquivocation();              // conflicting digests for one batch → rotate that primary
+7  next.rotatePrimariesOnComplaints();     // ≥ threshold complaints for a shard → rotate its primary
+8  next.cleanupStaleComplaints();          // discard complaints below a shard's current term
+9  bafs    ← next.extractAttestations();   // digests that reached threshold → decided; clear Pending
+10 cfgReqs ← extractConfigRequests(ces);
+11 return next, bafs, cfgReqs;
 ```
 
 Everything about this is deterministic: events are deduplicated on stable keys, shards and batches are
@@ -306,6 +307,11 @@ empty block data — the payload stays in the batchers — and a header whose da
 digest, which is what later binds the ordered metadata to the payload an assembler fetches. Into each
 block's metadata the consenter writes its **ordering information**: the decision number, the block's
 index within the decision, and the number of blocks in the decision.
+
+The snapshot carries the decision's agreed time. The leader takes its own clock, or one nanosecond
+after the previous decision's time if its clock is not ahead of it, so decision times strictly
+increase. A validator rejects a proposal whose time is not after the previous decision's, without
+consulting its own clock, and otherwise computes the state with the proposed time.
 
 On delivery the consenter records the decided batch digests in the BADB, writes the composite
 signatures into the decision block, and appends that block to the consensus ledger. One decision thus
